@@ -45,6 +45,13 @@ bool SNMPRequest::parseFrom(unsigned char* buf){
     }
     SNMPPacket = new ComplexType(STRUCTURE);
     SNMPPacket->fromBuffer(buf);
+
+    if (SNMPPacket->getLength() <= 30)
+	{
+		Serial.print("SNMP packet too short, needs to be > 30. Received only: ");
+		Serial.println(SNMPPacket->getLength());
+		return false;
+	}
     // we now have a full ASN.1 packet in SNMPPacket
     ValuesList* cursor = SNMPPacket->_values;
     ValuesList* tempCursor;
