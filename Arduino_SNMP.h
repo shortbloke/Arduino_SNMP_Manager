@@ -91,6 +91,8 @@ typedef enum {
 } SNMP_PERMISSION;
 
 #include "SNMPTrap.h"
+#include "SNMPGet.h"
+#include "SNMPGetResponse.h"
 
 class SNMPAgent {
     public:
@@ -125,9 +127,11 @@ class SNMPAgent {
         ValueCallback* addCounter64Handler(char* oid, uint64_t* value, bool overwritePrefix = false);
         ValueCallback* addCounter32Handler(char* oid, uint32_t* value, bool overwritePrefix = false);
         ValueCallback* addGuageHandler(char* oid, uint32_t* value, bool overwritePrefix);
-
+        
         bool setUDP(UDP* udp);
         bool begin();
+		// MFR: Do we need this? SNMP Manager
+		bool beginMaster();
         bool begin(char*);
         bool loop();
         char oidPrefix[40];
@@ -149,7 +153,7 @@ class SNMPAgent {
     private:
         bool sort_oid(char*, char*);
         unsigned char _packetBuffer[SNMP_PACKET_LENGTH*3];
-        bool inline receivePacket(int length);
+		bool inline receivePacket(int length);
         SNMPOIDResponse* generateErrorResponse(ERROR_STATUS error, char* oid){
             SNMPOIDResponse* errorResponse = new SNMPOIDResponse();
             errorResponse->oid = new OIDType(oid);
@@ -173,6 +177,13 @@ bool SNMPAgent::begin(){
     _udp->begin(161);
 }
 
+
+// MFR: Do we need this, we don't use 162?
+bool SNMPAgent::beginMaster() {
+	if (!_udp) return false;
+	_udp->begin(162);
+}
+
 bool SNMPAgent::begin(char* prefix){
     strncpy(oidPrefix, prefix, 40);
     return this->begin();
@@ -182,214 +193,291 @@ bool SNMPAgent::loop(){
     if(!_udp){
         return false;
     }
-    receivePacket(_udp->parsePacket());
+	receivePacket(_udp->parsePacket());
 }
 
 bool inline SNMPAgent::receivePacket(int packetLength){
     if(!packetLength) return false;
-//    Serial.print("Received from: ");Serial.print(packetLength);Serial.print(" ");Serial.println(_udp->remoteIP());
-   if(packetLength < 0 || packetLength > SNMP_PACKET_LENGTH){
-       Serial.println("dropping packet");
-       return false;
-   }
+    // Serial.print("Received from: ");Serial.print(packetLength);Serial.print(" ");Serial.println(_udp->remoteIP());
+    if(packetLength < 0 || packetLength > SNMP_PACKET_LENGTH){
+        Serial.println("dropping packet");
+        return false;
+    }
     memset(_packetBuffer, 0, SNMP_PACKET_LENGTH*3);
     int len = packetLength;
-//    int len = _udp->read(_packetBuffer, SNMP_PACKET_LENGTH);
+    // int len = _udp->read(_packetBuffer, SNMP_PACKET_LENGTH);
     _udp->read(_packetBuffer, MIN(len, SNMP_PACKET_LENGTH));
-//     for(int i = 0; i < len; i++){
-//         _packetBuffer[i] = _udp->read();
-// //        Serial.print(_packetBuffer[i], HEX);
-// //        Serial.print(" ");
-//     }
+    // for(int i = 0; i < len; i++){
+    //     _packetBuffer[i] = _udp->read();
+    //     Serial.print(_packetBuffer[i], HEX);
+    //     Serial.print(" ");
+    // }
     // Serial.println(len);
-    _udp->flush();
-    _packetBuffer[len] = 0;
-//    Serial.println(_packetBuffer);
+	_udp->flush();
+	_packetBuffer[len] = 0;
+    // Serial.println(_packetBuffer);
     SNMPRequest* snmprequest = new SNMPRequest();
+
     if(snmprequest->parseFrom(_packetBuffer)){
-        
-        // check version and community
-
-        SNMP_PERMISSION requestPermission = SNMP_PERM_NONE;
-
-
-        if(_readOnlyCommunity != 0 && strcmp(_readOnlyCommunity, snmprequest->communityString) == 0) { // snmprequest->version != 1
-            requestPermission = SNMP_PERM_READ_ONLY;
-        }
-
-        if(strcmp(_community, snmprequest->communityString) == 0) { // snmprequest->version != 1
-            requestPermission = SNMP_PERM_READ_WRITE;
-        }
-
-        if(requestPermission == SNMP_PERM_NONE){
-            Serial.println(F("Invalid permissions"));
-            delete snmprequest;
-            return false;
-        }
-        
-        SNMPResponse* response = new SNMPResponse();
-        response->requestID = snmprequest->requestID;
-        response->version = snmprequest->version - 1;
-        strncpy(response->communityString, snmprequest->communityString, 15);
-        int varBindIndex = 1;
-        snmprequest->varBindsCursor = snmprequest->varBinds;
-        while(true){
-            //Serial.print("OID: ");//Serial.println(snmprequest->varBindsCursor->value->oid->_value);
-            
-            // Deal with OID request here:
-            bool walk = false;
-            if(snmprequest->requestType == GetNextRequestPDU){
-                walk = true;
-            }
-            ValueCallback* callback = findCallback(snmprequest->varBindsCursor->value->oid->_value, walk);
-            if(callback){ // this is where we deal with the response varbind
-                SNMPOIDResponse* OIDResponse = new SNMPOIDResponse();
-                OIDResponse->errorStatus = (ERROR_STATUS)0;
-                
-                memset(OIDBuf, 0, 50);
-                if(!callback->overwritePrefix){
-                    strcat(OIDBuf, oidPrefix);
+        Serial.printf("Current heap size: %u\n", ESP.getFreeHeap());
+        // SNMP Manager
+        if(snmprequest->requestType == GetResponsePDU){
+            SNMPGetRespose* snmpgetresponse = new SNMPGetRespose();
+            if (snmpgetresponse->parseFrom(_packetBuffer)){
+                if (snmpgetresponse->version != 1 || strcmp(_community, snmpgetresponse->communityString) != 0){
+                    Serial.println(F("Invalid community or version"));
                 }
-                
-                strcat(OIDBuf, callback->OID);
-                
-                OIDResponse->oid = new OIDType(OIDBuf);
-                OIDResponse->type = callback->type;
-                
-                // TODO: this whole thing needs better flow: proper checking for errors etc.
-                
-                if(snmprequest->requestType == SetRequestPDU){
-                    // settable data..
-                    if(callback->isSettable){
-                        if(requestPermission == SNMP_PERM_READ_ONLY){ // community is readOnly
-                            Serial.println(F("READONLY COMMUNITY USED")); 
-                            SNMPOIDResponse* errorResponse = generateErrorResponse(NO_ACCESS, snmprequest->varBindsCursor->value->oid->_value);
-                            response->addErrorResponse(errorResponse, varBindIndex);
-                        } else {
-                            if(callback->type != snmprequest->varBindsCursor->value->type){
-                                // wrong data type to set..
-                                // BAD_VALUE
-                                Serial.println(F("VALUE-TYPE DOES NOT MATCH")); 
-                                SNMPOIDResponse* errorResponse = generateErrorResponse(BAD_VALUE, snmprequest->varBindsCursor->value->oid->_value);
-                                response->addErrorResponse(errorResponse, varBindIndex);
-                            } else {
-                                // actually set it
-                                switch(callback->type){
-                                    case STRING:
-                                        {
-                                            memcpy(*((StringCallback*)callback)->value, String(((OctetType*)snmprequest->varBindsCursor->value->value)->_value).c_str(), 32);// FIXME: this is VERY dangerous, i'm assuming the length of the source char*, this needs to change. for some reason strncpy didnd't work, need to look into this. the '25' also needs to be defined somewhere so this won't break;
-                                            *(*((StringCallback*)callback)->value + 31) = 0x0; // close off the dest string, temporary
-                                            OctetType* value = new OctetType(*((StringCallback*)callback)->value);
-                                            OIDResponse->value = value;
-                                            setOccurred = true;
-                                        }
-                                    break;
-                                    case INTEGER:
-                                        {
-                                            IntegerType* value = new IntegerType();
-                                            if(!((IntegerCallback*)callback)->isFloat){
-                                                *(((IntegerCallback*)callback)->value) = ((IntegerType*)snmprequest->varBindsCursor->value->value)->_value;
-                                                value->_value = *(((IntegerCallback*)callback)->value);
-                                            } else {
-                                                *(((IntegerCallback*)callback)->value) = (float)(((IntegerType*)snmprequest->varBindsCursor->value->value)->_value / 10);
-                                                value->_value = *(float*)(((IntegerCallback*)callback)->value) * 10;
-                                            }
-                                            OIDResponse->value = value;
-                                            setOccurred = true;
-                                        }
-                                    break;
+                int varBindIndex = 1;
+                snmpgetresponse->varBindsCursor = snmpgetresponse->varBinds;
+                while (true){
+                    //Serial.print("OID: ");Serial.println(snmpgetresponse->varBindsCursor->value->oid->_value);
+                    ValueCallback* callback = findCallback(snmpgetresponse->varBindsCursor->value->oid->_value, false);
+                    if (callback->isSettable){
+                        if (callback->type != snmpgetresponse->varBindsCursor->value->type){
+                            // wrong data type to set..
+                            // BAD_VALUE
+                            Serial.println(F("GetResponsePDU: VALUE-TYPE DOES NOT MATCH"));
+                            Serial.print("Callback Type: "); Serial.print(callback->type);Serial.print(" Is not of Type: ");Serial.println(snmpgetresponse->varBindsCursor->value->type);
+                        }
+                        switch (callback->type){
+					        case STRING:
+					            {
+                                    memcpy(*((StringCallback*)callback)->value, String(((OctetType*)snmpgetresponse->varBindsCursor->value->value)->_value).c_str(), 25);// FIXME: this is VERY dangerous, i'm assuming the length of the source char*, this needs to change. for some reason strncpy didnd't work, need to look into this. the '25' also needs to be defined somewhere so this won't break;
+                                    *(*((StringCallback*)callback)->value + 24) = 0x0; // close off the dest string, temporary
+                                    OctetType* value = new OctetType(*((StringCallback*)callback)->value);
+                                    //Serial.print("STR value: ");
+                                    //	Serial.println(value);
+                                    delete value;
+                                    setOccurred = true;
+					            }
+                            break;
+					        case INTEGER:
+					            {
+                                    IntegerType* value = new IntegerType();
+                                    if (!((IntegerCallback*)callback)->isFloat) {
+                                        //Serial.println(*(((IntegerCallback*)callback)->value));
+                                        *(((IntegerCallback*)callback)->value) = ((IntegerType*)snmpgetresponse->varBindsCursor->value->value)->_value;
+                                        value->_value = *(((IntegerCallback*)callback)->value);
+                                    }
+                                    else {
+                                        
+                                        *(((IntegerCallback*)callback)->value) = (float)(((IntegerType*)snmpgetresponse->varBindsCursor->value->value)->_value / 10);
+                                        value->_value = *(float*)(((IntegerCallback*)callback)->value) * 10;
+                                    }
+                                    delete value;
+                                    setOccurred = true;
                                 }
-                                response->addResponse(OIDResponse);
-                            }
+                            break;
                         }
                     } else {
                         // not settable, send error
-                        Serial.println(F("OID NOT SETTABLE")); 
-                        SNMPOIDResponse* errorResponse = generateErrorResponse(READ_ONLY, snmprequest->varBindsCursor->value->oid->_value);
-                        response->addErrorResponse(errorResponse, varBindIndex);
+					    Serial.println(F("OID NOT SETTABLE"));
                     }
-                } else if(snmprequest->requestType == GetRequestPDU || snmprequest->requestType == GetNextRequestPDU){
-                
-                    if(callback->type == INTEGER){
-                        IntegerType* value = new IntegerType();
-                        if(!((IntegerCallback*)callback)->isFloat){
-                            value->_value = *(((IntegerCallback*)callback)->value);
-                        } else {
-                            value->_value = *(float*)(((IntegerCallback*)callback)->value) * 10;
-                        }
-                        OIDResponse->value = value;
-                    } else if(callback->type == STRING){
-                        OctetType* value = new OctetType(*((StringCallback*)callback)->value);
-                        OIDResponse->value = value;
-                    } else if(callback->type == TIMESTAMP){
-                        TimestampType* value = new TimestampType(*(((TimestampCallback*)callback)->value));
-                        OIDResponse->value = value;
-                    } else if(callback->type == OID){
-                        OIDType* value = new OIDType((((OIDCallback*)callback)->value));
-                        OIDResponse->value = value;
-                    } else if(callback->type == COUNTER64){
-                        Counter64* value = new Counter64(*((Counter64Callback*)callback)->value);
-                        OIDResponse->value = value;
-                    } else if(callback->type == COUNTER32){
-                        Counter32* value = new Counter32(*((Counter32Callback*)callback)->value);
-                        OIDResponse->value = value;
-                    } else if(callback->type == GUAGE32){
-                        Guage* value = new Guage(*((Guage32Callback*)callback)->value);
-                        OIDResponse->value = value;
+                    snmpgetresponse->varBindsCursor = snmpgetresponse->varBindsCursor->next;
+                    if (!snmpgetresponse->varBindsCursor->value){
+                        break;
                     }
-                    response->addResponse(OIDResponse);
+                    varBindIndex++;
                 }
             } else {
-                // inject a NoSuchObject error
-                Serial.println(F("OID NOT FOUND")); 
-                SNMPOIDResponse* errorResponse = generateErrorResponse(NO_SUCH_NAME, snmprequest->varBindsCursor->value->oid->_value);
-                response->addErrorResponse(errorResponse, varBindIndex);
-               
-            }
-            // -------------------------
-            
-            snmprequest->varBindsCursor = snmprequest->varBindsCursor->next;
-            if(!snmprequest->varBindsCursor->value){
-                break;
-            }
-            varBindIndex++;
-        }
-//        Serial.println("Sending UDP");
-        memset(_packetBuffer, 0, SNMP_PACKET_LENGTH*3);
-        int length = response->serialise(_packetBuffer);
-        if(length <= SNMP_PACKET_LENGTH*2){
-            _udp->beginPacket(_udp->remoteIP(), _udp->remotePort());
-            _udp->write(_packetBuffer, length);
-            if(!_udp->endPacket()){
-                Serial.println(F("COULDN'T SEND PACKET"));
-                for(int i = 0;  i < length; i++){
-                    Serial.print(_packetBuffer[i], HEX);
+                Serial.println(F("CORRUPT PACKET"));
+                VarBindList* tempList = snmpgetresponse->varBinds;
+                while (tempList->next){
+                    delete tempList->value->oid;
+                    delete tempList->value->value;
+                    tempList = tempList->next;
                 }
-                Serial.print(F("Length: "));Serial.println(length);
-                Serial.print(F("Length of incoming: "));Serial.println(len);
-            }
-        } else {
-            Serial.println("dropping packet");
-        }
-        
-        delete response;
-    } else {
-        Serial.println(F("CORRUPT PACKET"));
-        VarBindList* tempList = snmprequest->varBinds;
-        if(tempList){
-            while(tempList->next){
                 delete tempList->value->oid;
                 delete tempList->value->value;
-                tempList = tempList->next;
             }
-            delete tempList->value->oid;
-            delete tempList->value->value;
+            delete snmprequest;
+            delete snmpgetresponse;
+            return true;
         }
-    }
-    delete snmprequest;
+        if(snmprequest->requestType != GetResponsePDU){
 
-//    //Serial.printf("Current heap size: %u\n", ESP.getFreeHeap());
+            // check version and community
+
+            SNMP_PERMISSION requestPermission = SNMP_PERM_NONE;
+
+
+            if(_readOnlyCommunity != 0 && strcmp(_readOnlyCommunity, snmprequest->communityString) == 0) { // snmprequest->version != 1
+                requestPermission = SNMP_PERM_READ_ONLY;
+            }
+
+            if(strcmp(_community, snmprequest->communityString) == 0) { // snmprequest->version != 1
+                requestPermission = SNMP_PERM_READ_WRITE;
+            }
+
+            if(requestPermission == SNMP_PERM_NONE){
+                Serial.println(F("Invalid permissions"));
+                delete snmprequest;
+                return false;
+            }
+            
+            SNMPResponse* response = new SNMPResponse();
+            response->requestID = snmprequest->requestID;
+            response->version = snmprequest->version - 1;
+            strncpy(response->communityString, snmprequest->communityString, 15);
+            int varBindIndex = 1;
+            snmprequest->varBindsCursor = snmprequest->varBinds;
+            while(true){
+                //Serial.print("OID: ");//Serial.println(snmprequest->varBindsCursor->value->oid->_value);
+                
+                // Deal with OID request here:
+                bool walk = false;
+                if(snmprequest->requestType == GetNextRequestPDU){
+                    walk = true;
+                }
+                ValueCallback* callback = findCallback(snmprequest->varBindsCursor->value->oid->_value, walk);
+                if(callback){ // this is where we deal with the response varbind
+                    SNMPOIDResponse* OIDResponse = new SNMPOIDResponse();
+                    OIDResponse->errorStatus = (ERROR_STATUS)0;
+                    
+                    memset(OIDBuf, 0, 50);
+                    if(!callback->overwritePrefix){
+                        strcat(OIDBuf, oidPrefix);
+                    }
+                    
+                    strcat(OIDBuf, callback->OID);
+                    
+                    OIDResponse->oid = new OIDType(OIDBuf);
+                    OIDResponse->type = callback->type;
+                    
+                    // TODO: this whole thing needs better flow: proper checking for errors etc.
+                    
+                    if(snmprequest->requestType == SetRequestPDU){
+                        // settable data..
+                        if(callback->isSettable){
+                            if(requestPermission == SNMP_PERM_READ_ONLY){ // community is readOnly
+                                Serial.println(F("READONLY COMMUNITY USED")); 
+                                SNMPOIDResponse* errorResponse = generateErrorResponse(NO_ACCESS, snmprequest->varBindsCursor->value->oid->_value);
+                                response->addErrorResponse(errorResponse, varBindIndex);
+                            } else {
+                                if(callback->type != snmprequest->varBindsCursor->value->type){
+                                    // wrong data type to set..
+                                    // BAD_VALUE
+                                    Serial.println(F("VALUE-TYPE DOES NOT MATCH")); 
+                                    SNMPOIDResponse* errorResponse = generateErrorResponse(BAD_VALUE, snmprequest->varBindsCursor->value->oid->_value);
+                                    response->addErrorResponse(errorResponse, varBindIndex);
+                                } else {
+                                    // actually set it
+                                    switch(callback->type){
+                                        case STRING:
+                                            {
+                                                memcpy(*((StringCallback*)callback)->value, String(((OctetType*)snmprequest->varBindsCursor->value->value)->_value).c_str(), 32);// FIXME: this is VERY dangerous, i'm assuming the length of the source char*, this needs to change. for some reason strncpy didnd't work, need to look into this. the '25' also needs to be defined somewhere so this won't break;
+                                                *(*((StringCallback*)callback)->value + 31) = 0x0; // close off the dest string, temporary
+                                                OctetType* value = new OctetType(*((StringCallback*)callback)->value);
+                                                OIDResponse->value = value;
+                                                setOccurred = true;
+                                            }
+                                        break;
+                                        case INTEGER:
+                                            {
+                                                IntegerType* value = new IntegerType();
+                                                if(!((IntegerCallback*)callback)->isFloat){
+                                                    *(((IntegerCallback*)callback)->value) = ((IntegerType*)snmprequest->varBindsCursor->value->value)->_value;
+                                                    value->_value = *(((IntegerCallback*)callback)->value);
+                                                } else {
+                                                    *(((IntegerCallback*)callback)->value) = (float)(((IntegerType*)snmprequest->varBindsCursor->value->value)->_value / 10);
+                                                    value->_value = *(float*)(((IntegerCallback*)callback)->value) * 10;
+                                                }
+                                                OIDResponse->value = value;
+                                                setOccurred = true;
+                                            }
+                                        break;
+                                    }
+                                    response->addResponse(OIDResponse);
+                                }
+                            }
+                        } else {
+                            // not settable, send error
+                            Serial.println(F("OID NOT SETTABLE")); 
+                            SNMPOIDResponse* errorResponse = generateErrorResponse(READ_ONLY, snmprequest->varBindsCursor->value->oid->_value);
+                            response->addErrorResponse(errorResponse, varBindIndex);
+                        }
+                    } else if(snmprequest->requestType == GetRequestPDU || snmprequest->requestType == GetNextRequestPDU){
+                    
+                        if(callback->type == INTEGER){
+                            IntegerType* value = new IntegerType();
+                            if(!((IntegerCallback*)callback)->isFloat){
+                                value->_value = *(((IntegerCallback*)callback)->value);
+                            } else {
+                                value->_value = *(float*)(((IntegerCallback*)callback)->value) * 10;
+                            }
+                            OIDResponse->value = value;
+                        } else if(callback->type == STRING){
+                            OctetType* value = new OctetType(*((StringCallback*)callback)->value);
+                            OIDResponse->value = value;
+                        } else if(callback->type == TIMESTAMP){
+                            TimestampType* value = new TimestampType(*(((TimestampCallback*)callback)->value));
+                            OIDResponse->value = value;
+                        } else if(callback->type == OID){
+                            OIDType* value = new OIDType((((OIDCallback*)callback)->value));
+                            OIDResponse->value = value;
+                        } else if(callback->type == COUNTER64){
+                            Counter64* value = new Counter64(*((Counter64Callback*)callback)->value);
+                            OIDResponse->value = value;
+                        } else if(callback->type == COUNTER32){
+                            Counter32* value = new Counter32(*((Counter32Callback*)callback)->value);
+                            OIDResponse->value = value;
+                        } else if(callback->type == GUAGE32){
+                            Guage* value = new Guage(*((Guage32Callback*)callback)->value);
+                            OIDResponse->value = value;
+                        }
+                        response->addResponse(OIDResponse);
+                    }
+                } else {
+                    // inject a NoSuchObject error
+                    Serial.println(F("OID NOT FOUND")); 
+                    SNMPOIDResponse* errorResponse = generateErrorResponse(NO_SUCH_NAME, snmprequest->varBindsCursor->value->oid->_value);
+                    response->addErrorResponse(errorResponse, varBindIndex);
+                }
+                // -------------------------
+                
+                snmprequest->varBindsCursor = snmprequest->varBindsCursor->next;
+                if(!snmprequest->varBindsCursor->value){
+                    break;
+                }
+                varBindIndex++;
+            }
+            // Serial.println("Sending UDP");
+            memset(_packetBuffer, 0, SNMP_PACKET_LENGTH*3);
+            int length = response->serialise(_packetBuffer);
+            if(length <= SNMP_PACKET_LENGTH*2){
+                _udp->beginPacket(_udp->remoteIP(), _udp->remotePort());
+                _udp->write(_packetBuffer, length);
+                if(!_udp->endPacket()){
+                    Serial.println(F("COULDN'T SEND PACKET"));
+                    for(int i = 0;  i < length; i++){
+                        Serial.print(_packetBuffer[i], HEX);
+                    }
+                    Serial.print(F("Length: "));Serial.println(length);
+                    Serial.print(F("Length of incoming: "));Serial.println(len);
+                } else {
+                    Serial.println("dropping packet");
+                }
+                delete response;
+            } else {
+                Serial.println(F("CORRUPT PACKET"));
+                VarBindList* tempList = snmprequest->varBinds;
+                if(tempList){
+                    while(tempList->next){
+                        delete tempList->value->oid;
+                        delete tempList->value->value;
+                        tempList = tempList->next;
+                    }
+                    delete tempList->value->oid;
+                    delete tempList->value->value;
+                }
+            }
+        }
+        delete snmprequest;
+    }
+    // Serial.printf("Current heap size: %u\n", ESP.getFreeHeap());
 }
+   
+
 
 ValueCallback* SNMPAgent::findCallback(char* oid, bool next){
     bool useNext = false;
@@ -490,6 +578,7 @@ ValueCallback* SNMPAgent::addOIDHandler(char* oid, char* value, bool overwritePr
 ValueCallback* SNMPAgent::addCounter64Handler(char* oid, uint64_t* value, bool overwritePrefix){
     ValueCallback* callback = new Counter64Callback();
     callback->overwritePrefix = overwritePrefix;
+    // if(isSettable) callback->isSettable = true;
     callback->OID = (char*)malloc((sizeof(char) * strlen(oid)) + 1);
     strcpy(callback->OID, oid);
     ((Counter64Callback*)callback)->value = value;
@@ -500,6 +589,7 @@ ValueCallback* SNMPAgent::addCounter64Handler(char* oid, uint64_t* value, bool o
 ValueCallback* SNMPAgent::addCounter32Handler(char* oid, uint32_t* value, bool overwritePrefix){
     ValueCallback* callback = new Counter32Callback();
     callback->overwritePrefix = overwritePrefix;
+    // if(isSettable) callback->isSettable = true;
     callback->OID = (char*)malloc((sizeof(char) * strlen(oid)) + 1);
     strcpy(callback->OID, oid);
     ((Counter32Callback*)callback)->value = value;
@@ -510,6 +600,7 @@ ValueCallback* SNMPAgent::addCounter32Handler(char* oid, uint32_t* value, bool o
 ValueCallback* SNMPAgent::addGuageHandler(char* oid, uint32_t* value, bool overwritePrefix){
     ValueCallback* callback = new Guage32Callback();
     callback->overwritePrefix = overwritePrefix;
+    // if(isSettable) callback->isSettable = true;
     callback->OID = (char*)malloc((sizeof(char) * strlen(oid)) + 1);
     strcpy(callback->OID, oid);
     ((Guage32Callback*)callback)->value = value;
