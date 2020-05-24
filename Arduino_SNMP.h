@@ -126,7 +126,7 @@ class SNMPAgent {
         ValueCallback* addOIDHandler(char* oid, char* value, bool overwritePrefix = false);
         ValueCallback* addCounter64Handler(char* oid, uint64_t* value, bool overwritePrefix = false);
         ValueCallback* addCounter32Handler(char* oid, uint32_t* value, bool isSettable = false, bool overwritePrefix = false);
-        ValueCallback* addGuageHandler(char* oid, uint32_t* value, bool overwritePrefix);
+        ValueCallback* addGuageHandler(char* oid, uint32_t* value, bool isSettable = false, bool overwritePrefix = false);
         
         bool setUDP(UDP* udp);
         bool begin();
@@ -250,8 +250,6 @@ bool inline SNMPAgent::receivePacket(int packetLength){
                                     memcpy(*((StringCallback*)callback)->value, String(((OctetType*)snmpgetresponse->varBindsCursor->value->value)->_value).c_str(), 25);// FIXME: this is VERY dangerous, i'm assuming the length of the source char*, this needs to change. for some reason strncpy didnd't work, need to look into this. the '25' also needs to be defined somewhere so this won't break;
                                     *(*((StringCallback*)callback)->value + 24) = 0x0; // close off the dest string, temporary
                                     OctetType* value = new OctetType(*((StringCallback*)callback)->value);
-                                    //Serial.print("STR value: ");
-                                    //	Serial.println(value);
                                     delete value;
                                     setOccurred = true;
 					            }
@@ -260,12 +258,10 @@ bool inline SNMPAgent::receivePacket(int packetLength){
 					            {
                                     IntegerType* value = new IntegerType();
                                     if (!((IntegerCallback*)callback)->isFloat) {
-                                        //Serial.println(*(((IntegerCallback*)callback)->value));
                                         *(((IntegerCallback*)callback)->value) = ((IntegerType*)snmpgetresponse->varBindsCursor->value->value)->_value;
                                         value->_value = *(((IntegerCallback*)callback)->value);
                                     }
                                     else {
-                                        
                                         *(((IntegerCallback*)callback)->value) = (float)(((IntegerType*)snmpgetresponse->varBindsCursor->value->value)->_value / 10);
                                         value->_value = *(float*)(((IntegerCallback*)callback)->value) * 10;
                                     }
@@ -280,6 +276,20 @@ bool inline SNMPAgent::receivePacket(int packetLength){
                                     value->_value = *(((Counter32Callback*)callback)->value);
                                     delete value;
                                     setOccurred = true;
+                                }
+                            break;
+                            case GUAGE32:
+                                {
+                                    Guage* value = new Guage();
+                                    *(((Guage32Callback*)callback)->value) = ((Guage*)snmpgetresponse->varBindsCursor->value->value)->_value;
+                                    value->_value = *(((Guage32Callback*)callback)->value);
+                                    delete value;
+                                    setOccurred = true;
+                                }
+                            break;
+                            default:
+                                {
+                                    Serial.print("Unsupported Type: ");Serial.print(callback->type);
                                 }
                             break;
                         }
@@ -611,10 +621,10 @@ ValueCallback* SNMPAgent::addCounter32Handler(char* oid, uint32_t* value, bool i
     return callback;
 }
 
-ValueCallback* SNMPAgent::addGuageHandler(char* oid, uint32_t* value, bool overwritePrefix){
+ValueCallback* SNMPAgent::addGuageHandler(char* oid, uint32_t* value, bool isSettable, bool overwritePrefix){
     ValueCallback* callback = new Guage32Callback();
     callback->overwritePrefix = overwritePrefix;
-    // if(isSettable) callback->isSettable = true;
+    if(isSettable) callback->isSettable = true;
     callback->OID = (char*)malloc((sizeof(char) * strlen(oid)) + 1);
     strcpy(callback->OID, oid);
     ((Guage32Callback*)callback)->value = value;
