@@ -194,17 +194,20 @@ bool inline SNMPManager::receivePacket(int packetLength)
                     {
                     case NOSUCHOBJECT:
                     {
-                        Serial.println("No such object");
+                        Serial.print("No such object: ");
+                        Serial.println(snmpgetresponse->varBindsCursor->value->oid->_value);
                     }
                     break;
                     case NOSUCHINSTANCE:
                     {
-                        Serial.println("No such instance");
+                        Serial.print("No such instance: ");
+                        Serial.println(snmpgetresponse->varBindsCursor->value->oid->_value);
                     }
                     break;
                     case ENDOFMIBVIEW:
                     {
-                        Serial.println("End of MIB view");
+                        Serial.print("End of MIB view when calling: ");
+                        Serial.println(snmpgetresponse->varBindsCursor->value->oid->_value);
                     }
                     break;
                     default:
@@ -216,7 +219,6 @@ bool inline SNMPManager::receivePacket(int packetLength)
                     }
                     }
                     delete snmpgetresponse;
-                    delete callback;
                     return false;
                 }
                 switch (callback->type)
