@@ -30,18 +30,14 @@ public:
 
 bool SNMPGetRespose::parseFrom(unsigned char *buf)
 {
-
-	SNMPPacket = new ComplexType(STRUCTURE);
-
 	// confirm that the packet is a STRUCTURE
 	if (buf[0] != 0x30)
 	{
 		isCorrupt = true;
 		return false;
 	}
-
+	SNMPPacket = new ComplexType(STRUCTURE);
 	SNMPPacket->fromBuffer(buf);
-	// Serial.print("DEBUG: SNMPGetResponse length: "); Serial.println(SNMPPacket->getLength());
 	
 	if (SNMPPacket->getLength() <= 30)
 	{
@@ -61,19 +57,16 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 			if (cursor->value->_type == INTEGER)
 			{
 				version = ((IntegerType *)cursor->value)->_value + 1;
-
 				if (!cursor->next)
 				{
 					isCorrupt = true;
 					return false;
 				}
-
 				cursor = cursor->next;
 				EXPECTING = COMMUNITY;
 			}
 			else
 			{
-
 				isCorrupt = true;
 				return false;
 			}
@@ -82,7 +75,6 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 			if (cursor->value->_type == STRING)
 			{
 				communityString = ((OctetType *)cursor->value)->_value;
-
 				if (!cursor->next)
 				{
 					isCorrupt = true;
@@ -93,7 +85,6 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 			}
 			else
 			{
-
 				isCorrupt = true;
 				return false;
 			}
@@ -101,14 +92,13 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 		case PDU:
 			switch (cursor->value->_type)
 			{
-			case GetRequestPDU:
-			case GetNextRequestPDU:
-			case GetResponsePDU:
+			// case GetRequestPDU:
+			// case GetNextRequestPDU:
+			// case GetResponsePDU:
 			case SetRequestPDU:
 				requestType = cursor->value->_type;
 				break;
 			default:
-
 				isCorrupt = true;
 				return false;
 				break;
@@ -130,7 +120,6 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 			}
 			else
 			{
-
 				isCorrupt = true;
 				return false;
 			}
@@ -144,13 +133,11 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 					isCorrupt = true;
 					return false;
 				}
-
 				cursor = cursor->next;
 				EXPECTING = ERRORID;
 			}
 			else
 			{
-
 				isCorrupt = true;
 				return false;
 			}
@@ -164,7 +151,6 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 					isCorrupt = true;
 					return false;
 				}
-
 				cursor = cursor->next;
 				EXPECTING = VARBINDS;
 			}
@@ -178,18 +164,13 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 		case VARBINDS: // we have a varbind structure, lets dive into it.
 			if (cursor->value->_type == STRUCTURE)
 			{
-
 				varBinds = new VarBindList();
-
 				varBindsCursor = varBinds;
-
 				tempCursor = ((ComplexType *)cursor->value)->_values;
-
 				EXPECTING = VARBIND;
 			}
 			else
 			{
-
 				isCorrupt = true;
 				return false;
 			}
@@ -198,40 +179,29 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 			// we need to keep the cursor outside the varbindlist itself so we always have access to the list
 			if (tempCursor->value->_type == STRUCTURE && ((ComplexType *)tempCursor->value)->_values->value->_type == OID)
 			{
-
 				VarBind *varbind = new VarBind();
-
 				varbind->oid = ((OIDType *)((ComplexType *)tempCursor->value)->_values->value);
-
 				//Serial.print("OID: "); Serial.println(varbind->oid->_value);
 				varbind->type = ((ComplexType *)tempCursor->value)->_values->next->value->_type;
-
 				varbind->value = ((ComplexType *)tempCursor->value)->_values->next->value;
-
 				varBindsCursor->value = varbind;
-
 				varBindsCursor->next = new VarBindList();
-
 				if (!tempCursor->next)
 				{
-
 					EXPECTING = DONE;
 				}
 				else
 				{
 					//                        tempCursor = ((ComplexType*)cursor->next->value)->_values;
-
 					tempCursor = tempCursor->next;
 					varBindsCursor = varBindsCursor->next;
 				}
 			}
 			else
 			{
-
 				isCorrupt = true;
 				return false;
 			}
-
 			break;
 		}
 	}
@@ -239,7 +209,6 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 	//Serial.println(xPortGetFreeHeapSize());
 
 	return true;
-	}
 }
 
 #endif
