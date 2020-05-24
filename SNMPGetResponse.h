@@ -39,12 +39,12 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 	SNMPPacket = new ComplexType(STRUCTURE);
 	SNMPPacket->fromBuffer(buf);
 	
-	// if (SNMPPacket->getLength() <= 30)
-	// {
-	// 	Serial.print("SNMP packet too short, needs to be > 30. Received only: ");
-	// 	Serial.println(SNMPPacket->getLength());
-	// 	return false;
-	// }
+	if (SNMPPacket->getLength() <= 30)
+	{
+		Serial.print("SNMP packet too short, needs to be > 30. Received only: ");
+		Serial.println(SNMPPacket->getLength());
+		return false;
+	}
 	// we now have a full ASN.1 packet in SNMPPacket
 	ValuesList *cursor = SNMPPacket->_values;
 	ValuesList *tempCursor;
@@ -181,7 +181,6 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 			{
 				VarBind *varbind = new VarBind();
 				varbind->oid = ((OIDType *)((ComplexType *)tempCursor->value)->_values->value);
-				//Serial.print("OID: "); Serial.println(varbind->oid->_value);
 				varbind->type = ((ComplexType *)tempCursor->value)->_values->next->value->_type;
 				varbind->value = ((ComplexType *)tempCursor->value)->_values->next->value;
 				varBindsCursor->value = varbind;
