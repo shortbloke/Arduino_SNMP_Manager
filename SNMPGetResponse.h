@@ -204,9 +204,6 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 			break;
 		}
 	}
-	//Serial.print("Free Heap Size SNMPRequest::parseFrom: ");
-	//Serial.println(xPortGetFreeHeapSize());
-
 	return true;
 }
 
