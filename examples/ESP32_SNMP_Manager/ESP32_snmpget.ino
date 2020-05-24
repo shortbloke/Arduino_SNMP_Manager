@@ -1,4 +1,4 @@
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 #include <WiFiUdp.h>
 #include <Arduino_SNMP.h>
 
