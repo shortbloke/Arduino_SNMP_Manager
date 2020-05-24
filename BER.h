@@ -286,7 +286,7 @@ class OIDType: public BER_CONTAINER {
             }
             // delay(1);
         }
-        Serial.print("OID: " );Serial.println(_value);
+        // Serial.print("OID: " );Serial.println(_value);
 //        memcpy(_value, buf, _length);
         return true;
     }
