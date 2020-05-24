@@ -125,7 +125,7 @@ class SNMPAgent {
         ValueCallback* addTimestampHandler(char* oid, int* value, bool isSettable = false, bool overwritePrefix = false);
         ValueCallback* addOIDHandler(char* oid, char* value, bool overwritePrefix = false);
         ValueCallback* addCounter64Handler(char* oid, uint64_t* value, bool overwritePrefix = false);
-        ValueCallback* addCounter32Handler(char* oid, uint32_t* value, bool overwritePrefix = false);
+        ValueCallback* addCounter32Handler(char* oid, uint32_t* value, bool isSettable = false, bool overwritePrefix = false);
         ValueCallback* addGuageHandler(char* oid, uint32_t* value, bool overwritePrefix);
         
         bool setUDP(UDP* udp);
@@ -219,7 +219,7 @@ bool inline SNMPAgent::receivePacket(int packetLength){
     SNMPRequest* snmprequest = new SNMPRequest();
 
     if(snmprequest->parseFrom(_packetBuffer)){
-        Serial.printf("Current heap size: %u\n", ESP.getFreeHeap());
+        // Serial.printf("Current heap size: %u\n", ESP.getFreeHeap());
         // SNMP Manager
         if(snmprequest->requestType == GetResponsePDU){
             SNMPGetRespose* snmpgetresponse = new SNMPGetRespose();
@@ -269,6 +269,15 @@ bool inline SNMPAgent::receivePacket(int packetLength){
                                         *(((IntegerCallback*)callback)->value) = (float)(((IntegerType*)snmpgetresponse->varBindsCursor->value->value)->_value / 10);
                                         value->_value = *(float*)(((IntegerCallback*)callback)->value) * 10;
                                     }
+                                    delete value;
+                                    setOccurred = true;
+                                }
+                            break;
+                            case COUNTER32:
+                                {
+                                    Counter32* value = new Counter32();
+                                    *(((Counter32Callback*)callback)->value) = ((Counter32*)snmpgetresponse->varBindsCursor->value->value)->_value;
+                                    value->_value = *(((Counter32Callback*)callback)->value);
                                     delete value;
                                     setOccurred = true;
                                 }
@@ -591,10 +600,10 @@ ValueCallback* SNMPAgent::addCounter64Handler(char* oid, uint64_t* value, bool o
     return callback;
 }
 
-ValueCallback* SNMPAgent::addCounter32Handler(char* oid, uint32_t* value, bool overwritePrefix){
+ValueCallback* SNMPAgent::addCounter32Handler(char* oid, uint32_t* value, bool isSettable, bool overwritePrefix){
     ValueCallback* callback = new Counter32Callback();
     callback->overwritePrefix = overwritePrefix;
-    // if(isSettable) callback->isSettable = true;
+    if(isSettable) callback->isSettable = true;
     callback->OID = (char*)malloc((sizeof(char) * strlen(oid)) + 1);
     strcpy(callback->OID, oid);
     ((Counter32Callback*)callback)->value = value;
