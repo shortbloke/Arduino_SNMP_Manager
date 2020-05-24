@@ -38,7 +38,7 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 	}
 	SNMPPacket = new ComplexType(STRUCTURE);
 	SNMPPacket->fromBuffer(buf);
-	
+
 	if (SNMPPacket->getLength() <= 30)
 	{
 		Serial.print("SNMP packet too short, needs to be > 30. Received only: ");
