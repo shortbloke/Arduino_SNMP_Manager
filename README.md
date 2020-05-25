@@ -20,11 +20,15 @@ The library supports:
 
 ## Usage
 
+### SNMPManager
+
 An SNMPManager object is created for listening (on UDP port 162) to and parsing the SNMP GetResponses. This is initialised with the SNMP community string.
 
 ```cpp
 SNMPManager snmpManager = SNMPManager("public");
 ```
+
+### SNMPGet
 
 An SNMPGet object is created to make SNMP GetRequest calls (from UDP port 161). This is initialised with the SNMP community string and an SNMP version. Note SNMPv1 = 0, SNMPv2 = 1.
 
@@ -32,6 +36,9 @@ An SNMPGet object is created to make SNMP GetRequest calls (from UDP port 161). 
 SNMPGet snmpRequest = SNMPGet("public", 1);
 ```
 
+You can create a single SNMPGet object, and use it for multiple OID requests. However, for increasing the performance you can create multiple objects, for each GetRequest. For example in my environment a request for 5 OID took ~5ms with a single SNMPGet object vs ~3ms with 5 separate objects. For small numbers of requests this isn't going to make a difference, but if you are working with larger numbers, then it maybe useful to experiment with different implementations. 
+
+### Handlers and Callbacks
 The handlers and callbacks for receiving the incoming SNMP GetResponse are configured in `setup()`
 
 ```cpp
@@ -73,6 +80,64 @@ void getSNMP()
 }
 ```
 
+## Working With SNMP Data
+
+### Time Based Measurements
+
+It's important to note that even if you make GetRequests every _n_ seconds, that the response may not arrive in the allotted time period. SNMP responses are often deprioritised by devices when under load. As such your poll interval shouldn't be used for any calculations of time, instead using the devices uptime counter will show the time elapsed between data collections. For example if I want to calculate the bandwidth utilisation of my ADSL connection, then we need to look calculate: `Utilisation = Amount of Data in time period / Max Possible data in time period`
+
+Which can be performed with the following:
+
+```cpp
+// Note: Calculation will be incorrect if inOctets counter has wrapped.
+bandwidthUtilisationPercent = ((float)((inOctets - lastInOctets) * 8) / (float)(downSpeed * ((uptime - lastUptime) / 100)) * 100);
+```
+
+What does this mean? Well lets explain the variables:
+
+- inOctets: (Counter32) ifInOctets (.1.3.6.1.2.1.2.2.1.10.4) - Amount of bytes received on the specified interface, 4 in this example.
+- lastInOctets: Stores the inOctets from the previous poll.
+- downSpeed: (Guage) - The maximum possible download speed in bps (bits per second). This can be measured value from your own speed test, or you might query the interface speed, or in the of (A/V)DSL you might query the sync speed adslAtucChanCurrTxRate (.1.3.6.1.2.1.10.94.1.1.4.1.2.4) again for interface 4.
+- uptime: (TimeTicks) - SysUpTime (.1.3.6.1.2.1.1.3.0) - The time in hundredths of seconds since the device was last reinitialised.
+- lastUptime: Stores the upTime from the previous poll.
+
+This can be broken down as:
+
+- `((inOctets - lastInOctets) * 8)` calculates the delta in data received and converts Bytes to Bits by multiplying by 8.
+- `((uptime - lastUptime) / 100)` calculates the time between two samples and converts it to seconds.
+- `(downSpeed * ((uptime - lastUptime) / 100))` We calculate how much data could have been theoretically received in the elapsed time for a given maximum download speed.
+
+### Counters
+
+When working with SNMP Counters (COUNTER32 or COUNTER64) they can only be used for measuring a change between two values. A device reboot may reset the counter such that the calculating a delta would give an incorrect reading. Or depending on the sample period and the rate of change, the counter can wrap.
+
+#### Counters Wrapping
+
+To compensate for wrapping, you can:
+
+- Poll more frequently, giving less time for the counter to have wrapped. But doing so increased the load on the SNMP agent device and the manager.
+- If the device supports them, then High Capacity (HC) 64bit counters can be used. Note SNMPv1 doesn't support COUNTER64, this is only available in SNMPv2 and later.
+- If the counter has wrapped, you could assert it has only wrapped once in the sample period. For the example for Bandwidth utilisation above we'd need to adjust the formula to correct compensation if we detecect it has wrapped. To calculate the delta in traffic being measured with a COUNTER32 which has is an unsigned integer (maximum value: 4294967295) gives us: `(((4294967295 - lastInOctets) + inOctets) * 8)`
+
+```cpp
+if (inOctets > lastInOctets)
+{
+  // Note: Calculation will be incorrect if inOctets counter has wrapped.
+  bandwidthUtilisationPercent = ((float)((inOctets - lastInOctets) * 8) / (float)(downSpeed * ((uptime - lastUptime) / 100)) * 100);
+}
+else if (lastInOctets > inOctets)
+{
+  // This handles 32bit counters wrapping a maximum of one time.
+  bandwidthUtilisationPercent = (((float)((4294967295 - lastInOctets) + inOctets) * 8) / (float)(downSpeed * ((uptime - lastUptime) / 100)) * 100);
+}
+```
+
+#### Device Reset
+
+To compensate for device reset:
+
+- Monitor SysUptime and if is lower than the previous value, then assume the device has restarted, don't process the data, just store the new counter values and await the next poll to be able to calculate the difference.
+
 ## Examples
 
 The examples folder contains an SNMP GetRequest example for each of the data types. Note that the OID will need to be adapted the device you are querying. To understand what OID your device supports and the data type of each one, I'd recommend walking to the device with standard SNMP tools:
@@ -82,8 +147,8 @@ The examples folder contains an SNMP GetRequest example for each of the data typ
 
 ### Examples folder contents
 
-- [ESP8266_snmpget.ino](examples/ESP8266_SNMP_Manager/ESP8266_snmpget.ino) - ESP8266
-- [ESP32_snmpget.ino](examples/ESP32_SNMP_Manager/ESP32_snmpget.ino) - ESP32
+- [ESP8266_snmpget.ino](examples/ESP8266_SNMP_Manager/ESP8266_SNMP_Manager.ino) - ESP8266
+- [ESP32_snmpget.ino](examples/ESP32_SNMP_Manager/ESP32_SNMP_Manager.ino) - ESP32
 
 ## Tested Devices
 
