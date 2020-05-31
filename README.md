@@ -1,4 +1,4 @@
-# Arduino_SNMP_Manager
+# Arduino SNMP Manager
 
 An SNMP Manager for Arduino and similar MCU. Providing simple SNMP Get-Request support for specified OIDs.
 
@@ -36,9 +36,10 @@ An SNMPGet object is created to make SNMP GetRequest calls (from UDP port 161). 
 SNMPGet snmpRequest = SNMPGet("public", 1);
 ```
 
-You can create a single SNMPGet object, and use it for multiple OID requests. However, for increasing the performance you can create multiple objects, for each GetRequest. For example in my environment a request for 5 OID took ~5ms with a single SNMPGet object vs ~3ms with 5 separate objects. For small numbers of requests this isn't going to make a difference, but if you are working with larger numbers, then it maybe useful to experiment with different implementations. 
+You can create a single SNMPGet object, and use it for multiple OID requests. However, for increasing the performance you can create multiple objects, for each GetRequest. For example in my environment a request for 5 OID took ~5ms with a single SNMPGet object vs ~3ms with 5 separate objects. For small numbers of requests this isn't going to make a difference, but if you are working with larger numbers, then it maybe useful to experiment with different implementations.
 
 ### Handlers and Callbacks
+
 The handlers and callbacks for receiving the incoming SNMP GetResponse are configured in `setup()`
 
 ```cpp
@@ -97,7 +98,7 @@ What does this mean? Well lets explain the variables:
 
 - inOctets: (Counter32) ifInOctets (.1.3.6.1.2.1.2.2.1.10.4) - Amount of bytes received on the specified interface, 4 in this example.
 - lastInOctets: Stores the inOctets from the previous poll.
-- downSpeed: (Guage) - The maximum possible download speed in bps (bits per second). This can be measured value from your own speed test, or you might query the interface speed, or in the of (A/V)DSL you might query the sync speed adslAtucChanCurrTxRate (.1.3.6.1.2.1.10.94.1.1.4.1.2.4) again for interface 4.
+- downSpeed: (Gauge) - The maximum possible download speed in bps (bits per second). This can be measured value from your own speed test, or you might query the interface speed, or in the of (A/V)DSL you might query the sync speed adslAtucChanCurrTxRate (.1.3.6.1.2.1.10.94.1.1.4.1.2.4) again for interface 4.
 - uptime: (TimeTicks) - SysUpTime (.1.3.6.1.2.1.1.3.0) - The time in hundredths of seconds since the device was last reinitialised.
 - lastUptime: Stores the upTime from the previous poll.
 
@@ -117,7 +118,7 @@ To compensate for wrapping, you can:
 
 - Poll more frequently, giving less time for the counter to have wrapped. But doing so increased the load on the SNMP agent device and the manager.
 - If the device supports them, then High Capacity (HC) 64bit counters can be used. Note SNMPv1 doesn't support COUNTER64, this is only available in SNMPv2 and later.
-- If the counter has wrapped, you could assert it has only wrapped once in the sample period. For the example for Bandwidth utilisation above we'd need to adjust the formula to correct compensation if we detecect it has wrapped. To calculate the delta in traffic being measured with a COUNTER32 which has is an unsigned integer (maximum value: 4294967295) gives us: `(((4294967295 - lastInOctets) + inOctets) * 8)`
+- If the counter has wrapped, you could assert it has only wrapped once in the sample period. For the example for Bandwidth utilisation above we'd need to adjust the formula to correct compensation if we detect it has wrapped. To calculate the delta in traffic being measured with a COUNTER32 which has is an unsigned integer (maximum value: 4294967295) gives us: `(((4294967295 - lastInOctets) + inOctets) * 8)`
 
 ```cpp
 if (inOctets > lastInOctets)
@@ -154,12 +155,14 @@ The examples folder contains an SNMP GetRequest example for each of the data typ
 
 The following devices have been confirmed to work with this library:
 
-- WeMos D1 Mini (v3.1) - ESP8266 - [eBay UK](https://www.ebay.co.uk/itm/WeMos-D1-Mini-LATEST-V3-1-UK-Stock-Arduino-NodeMCU-MicroPython-WiFi-ESP8266/112325195239)
+- Wemos D1 Mini (v3.1) - ESP8266 - [eBay UK](https://www.ebay.co.uk/itm/WeMos-D1-Mini-LATEST-V3-1-UK-Stock-Arduino-NodeMCU-MicroPython-WiFi-ESP8266/112325195239)
 - ESP32S Dev Module - [Amazon UK](https://amzn.to/2TAqWZJ)
 
 ## Projects using this library
 
-Contributions welcome
+I'd love to hear about projects that find this library useful.
+
+- [Broadband Utilisation Display](https://github.com/shortbloke/Broadband_Usage_Display)
 
 ## Acknowledgements
 
