@@ -1,6 +1,6 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
-#include <Arduino_SNMP.h>
+#include <Arduino_SNMP_Manager.h>
 
 //************************************
 //* Your WiFi info                   *
