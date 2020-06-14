@@ -161,47 +161,19 @@ void doSNMPCalculations()
   lastUptime = uptime;
   lastInOctets = inOctetsResponse;
 }
+
 void getSNMP()
 {
-  //build a SNMP get-request
+  // Build a SNMP get-request add each OID to the request
   snmpRequest.addOIDPointer(callbackIfSpeed);
-  snmpRequest.setIP(WiFi.localIP()); //IP of the arduino
-  snmpRequest.setUDP(&udp);
-  snmpRequest.setRequestID(rand() % 5555);
-  snmpRequest.sendTo(router);
-  snmpRequest.clearOIDList();
-
   snmpRequest.addOIDPointer(callbackInOctets);
-  snmpRequest.setIP(WiFi.localIP()); //IP of the arduino
-  snmpRequest.setUDP(&udp);
-  snmpRequest.setRequestID(rand() % 5555);
-  snmpRequest.sendTo(router);
-  snmpRequest.clearOIDList();
-
   snmpRequest.addOIDPointer(callbackServices);
-  snmpRequest.setIP(WiFi.localIP()); //IP of the arduino
-  snmpRequest.setUDP(&udp);
-  snmpRequest.setRequestID(rand() % 5555);
-  snmpRequest.sendTo(router);
-  snmpRequest.clearOIDList();
-
   snmpRequest.addOIDPointer(callbackSysName);
-  snmpRequest.setIP(WiFi.localIP()); //IP of the arduino
-  snmpRequest.setUDP(&udp);
-  snmpRequest.setRequestID(rand() % 5555);
-  snmpRequest.sendTo(router);
-  snmpRequest.clearOIDList();
-
   // Only enable if you have an 64 bit counter to query.
   // FIXME: Currently crashes if 64bit counter not found
   //  snmpRequest.addOIDPointer(callback64Counter);
-  //  snmpRequest.setIP(WiFi.localIP()); //IP of the arduino
-  //  snmpRequest.setUDP(&udp);
-  //  snmpRequest.setRequestID(rand() % 5555);
-  //  snmpRequest.sendTo(router);
-  //  snmpRequest.clearOIDList();
-
   snmpRequest.addOIDPointer(callbackUptime);
+
   snmpRequest.setIP(WiFi.localIP()); //IP of the arduino
   snmpRequest.setUDP(&udp);
   snmpRequest.setRequestID(rand() % 5555);

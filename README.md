@@ -36,8 +36,6 @@ An SNMPGet object is created to make SNMP GetRequest calls (from UDP port 161). 
 SNMPGet snmpRequest = SNMPGet("public", 1);
 ```
 
-You can create a single SNMPGet object, and use it for multiple OID requests. However, for increasing the performance you can create multiple objects, for each GetRequest. For example in my environment a request for 5 OID took ~5ms with a single SNMPGet object vs ~3ms with 5 separate objects. For small numbers of requests this isn't going to make a difference, but if you are working with larger numbers, then it maybe useful to experiment with different implementations.
-
 ### Handlers and Callbacks
 
 The handlers and callbacks for receiving the incoming SNMP GetResponse are configured in `setup()`
@@ -80,6 +78,8 @@ void getSNMP()
   }
 }
 ```
+
+You can add multiple OID to be queried in a single request by calling `snmpRequest.addOIDPointer(another_callback);` This approach ensures all the requested OID are returned in the same response. Though I expect there are limits on the maximum packet sizes, so some experimentation may be required with large numbers of OID.
 
 ## Working With SNMP Data
 
