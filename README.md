@@ -162,7 +162,8 @@ The following devices have been confirmed to work with this library:
 
 I'd love to hear about projects that find this library useful.
 
-- [Broadband Utilisation Display](https://github.com/shortbloke/Broadband_Usage_Display)
+- [Broadband Utilisation Display](https://github.com/shortbloke/Broadband_Usage_Display) - An LED display showing broadband upstream and downstream utilisation.
+- [Dekatron-speed](https://github.com/elegantalchemist/dekatron-speed) - Uses a Dekatron (1950s era neon counting tube) spinning based on broadband utilisation rate.
 
 ## Acknowledgements
 
