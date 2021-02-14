@@ -18,6 +18,9 @@ The library supports:
   - Guage32 (Arduino data type: unsigned int)
   - Timestamp (Arduino data type: int)
 
+If you find this useful, consider providing some support:
+
+<a href="https://www.buymeacoffee.com/martinrowan" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
 ## Usage
 
 ### SNMPManager
