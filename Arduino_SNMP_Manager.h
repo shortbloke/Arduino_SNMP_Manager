@@ -98,15 +98,15 @@ public:
 
     ValueCallbacks *callbacks = new ValueCallbacks();
     ValueCallbacks *callbacksCursor = callbacks;
-    ValueCallback *findCallback(IPAddress ip, char *oid);  // Find based on responding host IP address and OID
-    ValueCallback *addFloatHandler(IPAddress ip, char *oid, float *value);
-    ValueCallback *addStringHandler(IPAddress ip, char *, char **); // passing in a pointer to a char*
-    ValueCallback *addIntegerHandler(IPAddress ip, char *oid, int *value);
-    ValueCallback *addTimestampHandler(IPAddress ip, char *oid, int *value);
-    ValueCallback *addOIDHandler(IPAddress ip, char *oid, char *value);           // Not implemented
-    ValueCallback *addCounter64Handler(IPAddress ip, char *oid, uint64_t *value); // Not implemented
-    ValueCallback *addCounter32Handler(IPAddress ip, char *oid, uint32_t *value);
-    ValueCallback *addGuageHandler(IPAddress ip, char *oid, uint32_t *value);
+    ValueCallback *findCallback(IPAddress ip, const char *oid);  // Find based on responding host IP address and OID
+    ValueCallback *addFloatHandler(IPAddress ip, const char *oid, float *value);
+    ValueCallback *addStringHandler(IPAddress ip, const char *, char **); // passing in a pointer to a char*
+    ValueCallback *addIntegerHandler(IPAddress ip, const char *oid, int *value);
+    ValueCallback *addTimestampHandler(IPAddress ip, const char *oid, int *value);
+    ValueCallback *addOIDHandler(IPAddress ip, const char *oid, char *value);           // Not implemented
+    ValueCallback *addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value); // Not implemented
+    ValueCallback *addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value);
+    ValueCallback *addGuageHandler(IPAddress ip, const char *oid, uint32_t *value);
 
     void setUDP(UDP *udp);
     bool begin();
@@ -316,7 +316,7 @@ bool inline SNMPManager::receivePacket(int packetLength)
     return true;
 }
 
-ValueCallback *SNMPManager::findCallback(IPAddress ip, char *oid)
+ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
 {
     callbacksCursor = callbacks;
 
@@ -346,7 +346,7 @@ ValueCallback *SNMPManager::findCallback(IPAddress ip, char *oid)
     return 0;
 }
 
-ValueCallback *SNMPManager::addStringHandler(IPAddress ip, char *oid, char **value)
+ValueCallback *SNMPManager::addStringHandler(IPAddress ip, const char *oid, char **value)
 {
     ValueCallback *callback = new StringCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -357,7 +357,7 @@ ValueCallback *SNMPManager::addStringHandler(IPAddress ip, char *oid, char **val
     return callback;
 }
 
-ValueCallback *SNMPManager::addIntegerHandler(IPAddress ip, char *oid, int *value)
+ValueCallback *SNMPManager::addIntegerHandler(IPAddress ip,const char *oid, int *value)
 {
     ValueCallback *callback = new IntegerCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -369,7 +369,7 @@ ValueCallback *SNMPManager::addIntegerHandler(IPAddress ip, char *oid, int *valu
     return callback;
 }
 
-ValueCallback *SNMPManager::addFloatHandler(IPAddress ip, char *oid, float *value)
+ValueCallback *SNMPManager::addFloatHandler(IPAddress ip, const char *oid, float *value)
 {
     ValueCallback *callback = new IntegerCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -381,7 +381,7 @@ ValueCallback *SNMPManager::addFloatHandler(IPAddress ip, char *oid, float *valu
     return callback;
 }
 
-ValueCallback *SNMPManager::addTimestampHandler(IPAddress ip, char *oid, int *value)
+ValueCallback *SNMPManager::addTimestampHandler(IPAddress ip, const char *oid, int *value)
 {
     ValueCallback *callback = new TimestampCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -392,7 +392,7 @@ ValueCallback *SNMPManager::addTimestampHandler(IPAddress ip, char *oid, int *va
     return callback;
 }
 
-ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, char *oid, char *value)
+ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, const char *oid, char *value)
 {
     ValueCallback *callback = new OIDCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -403,7 +403,7 @@ ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, char *oid, char *value)
     return callback;
 }
 
-ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, char *oid, uint64_t *value)
+ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value)
 {
     ValueCallback *callback = new Counter64Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -414,7 +414,7 @@ ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, char *oid, uint64_
     return callback;
 }
 
-ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, char *oid, uint32_t *value)
+ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value)
 {
     ValueCallback *callback = new Counter32Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -425,7 +425,7 @@ ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, char *oid, uint32_
     return callback;
 }
 
-ValueCallback *SNMPManager::addGuageHandler(IPAddress ip, char *oid, uint32_t *value)
+ValueCallback *SNMPManager::addGuageHandler(IPAddress ip, const char *oid, uint32_t *value)
 {
     ValueCallback *callback = new Guage32Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
