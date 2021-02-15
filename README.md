@@ -12,12 +12,15 @@ The library supports:
   - GetResponse (Decoding the response to the SNMP GetRequest)
 - SNMP Data Types:
   - Integer (Arduino data type: int)
-  - String (Arduino data type: char*)
+  - String (Arduino data type: char*) - NOTE: This doesn't work when querying multiple string OIDs, or strings > 24 characters. See Issue #5
   - Counter32 (Arduino data type: unsigned int)
   - Counter64 (Arduino data type: long long unsigned int)
   - Guage32 (Arduino data type: unsigned int)
   - Timestamp (Arduino data type: int)
 
+If you find this useful, consider providing some support:
+
+<a href="https://www.buymeacoffee.com/martinrowan" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
 ## Usage
 
 ### SNMPManager
@@ -44,8 +47,8 @@ The handlers and callbacks for receiving the incoming SNMP GetResponse are confi
 ValueCallback *callbackSysName;  // Blank Callback for each OID
 void setup()
 {
-    snmpManager.addStringHandler(".1.3.6.1.2.1.1.5.0", &sysNameResponse);  // Handler for SysName
-    callbackSysName = snmpManager.findCallback(".1.3.6.1.2.1.1.5.0");  // Callback for SysName
+    IPAddress target(192, 168, 200, 187);
+    callbackSysName = snmpManager.addStringHandler(target, ".1.3.6.1.2.1.1.5.0", &sysNameResponse);  // Callback for SysName for target host
 }
 ```
 

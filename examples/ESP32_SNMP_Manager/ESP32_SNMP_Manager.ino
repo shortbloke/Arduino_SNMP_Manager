@@ -81,21 +81,13 @@ void setup()
   snmp.setUDP(&udp); // give snmp a pointer to the UDP object
   snmp.begin();      // start the SNMP Manager
 
-  // Create a handler for each of the OID
-  snmp.addGuageHandler(oidIfSpeedGuage, &ifSpeedResponse);
-  snmp.addCounter32Handler(oidInOctetsCount32, &inOctetsResponse);
-  snmp.addIntegerHandler(oidServiceCountInt, &servicesResponse);
-  snmp.addStringHandler(oidSysName, &sysNameResponse);
-  snmp.addCounter64Handler(oid64Counter, &hcCounter);
-  snmp.addTimestampHandler(oidUptime, &uptime);
-
-  // Create the call back ID's for each OID
-  callbackIfSpeed = snmp.findCallback(oidIfSpeedGuage);
-  callbackInOctets = snmp.findCallback(oidInOctetsCount32);
-  callbackServices = snmp.findCallback(oidServiceCountInt);
-  callbackSysName = snmp.findCallback(oidSysName);
-  callback64Counter = snmp.findCallback(oid64Counter);
-  callbackUptime = snmp.findCallback(oidUptime);
+  // Get callbacks from creating a handler for each of the OID
+  callbackIfSpeed = snmp.addGuageHandler(router, oidIfSpeedGuage, &ifSpeedResponse);
+  callbackInOctets= snmp.addCounter32Handler(router, oidInOctetsCount32, &inOctetsResponse);
+  callbackServices = snmp.addIntegerHandler(router, oidServiceCountInt, &servicesResponse);
+  callbackSysName = snmp.addStringHandler(router, oidSysName, &sysNameResponse);
+  callback64Counter = snmp.addCounter64Handler(router, oid64Counter, &hcCounter);
+  callbackUptime = snmp.addTimestampHandler(router, oidUptime, &uptime);
 }
 
 void loop()
