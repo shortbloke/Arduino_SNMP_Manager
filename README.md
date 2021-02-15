@@ -12,7 +12,7 @@ The library supports:
   - GetResponse (Decoding the response to the SNMP GetRequest)
 - SNMP Data Types:
   - Integer (Arduino data type: int)
-  - String (Arduino data type: char*) - NOTE: This doesn't work when querying multiple string OIDs. Issue #5
+  - String (Arduino data type: char*) - NOTE: This doesn't work when querying multiple string OIDs, or strings > 24 characters. See Issue #5
   - Counter32 (Arduino data type: unsigned int)
   - Counter64 (Arduino data type: long long unsigned int)
   - Guage32 (Arduino data type: unsigned int)
