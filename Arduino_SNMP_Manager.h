@@ -397,16 +397,9 @@ ValueCallback *SNMPManager::addTimestampHandler(IPAddress ip, const char *oid, i
     return callback;
 }
 
-<<<<<<< Updated upstream
 ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, const char *oid, char *value)
 {
     ValueCallback *callback = new OIDCallback();
-=======
-<<<<<<< Updated upstream
-ValueCallback *SNMPManager::addOIDHandler(char *oid, char *value)
-=======
-ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, const char *oid, char *value)
->>>>>>> Stashed changes
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
     ((OIDCallback *)callback)->value = value;
     callback->ip = ip;
@@ -414,15 +407,8 @@ ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, const char *oid, char *v
     return callback;
 }
 
-<<<<<<< Updated upstream
+
 ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value)
-=======
-<<<<<<< Updated upstream
-ValueCallback *SNMPManager::addCounter64Handler(char *oid, uint64_t *value)
-=======
-ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value)
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 {
     ValueCallback *callback = new Counter64Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -433,15 +419,7 @@ ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, const char *oid, u
     return callback;
 }
 
-<<<<<<< Updated upstream
 ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value)
-=======
-<<<<<<< Updated upstream
-ValueCallback *SNMPManager::addCounter32Handler(char *oid, uint32_t *value)
-=======
-ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value)
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 {
     ValueCallback *callback = new Counter32Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -452,15 +430,7 @@ ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, const char *oid, u
     return callback;
 }
 
-<<<<<<< Updated upstream
 ValueCallback *SNMPManager::addGuageHandler(IPAddress ip, const char *oid, uint32_t *value)
-=======
-<<<<<<< Updated upstream
-ValueCallback *SNMPManager::addGuageHandler(char *oid, uint32_t *value)
-=======
-ValueCallback *SNMPManager::addGuageHandler(IPAddress ip, const char *oid, uint32_t *value)
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 {
     ValueCallback *callback = new Guage32Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
