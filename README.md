@@ -151,8 +151,8 @@ The examples folder contains an SNMP GetRequest example for each of the data typ
 
 ### Examples folder contents
 
-- [ESP8266_snmpget.ino](examples/ESP8266_SNMP_Manager/ESP8266_SNMP_Manager.ino) - ESP8266
-- [ESP32_snmpget.ino](examples/ESP32_SNMP_Manager/ESP32_SNMP_Manager.ino) - ESP32
+- [ESP32_ESP8266_SNMP_Manager.ino](examples/ESP32_ESP8266_SNMP_Manager/ESP32_ESP8266_SNMP_Manager.ino) - ESP32 or ESP2866 boards
+- [Arduino_Ethernet_SNMP_Manager.ino](examples/Arduino_Ethernet_SNMP_Manager/Arduino_Ethernet_SNMP_Manager.ino) - Arduino Mega with Ethernet Shield
 
 ## Tested Devices
 

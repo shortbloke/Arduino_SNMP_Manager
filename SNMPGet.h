@@ -66,7 +66,7 @@ public:
 		}
 		if (!build())
 		{
-			Serial.println("Failed Building packet..");
+			Serial.println(F("Failed Building packet.."));
 			delete packet;
 			packet = 0;
 			return false;

@@ -37,11 +37,12 @@ typedef enum ASN_TYPE_WITH_VALUE
 
 } ASN_TYPE;
 
-// primitive types inherits straight off the container, complex come off complexType
-// all primitives have to serialise themselves (type, length, data), to be put straight into the packet.
-// for deserialising, from the parent container we check the type, then create anobject of that type and calls deSerialise, passing in the data, which pulls it out and saves, and if complex, first split up it schildren into seperate BERs, then creates and passes them creates a child with it's data using the same process.
-
-// complex types have a linked list of BER_CONTAINERS to hold its' children.
+// Primitive types inherits straight off the container, complex come off complexType.
+// All primitives have to serialise themselves (type, length, data), to be put straight into the packet.
+// For deserialising from the parent container we check the type, then create an object of that type and call deSerialise,
+// passing in the data, which pulls it out and saves it. 
+// If complexType, first split up its children into separate BERs, then passes the child with it's data using the same process.
+// Complex types have a linked list of BER_CONTAINERS to hold its' children.
 
 class BER_CONTAINER
 {
@@ -325,7 +326,6 @@ public:
                 }
                 ptr += sprintf(ptr, ".%d", value);
             }
-            // delay(1);
         }
         // Serial.print("OID: " );Serial.println(_value);
         //        memcpy(_value, buf, _length);
@@ -526,7 +526,7 @@ public:
             }
             buf++;
             i++;
-            // Serial.print("Lenght:");
+            // Serial.print("Length:");
             // Serial.println(valueLength);
             // Serial.println("SUP");
             //            char* newValue = (char*)malloc(sizeof(char) * valueLength + 2);
@@ -559,7 +559,7 @@ public:
             case NULLTYPE:
                 newObj = new NullType();
                 break;
-                // devired
+                // derived
             case NETWORK_ADDRESS:
                 newObj = new NetworkAddress();
                 break;
@@ -604,7 +604,7 @@ public:
         int tempLength = 0;
         while (conductor)
         {
-            //            Serial.print("about to serialise something of type: ");Serial.println(conductor->value->_type, HEX);
+            // Serial.print("about to serialise something of type: ");Serial.println(conductor->value->_type, HEX);
             delay(0);
 
             int length = conductor->value->serialise(ptr);
@@ -615,7 +615,7 @@ public:
         // printf("Length to return: %d\n", actualLength);
         if (actualLength > 127)
         {
-            //            Serial.println("TOO BIG");
+            // Serial.println("TOO BIG");
             // bad, we have to add another byte and shift everything afterwards by 1 >>
             // first byte is 128 + (actualLength / 128)
             // second is actualLength % 128;
@@ -667,7 +667,7 @@ public:
         return _length;
     }
 
-    bool addValueToList(BER_CONTAINER *newObj)
+    void addValueToList(BER_CONTAINER *newObj)
     {
         ValuesList *conductor = _values;
         if (_values != 0)

@@ -41,7 +41,7 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 
 	if (SNMPPacket->getLength() <= 30)
 	{
-		Serial.print("SNMP packet too short, needs to be > 30. Received only: ");
+		Serial.print(F("SNMP packet too short, needs to be > 30. Received only: "));
 		Serial.println(SNMPPacket->getLength());
 		return false;
 	}
@@ -156,7 +156,6 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 			}
 			else
 			{
-
 				isCorrupt = true;
 				return false;
 			}

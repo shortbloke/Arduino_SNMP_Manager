@@ -103,8 +103,8 @@ public:
     ValueCallback *addStringHandler(IPAddress ip, const char *, char **); // passing in a pointer to a char*
     ValueCallback *addIntegerHandler(IPAddress ip, const char *oid, int *value);
     ValueCallback *addTimestampHandler(IPAddress ip, const char *oid, int *value);
-    ValueCallback *addOIDHandler(IPAddress ip, const char *oid, char *value);           // Not implemented
-    ValueCallback *addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value); // Not implemented
+    ValueCallback *addOIDHandler(IPAddress ip, const char *oid, char *value);
+    ValueCallback *addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value);
     ValueCallback *addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value);
     ValueCallback *addGuageHandler(IPAddress ip, const char *oid, uint32_t *value);
 
@@ -172,12 +172,11 @@ bool inline SNMPManager::receivePacket(int packetLength)
     SNMPGetRespose *snmpgetresponse = new SNMPGetRespose();
     if (snmpgetresponse->parseFrom(_packetBuffer))
     {
-        // Serial.printf("Current heap size: %u\n", ESP.getFreeHeap());
         if (snmpgetresponse->requestType == GetResponsePDU)
         {
             if (!(snmpgetresponse->version != 1 || snmpgetresponse->version != 2) || strcmp(_community, snmpgetresponse->communityString) != 0)
             {
-                Serial.println(F("Invalid community or version"));
+                Serial.print(F("Invalid community or version - "));
                 Serial.print("Community: ");
                 Serial.print(snmpgetresponse->communityString);
                 Serial.print(" Version: ");
@@ -189,48 +188,54 @@ bool inline SNMPManager::receivePacket(int packetLength)
             snmpgetresponse->varBindsCursor = snmpgetresponse->varBinds;
             while (true)
             {
-                // Serial.print("Response from: "); Serial.print(_udp->remoteIP());
-                // Serial.print(" - OID: ");Serial.println(snmpgetresponse->varBindsCursor->value->oid->_value);
-                ValueCallback *callback = findCallback(_udp->remoteIP(), snmpgetresponse->varBindsCursor->value->oid->_value);
-                if (callback->type != snmpgetresponse->varBindsCursor->value->type)
+                char *responseOID = snmpgetresponse->varBindsCursor->value->oid->_value;
+                IPAddress responseIP = _udp->remoteIP();
+                ASN_TYPE responseType = snmpgetresponse->varBindsCursor->value->type;
+                BER_CONTAINER *responseContainer = snmpgetresponse->varBindsCursor->value->value;
+
+                // Serial.print(F("Response from: ")); Serial.print(responseIP);
+                // Serial.print(F(" - OID: ")); Serial.println(responseOID);
+                ValueCallback *callback = findCallback(responseIP, responseOID);
+                ASN_TYPE callbackType = callback->type;
+                if (callbackType != responseType)
                 {
-                    switch (snmpgetresponse->varBindsCursor->value->type)
+                    switch (responseType)
                     {
                     case NOSUCHOBJECT:
                     {
-                        Serial.print("No such object: ");
-                        Serial.println(snmpgetresponse->varBindsCursor->value->oid->_value);
+                        Serial.print(F("No such object: "));
                     }
                     break;
                     case NOSUCHINSTANCE:
                     {
-                        Serial.print("No such instance: ");
-                        Serial.println(snmpgetresponse->varBindsCursor->value->oid->_value);
+                        Serial.print(F("No such instance: "));
                     }
                     break;
                     case ENDOFMIBVIEW:
                     {
-                        Serial.print("End of MIB view when calling: ");
-                        Serial.println(snmpgetresponse->varBindsCursor->value->oid->_value);
+                        Serial.print(F("End of MIB view when calling: "));
                     }
                     break;
                     default:
                     {
-                        Serial.print("Callback expected type: ");
-                        Serial.print(callback->type);
-                        Serial.print(" Is not of received type: ");
-                        Serial.println(snmpgetresponse->varBindsCursor->value->type);
+                        Serial.print(F("Incorrect Callback type. Expected: "));
+                        Serial.print(callbackType);
+                        Serial.print(F(" Received: "));
+                        Serial.print(responseType);
+                        Serial.print(F(" - When calling: "));
                     }
                     }
+                    Serial.println(responseOID);
                     delete snmpgetresponse;
                     return false;
                 }
-                switch (callback->type)
+                switch (callbackType)
                 {
                 case STRING:
                 {
-                    // Serial.println("Type: String");
-                    memcpy(*((StringCallback *)callback)->value, String(((OctetType *)snmpgetresponse->varBindsCursor->value->value)->_value).c_str(), 25); // FIXME: this is VERY dangerous, I'm assuming the length of the source char*, this needs to change. for some reason strncpy didn't work, need to look into this. the '25' also needs to be defined somewhere so this won't break;
+                    // Could consider requiring the caller to be responsible for freeing resources.
+                    //*((StringCallback *)callback)->value = (char *)malloc(64); // Allocate memory for string, caller will need to free.
+                    memcpy(*((StringCallback *)callback)->value, ((OctetType *)responseContainer)->_value, 25); // FIXME: this is VERY dangerous, I'm assuming the length of the source char*, this needs to change. for some reason strncpy didn't work, need to look into this. the '25' also needs to be defined somewhere so this won't break;
                     *(*((StringCallback *)callback)->value + 24) = 0x0;                                                                                     // close off the dest string, temporary
                     OctetType *value = new OctetType(*((StringCallback *)callback)->value);
                     // Serial.print("Value: "); Serial.println(value->_value);
@@ -243,12 +248,12 @@ bool inline SNMPManager::receivePacket(int packetLength)
                     IntegerType *value = new IntegerType();
                     if (!((IntegerCallback *)callback)->isFloat)
                     {
-                        *(((IntegerCallback *)callback)->value) = ((IntegerType *)snmpgetresponse->varBindsCursor->value->value)->_value;
+                        *(((IntegerCallback *)callback)->value) = ((IntegerType *)responseContainer)->_value;
                         value->_value = *(((IntegerCallback *)callback)->value);
                     }
                     else
                     {
-                        *(((IntegerCallback *)callback)->value) = (float)(((IntegerType *)snmpgetresponse->varBindsCursor->value->value)->_value / 10);
+                        *(((IntegerCallback *)callback)->value) = (float)(((IntegerType *)responseContainer)->_value / 10);
                         value->_value = *(float *)(((IntegerCallback *)callback)->value) * 10;
                     }
                     delete value;
@@ -258,7 +263,7 @@ bool inline SNMPManager::receivePacket(int packetLength)
                 {
                     // Serial.println("Type: Counter32");
                     Counter32 *value = new Counter32();
-                    *(((Counter32Callback *)callback)->value) = ((Counter32 *)snmpgetresponse->varBindsCursor->value->value)->_value;
+                    *(((Counter32Callback *)callback)->value) = ((Counter32 *)responseContainer)->_value;
                     value->_value = *(((Counter32Callback *)callback)->value);
                     delete value;
                 }
@@ -267,7 +272,7 @@ bool inline SNMPManager::receivePacket(int packetLength)
                 {
                     // Serial.println("Type: Counter64");
                     Counter64 *value = new Counter64();
-                    *(((Counter64Callback *)callback)->value) = ((Counter64 *)snmpgetresponse->varBindsCursor->value->value)->_value;
+                    *(((Counter64Callback *)callback)->value) = ((Counter64 *)responseContainer)->_value;
                     value->_value = *(((Counter64Callback *)callback)->value);
                     delete value;
                 }
@@ -276,7 +281,7 @@ bool inline SNMPManager::receivePacket(int packetLength)
                 {
                     // Serial.println("Type: Guage32");
                     Guage *value = new Guage();
-                    *(((Guage32Callback *)callback)->value) = ((Guage *)snmpgetresponse->varBindsCursor->value->value)->_value;
+                    *(((Guage32Callback *)callback)->value) = ((Guage *)responseContainer)->_value;
                     value->_value = *(((Guage32Callback *)callback)->value);
                     delete value;
                 }
@@ -285,15 +290,15 @@ bool inline SNMPManager::receivePacket(int packetLength)
                 {
                     // Serial.println("Type: Timestamp");
                     TimestampType *value = new TimestampType();
-                    *(((TimestampCallback *)callback)->value) = ((TimestampType *)snmpgetresponse->varBindsCursor->value->value)->_value;
+                    *(((TimestampCallback *)callback)->value) = ((TimestampType *)responseContainer)->_value;
                     value->_value = *(((TimestampCallback *)callback)->value);
                     delete value;
                 }
                 break;
                 default:
                 {
-                    Serial.print("Unsupported Type: ");
-                    Serial.print(callback->type);
+                    Serial.print(F("Unsupported Type: "));
+                    Serial.print(callbackType);
                 }
                 break;
                 }
@@ -308,7 +313,7 @@ bool inline SNMPManager::receivePacket(int packetLength)
     }
     else
     {
-        Serial.println("SNMPGETRESPONSE: FAILED TO PARSE");
+        Serial.println(F("SNMPGETRESPONSE: FAILED TO PARSE"));
         delete snmpgetresponse;
         return false;
     }
@@ -329,7 +334,7 @@ ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
             if ((strcmp(OIDBuf, oid) == 0) && (callbacksCursor->value->ip == ip))
             {
                 // Found
-                // Serial.println("Found callback with matching IP");
+                // Serial.println(F("Found callback with matching IP"));
                 return callbacksCursor->value;
             }
             if (callbacksCursor->next)
@@ -338,7 +343,7 @@ ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
             }
             else
             {
-                // Serial.println("No matching callback found.");
+                // Serial.println(F("No matching callback found."));
                 break;
             }
         }
@@ -392,18 +397,32 @@ ValueCallback *SNMPManager::addTimestampHandler(IPAddress ip, const char *oid, i
     return callback;
 }
 
+<<<<<<< Updated upstream
 ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, const char *oid, char *value)
 {
     ValueCallback *callback = new OIDCallback();
+=======
+<<<<<<< Updated upstream
+ValueCallback *SNMPManager::addOIDHandler(char *oid, char *value)
+=======
+ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, const char *oid, char *value)
+>>>>>>> Stashed changes
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
-    strcpy(callback->OID, oid);
     ((OIDCallback *)callback)->value = value;
     callback->ip = ip;
     addHandler(callback);
     return callback;
 }
 
+<<<<<<< Updated upstream
 ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value)
+=======
+<<<<<<< Updated upstream
+ValueCallback *SNMPManager::addCounter64Handler(char *oid, uint64_t *value)
+=======
+ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value)
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 {
     ValueCallback *callback = new Counter64Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -414,7 +433,15 @@ ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, const char *oid, u
     return callback;
 }
 
+<<<<<<< Updated upstream
 ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value)
+=======
+<<<<<<< Updated upstream
+ValueCallback *SNMPManager::addCounter32Handler(char *oid, uint32_t *value)
+=======
+ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value)
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 {
     ValueCallback *callback = new Counter32Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -425,7 +452,15 @@ ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, const char *oid, u
     return callback;
 }
 
+<<<<<<< Updated upstream
 ValueCallback *SNMPManager::addGuageHandler(IPAddress ip, const char *oid, uint32_t *value)
+=======
+<<<<<<< Updated upstream
+ValueCallback *SNMPManager::addGuageHandler(char *oid, uint32_t *value)
+=======
+ValueCallback *SNMPManager::addGuageHandler(IPAddress ip, const char *oid, uint32_t *value)
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 {
     ValueCallback *callback = new Guage32Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);

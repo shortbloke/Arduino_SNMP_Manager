@@ -1,12 +1,20 @@
-#include <ESP8266WiFi.h>
-#include <WiFiUdp.h>
 #include <Arduino_SNMP_Manager.h>
 
+#include <Ethernet.h>
+#include <EthernetUdp.h>
+
 //************************************
-//* Your WiFi info                   *
+//* Ardunio Boards                   *
 //************************************
-const char *ssid = "SSID";
-const char *password = "PASSWORD";
+// This sketch and assoicated libraries, require quite a bit of memory. Thus are more suited to the Mega/Mega 2560.
+// It may be possible to create a stripped down version of the libraries with just the capabilities required
+// in order to work with boards with less program and dynamic memory.
+
+//************************************
+//* Ethernet Info                    *
+//************************************
+byte mac[] = {0xA8, 0x61, 0x0A, 0xAE, 0x64, 0x29}; //Ethernet shield's MAC
+
 //************************************
 
 //************************************
@@ -16,67 +24,63 @@ IPAddress router(192, 168, 200, 1);
 const char *community = "public";
 const int snmpVersion = 1; // SNMP Version 1 = 0, SNMP Version 2 = 1
 // OIDs
-char *oidIfSpeedGuage = ".1.3.6.1.2.1.10.94.1.1.4.1.2.4"; // Guage ADSL Down Sync Speed (interface 4)
-// char *oidIfSpeedGuage = ".1.3.6.1.2.1.2.2.1.5.4";         // Guage Regular ethernet interface ifSpeed.4
-char *oidInOctetsCount32 = ".1.3.6.1.2.1.2.2.1.10.4"; // Counter32 ifInOctets.4
-char *oidServiceCountInt = ".1.3.6.1.2.1.1.7.0";      // Integer sysServices
-char *oidSysName = ".1.3.6.1.2.1.1.5.0";              // OctetString SysName
-char *oid64Counter = ".1.3.6.1.2.1.31.1.1.1.6.4";     // Counter64 64-bit ifInOctets.4
-char *oidUptime = ".1.3.6.1.2.1.1.3.0";               // TimeTicks uptime (hundredths of seconds)
+const char *oidIfSpeedGuage = ".1.3.6.1.2.1.10.94.1.1.4.1.2.4"; // Guage ADSL Down Sync Speed (interface 4)
+// const char *oidIfSpeedGuage = ".1.3.6.1.2.1.2.2.1.5.4";         // Guage Regular ethernet interface ifSpeed.4
+const char *oidInOctetsCount32 = ".1.3.6.1.2.1.2.2.1.10.4"; // Counter32 ifInOctets.4
+const char *oidUptime = ".1.3.6.1.2.1.1.3.0";               // TimeTicks uptime (hundredths of seconds)
 //************************************
 
 //************************************
 //* Settings                         *
 //************************************
 int pollInterval = 10000; // delay in milliseconds
-char string[50];          // Maximum length of SNMP get response for String values
 //************************************
 
 //************************************
 //* Initialise                       *
 //************************************
 // Variables
-unsigned int ifSpeedResponse = 0;
-unsigned int inOctetsResponse = 0;
-int servicesResponse = 0;
-char *sysNameResponse = string;
-long long unsigned int hcCounter = 0;
+long unsigned int ifSpeedResponse = 0;
+long unsigned int inOctetsResponse = 0;
 int uptime = 0;
 int lastUptime = 0;
-
 unsigned long pollStart = 0;
 unsigned long intervalBetweenPolls = 0;
 float bandwidthInUtilPct = 0;
-unsigned int lastInOctets = 0;
+long unsigned int lastInOctets = 0;
 // SNMP Objects
-WiFiUDP udp;                                           // UDP object used to send and recieve packets
+EthernetUDP udp;                                       // UDP object used to send and receive packets
 SNMPManager snmp = SNMPManager(community);             // Starts an SMMPManager to listen to replies to get-requests
 SNMPGet snmpRequest = SNMPGet(community, snmpVersion); // Starts an SMMPGet instance to send requests
 // Blank callback pointer for each OID
 ValueCallback *callbackIfSpeed;
 ValueCallback *callbackInOctets;
-ValueCallback *callbackServices;
-ValueCallback *callbackSysName;
-ValueCallback *callback64Counter;
 ValueCallback *callbackUptime;
+//************************************
+
+//************************************
+//* Function declarations            *
+//************************************
+void getSNMP();
+void doSNMPCalculations();
+void printVariableValues();
 //************************************
 
 void setup()
 {
-  Serial.begin(115200);
-  WiFi.begin(ssid, password);
-  Serial.println("");
-  // Wait for connection
-  while (WiFi.status() != WL_CONNECTED)
+  Serial.begin(38400);
+  Ethernet.begin(mac);
+  while (!Serial);
+  Serial.print("Establishing network connection... ");
+  
+  if (Ethernet.begin(mac) == 0) {
+    Serial.println("Failed to configure Ethernet using DHCP");
+  } 
+  else
   {
-    delay(500);
-    Serial.print(".");
+    Serial.print("IP address: ");
+    Serial.println(Ethernet.localIP());
   }
-  Serial.println("");
-  Serial.print("Connected to ");
-  Serial.println(ssid);
-  Serial.print("my IP address: ");
-  Serial.println(WiFi.localIP());
 
   snmp.setUDP(&udp); // give snmp a pointer to the UDP object
   snmp.begin();      // start the SNMP Manager
@@ -84,9 +88,6 @@ void setup()
   // Get callbacks from creating a handler for each of the OID
   callbackIfSpeed = snmp.addGuageHandler(router, oidIfSpeedGuage, &ifSpeedResponse);
   callbackInOctets= snmp.addCounter32Handler(router, oidInOctetsCount32, &inOctetsResponse);
-  callbackServices = snmp.addIntegerHandler(router, oidServiceCountInt, &servicesResponse);
-  callbackSysName = snmp.addStringHandler(router, oidSysName, &sysNameResponse);
-  callback64Counter = snmp.addCounter64Handler(router, oid64Counter, &hcCounter);
   callbackUptime = snmp.addTimestampHandler(router, oidUptime, &uptime);
 }
 
@@ -100,6 +101,7 @@ void loop()
     pollStart += pollInterval; // this prevents drift in the delays
     getSNMP();
     doSNMPCalculations(); // Do something with the data collected
+    printVariableValues(); // Print the values to the serial console
   }
 }
 
@@ -129,25 +131,6 @@ void doSNMPCalculations()
         bandwidthInUtilPct = (((float)((4294967295 - lastInOctets) + inOctetsResponse) * 8) / (float)(ifSpeedResponse * ((uptime - lastUptime) / 100)) * 100);
       }
     }
-    // Print out the values collected and calculated
-    Serial.print("Bandwidth In Utilisation %: ");
-    Serial.println(bandwidthInUtilPct);
-    Serial.print("ifSpeedResponse: ");
-    Serial.println(ifSpeedResponse);
-    Serial.print("inOctetsResponse: ");
-    Serial.println(inOctetsResponse);
-    Serial.print("servicesResponse: ");
-    Serial.println(servicesResponse);
-    Serial.print("sysNameResponse: ");
-    Serial.println(sysNameResponse);
-    Serial.print("Uptime: ");
-    Serial.println(uptime);
-    Serial.print("HCCounter: ");
-    // Print can't handle 64bit (long long unsigned int)
-    char buffer[50];
-    sprintf(buffer, "%llu", hcCounter);
-    Serial.println(buffer);
-    Serial.println("----------------------");
   }
   // Update last samples
   lastUptime = uptime;
@@ -159,16 +142,24 @@ void getSNMP()
   // Build a SNMP get-request add each OID to the request
   snmpRequest.addOIDPointer(callbackIfSpeed);
   snmpRequest.addOIDPointer(callbackInOctets);
-  snmpRequest.addOIDPointer(callbackServices);
-  snmpRequest.addOIDPointer(callbackSysName);
-  // Only enable if you have an 64 bit counter to query.
-  // FIXME: Currently crashes if 64bit counter not found
-  //  snmpRequest.addOIDPointer(callback64Counter);
   snmpRequest.addOIDPointer(callbackUptime);
 
-  snmpRequest.setIP(WiFi.localIP()); //IP of the arduino
+  snmpRequest.setIP(Ethernet.localIP()); //IP of the Arduino
   snmpRequest.setUDP(&udp);
   snmpRequest.setRequestID(rand() % 5555);
   snmpRequest.sendTo(router);
   snmpRequest.clearOIDList();
+}
+
+void printVariableValues()
+{
+    Serial.print(F("Bandwidth In Utilisation %:"));
+    Serial.println(bandwidthInUtilPct);
+    Serial.print(F("ifSpeedResponse: "));
+    Serial.println(ifSpeedResponse);
+    Serial.print(F("inOctetsResponse:"));
+    Serial.println(inOctetsResponse);
+    Serial.print(F("Uptime: "));
+    Serial.println(uptime);
+    Serial.println(F("----------------------"));
 }
