@@ -6,7 +6,13 @@
 #endif
 
 #ifndef SNMP_PACKET_LENGTH
-#define SNMP_PACKET_LENGTH 484
+#if defined(ESP32)
+#define SNMP_PACKET_LENGTH 1500  // This will limit the size of packets which can be handled.
+#elif defined(ESP8266)
+#define SNMP_PACKET_LENGTH 1024  // This will limit the size of packets which can be handled. ESP8266 max is 1024. This appears to be a problem in the underlying WiFi or UDP implementation
+#else
+#define SNMP_PACKET_LENGTH 484  // This value may need to be made smaller for lower memory devices. This will limit the size of packets which can be handled.
+#endif
 #endif
 
 #define MIN(X, Y) ((X < Y) ? X : Y)
@@ -152,10 +158,10 @@ bool inline SNMPManager::receivePacket(int packetLength)
 {
     if (!packetLength)
         return false;
-    //Serial.print("Packet Length: ");Serial.print(packetLength);Serial.print(" - From: ");Serial.println(_udp->remoteIP());
+    // Serial.print("Packet Length: ");Serial.print(packetLength);Serial.print(" - From: ");Serial.println(_udp->remoteIP());
     if (packetLength < 0 || packetLength > SNMP_PACKET_LENGTH)
     {
-        Serial.println(F("Incorrect Packet Length - Dropping packet"));
+        Serial.println(F("Incorrect Packet Length. Packet may be too large to handle. - Dropping packet"));
         return false;
     }
     memset(_packetBuffer, 0, SNMP_PACKET_LENGTH * 3);
@@ -169,7 +175,7 @@ bool inline SNMPManager::receivePacket(int packetLength)
     _udp->flush();
     _packetBuffer[len] = 0;
 
-    SNMPGetRespose *snmpgetresponse = new SNMPGetRespose();
+    SNMPGetResponse *snmpgetresponse = new SNMPGetResponse();
     if (snmpgetresponse->parseFrom(_packetBuffer))
     {
         if (snmpgetresponse->requestType == GetResponsePDU)
@@ -233,12 +239,14 @@ bool inline SNMPManager::receivePacket(int packetLength)
                 {
                 case STRING:
                 {
-                    // Could consider requiring the caller to be responsible for freeing resources.
-                    //*((StringCallback *)callback)->value = (char *)malloc(64); // Allocate memory for string, caller will need to free.
-                    memcpy(*((StringCallback *)callback)->value, ((OctetType *)responseContainer)->_value, 25); // FIXME: this is VERY dangerous, I'm assuming the length of the source char*, this needs to change. for some reason strncpy didn't work, need to look into this. the '25' also needs to be defined somewhere so this won't break;
-                    *(*((StringCallback *)callback)->value + 24) = 0x0;                                                                                     // close off the dest string, temporary
+                    // Serial.println("Type: String");
+
+                    // Note: Requires that the size of the variable used to store the response is big enough.
+                    // Otherwise move responsibility for the creation of the variable to store the value here, but this would put the onus on the caller to free and reset to null.
+                    //*((StringCallback *)callback)->value = (char *)malloc(64); // Allocate memory for string, caller will need to free. Malloc updated to incoming message size.
+                    
+                    strncpy(*((StringCallback *)callback)->value, ((OctetType *)responseContainer)->_value, strlen(((OctetType *)responseContainer)->_value));
                     OctetType *value = new OctetType(*((StringCallback *)callback)->value);
-                    // Serial.print("Value: "); Serial.println(value->_value);
                     delete value;
                 }
                 break;

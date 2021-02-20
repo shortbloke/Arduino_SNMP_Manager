@@ -6,7 +6,7 @@
 //************************************
 //* Ardunio Boards                   *
 //************************************
-// This sketch and assoicated libraries, require quite a bit of memory. Thus are more suited to the Mega/Mega 2560.
+// This sketch and associated libraries, require quite a bit of memory. Thus are more suited to the Mega/Mega 2560.
 // It may be possible to create a stripped down version of the libraries with just the capabilities required
 // in order to work with boards with less program and dynamic memory.
 

@@ -1,12 +1,12 @@
 #ifndef SNMPGetResponse_h
 #define SNMPGetResponse_h
 
-class SNMPGetRespose
+class SNMPGetResponse
 {
 
 public:
-	SNMPGetRespose(){};
-	~SNMPGetRespose()
+	SNMPGetResponse(){};
+	~SNMPGetResponse()
 	{
 		delete varBinds;
 		delete SNMPPacket;
@@ -28,7 +28,7 @@ public:
 	bool isCorrupt = false;
 };
 
-bool SNMPGetRespose::parseFrom(unsigned char *buf)
+bool SNMPGetResponse::parseFrom(unsigned char *buf)
 {
 	// confirm that the packet is a STRUCTURE
 	if (buf[0] != 0x30)
@@ -47,8 +47,7 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 	}
 	// we now have a full ASN.1 packet in SNMPPacket
 	ValuesList *cursor = SNMPPacket->_values;
-	ValuesList *tempCursor;
-
+	ValuesList *tempCursor = NULL;
 	while (EXPECTING != DONE)
 	{
 		switch (EXPECTING)
@@ -200,6 +199,8 @@ bool SNMPGetRespose::parseFrom(unsigned char *buf)
 				isCorrupt = true;
 				return false;
 			}
+			break;
+		default:
 			break;
 		}
 	}

@@ -29,8 +29,8 @@ public:
 			version2 = true;
 		}
 	};
-	short _version;
 	const char *_community;
+	short _version;
 	IPAddress agentIP;
 	short requestID;
 	short errorID = 0;

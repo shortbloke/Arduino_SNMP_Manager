@@ -75,8 +75,8 @@ void printVariableValues();
 
 void setup()
 {
-  Serial.begin(38400);
-  Ethernet.begin(mac);
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
   Serial.println("");
   // Wait for connection
   while (WiFi.status() != WL_CONNECTED)

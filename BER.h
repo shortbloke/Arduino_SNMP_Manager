@@ -6,7 +6,7 @@
 
 typedef enum ASN_TYPE_WITH_VALUE
 {
-    // Primatives
+    // Primitives
     INTEGER = 0x02,
     STRING = 0x04,
     NULLTYPE = 0x05,
@@ -106,7 +106,7 @@ public:
     unsigned long _value;
     int serialise(unsigned char *buf)
     {
-        // here we print out the BER encoded ASN.1 bytes, which includes type, length and value. we return the length of the entire block (TL&V) ni bytes;
+        // here we print out the BER encoded ASN.1 bytes, which includes type, length and value. we return the length of the entire block (TL&V) in bytes;
         unsigned char *ptr = buf;
         *ptr = _type;
         ptr++;
@@ -177,11 +177,11 @@ public:
     OctetType() : BER_CONTAINER(true, STRING){};
     OctetType(char *value) : BER_CONTAINER(true, STRING)
     {
-        strncpy(_value, value, 32);
-        _value[31] = 0;
+        strncpy(_value, value, sizeof(_value));
+        _value[sizeof(_value)] = 0;
     };
     ~OctetType(){};
-    char _value[32];
+    char _value[SNMP_PACKET_LENGTH];
     int serialise(unsigned char *buf)
     {
         // here we print out the BER encoded ASN.1 bytes, which includes type, length and value.
@@ -196,15 +196,28 @@ public:
     {
         buf++; // skip Type
         _length = *buf;
-        buf++;
-        memset(_value, 0, 32);
-        if (_length > 32)
+        // length should be treated as: if first byte is 0x8x, the x is how many bytes follow
+        if (_length > 127)
         {
-            strncpy(_value, (char *)buf, 31);
+            int numBytes = _length &= 0x7F;
+            unsigned int special_length = 0;
+            for(int k = 0; k < numBytes; k++){
+                buf++;
+                special_length <<= 8;
+                special_length |= *buf;
+            }
+            _length = special_length;
+        }
+        buf++;
+        memset(_value, 0, sizeof(_value));  // Null out _value
+        if (_length < sizeof(_value))
+        {
+            strncpy(_value, (char *)buf, _length);  // Copy buffer to Value, using length from ASN structure.
         }
         else
         {
-            strncpy(_value, (char *)buf, _length);
+            Serial.println(F("OctetString too large, adjust SNMP_PACKET_LENGTH. String Truncated."));
+            strncpy(_value, (char *)buf, 253);  // Copy truncated buffer to Value
         }
         return true;
     }
@@ -307,8 +320,8 @@ public:
             else
             {                                   // we have to do the special >128 thing
                 long value = 0;                 // keep track of the actual thing
-                char n = 0;                     // count how many large bits have been set
-                unsigned char tempBuf[6] = {0}; // nobigger than 4 bytes
+                unsigned char n = 0;            // count how many large bits have been set
+                unsigned char tempBuf[6] = {0}; // no bigger than 4 bytes
                 while (*buf > 127)
                 {
                     i--;
@@ -320,7 +333,7 @@ public:
                 value = *buf;
                 buf++;
                 i--;
-                for (char k = 0; k < n; k++)
+                for (unsigned char k = 0; k < n; k++)
                 {
                     value += (pow(128, (n - k))) * tempBuf[k];
                 }
@@ -343,7 +356,7 @@ class NullType : public BER_CONTAINER
 public:
     NullType() : BER_CONTAINER(true, NULLTYPE){};
     ~NullType(){};
-    char _value = NULL;
+    char _value = 0;
     int serialise(unsigned char *buf)
     {
         // here we print out the BER encoded ASN.1 bytes, which includes type, length and value.
@@ -476,22 +489,19 @@ public:
         // the buffer we get passed in is the complete ASN Container, including the type header.
         buf++; // Skip our own type
         _length = *buf;
-        // Serial.printf("%d, l\n", _length); // length should be treated as: if first byte is 0x8x, the x is how many bytes follow
+        // length should be treated as: if first byte is 0x8x, the x is how many bytes follow
         if (_length > 127)
         {
-            // do this
             int numBytes = _length &= 0x7F;
             unsigned int special_length = 0;
             for (int k = 0; k < numBytes; k++)
             {
                 buf++;
                 special_length <<= 8;
-                // Serial.printf("%d, b\n", *buf);
                 special_length |= *buf;
             }
             _length = special_length;
         }
-        // Serial.printf("%d, l\n", _length);
         buf++;
         // now we are at the front of a list of one or many other types, lets do our loop
         unsigned int i = 1;
@@ -501,16 +511,10 @@ public:
             buf++;
             i++;
             unsigned int valueLength = *buf;
-            // Serial.print("valuelength: ");
-
-            // Serial.println(valueLength);
-            // Serial.printf("i: %d\n", i);
-            // Serial.printf("length: %d\n", _length);
 
             int doubleL = 0;
             if (valueLength > 127)
             {
-                // also do this.
                 int numBytes = valueLength &= 0x7F;
                 unsigned int special_length = 0;
                 for (int k = 0; k < numBytes; k++)
@@ -518,7 +522,6 @@ public:
                     buf++;
                     i++;
                     special_length <<= 8;
-                    // Serial.printf("%d, b\n", *buf);
                     special_length |= *buf;
                 }
                 valueLength = special_length;
@@ -526,13 +529,7 @@ public:
             }
             buf++;
             i++;
-            // Serial.print("Length:");
-            // Serial.println(valueLength);
-            // Serial.println("SUP");
-            //            char* newValue = (char*)malloc(sizeof(char) * valueLength + 2);
-            //            memset(newValue, 0, valueLength + 2);
-            //            memcpy(newValue, buf - 2, valueLength + 2);
-            //            buf += valueLength; i+= valueLength;
+
             BER_CONTAINER *newObj;
             switch (valueType)
             {

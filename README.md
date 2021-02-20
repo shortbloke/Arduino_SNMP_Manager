@@ -1,4 +1,4 @@
-# Arduino SNMP Manager
+# SNMP Manager For ESP8266/ESP32/Arduino (and more)
 
 An SNMP Manager for Arduino and similar MCU. Providing simple SNMP Get-Request support for specified OIDs.
 
@@ -12,7 +12,7 @@ The library supports:
   - GetResponse (Decoding the response to the SNMP GetRequest)
 - SNMP Data Types:
   - Integer (Arduino data type: int)
-  - String (Arduino data type: char*) - NOTE: This doesn't work when querying multiple string OIDs, or strings > 24 characters. See Issue #5
+  - String (Arduino data type: char*)
   - Counter32 (Arduino data type: unsigned int)
   - Counter64 (Arduino data type: long long unsigned int)
   - Guage32 (Arduino data type: unsigned int)
@@ -21,6 +21,7 @@ The library supports:
 If you find this useful, consider providing some support:
 
 <a href="https://www.buymeacoffee.com/martinrowan" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
+
 ## Usage
 
 ### SNMPManager
@@ -141,6 +142,10 @@ else if (lastInOctets > inOctets)
 To compensate for device reset:
 
 - Monitor SysUptime and if is lower than the previous value, then assume the device has restarted, don't process the data, just store the new counter values and await the next poll to be able to calculate the difference.
+
+## Strings
+
+SNMP can be used to query strings, however long strings lead to larger packet sizes needing larger buffers and increased memory usage. The ESP8266 appears to have a bug in the WiFi or UDP protocol support, leading to a maximum UDP packet size that can be received being 1024 bytes. As there are can be multiple OID responses in a single packet along with headers etc, this will reduce the maximum string size that can be received. Reading strings in to a character arrays can use a significant amount of memory, which may not be available on some MCUs. As such query strings should will likely need to be limited.
 
 ## Examples
 
