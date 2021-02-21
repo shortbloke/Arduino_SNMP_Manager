@@ -9,7 +9,7 @@
 #if defined(ESP32)
 #define SNMP_PACKET_LENGTH 1500  // This will limit the size of packets which can be handled.
 #elif defined(ESP8266)
-#define SNMP_PACKET_LENGTH 1024  // This will limit the size of packets which can be handled. ESP8266 max is 1024. This appears to be a problem in the underlying WiFi or UDP implementation
+#define SNMP_PACKET_LENGTH 968  // This will limit the size of packets which can be handled. ESP8266 is unstable and crashes as this value approaches or exceeds1024. This appears to be a problem in the underlying WiFi or UDP implementation
 #else
 #define SNMP_PACKET_LENGTH 484  // This value may need to be made smaller for lower memory devices. This will limit the size of packets which can be handled.
 #endif
@@ -161,7 +161,7 @@ bool inline SNMPManager::receivePacket(int packetLength)
     // Serial.print("Packet Length: ");Serial.print(packetLength);Serial.print(" - From: ");Serial.println(_udp->remoteIP());
     if (packetLength < 0 || packetLength > SNMP_PACKET_LENGTH)
     {
-        Serial.println(F("Incorrect Packet Length. Packet may be too large to handle. - Dropping packet"));
+        Serial.println(F("Packet dropped: Incorrect Packet Length. Packet may be too large to handle. Avoid querying long strings or reduce number of requests in each GET request."));
         return false;
     }
     memset(_packetBuffer, 0, SNMP_PACKET_LENGTH * 3);
