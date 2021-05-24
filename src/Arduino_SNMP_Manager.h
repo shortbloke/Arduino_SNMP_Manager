@@ -9,7 +9,7 @@
 #if defined(ESP32)
 #define SNMP_PACKET_LENGTH 1500  // This will limit the size of packets which can be handled.
 #elif defined(ESP8266)
-#define SNMP_PACKET_LENGTH 968  // This will limit the size of packets which can be handled. ESP8266 is unstable and crashes as this value approaches or exceeds1024. This appears to be a problem in the underlying WiFi or UDP implementation
+#define SNMP_PACKET_LENGTH 512  // This will limit the size of packets which can be handled. ESP8266 is unstable and crashes as this value approaches or exceeds1024. This appears to be a problem in the underlying WiFi or UDP implementation
 #else
 #define SNMP_PACKET_LENGTH 484  // This value may need to be made smaller for lower memory devices. This will limit the size of packets which can be handled.
 #endif
