@@ -67,6 +67,9 @@ public:
     IPAddress _value;
     int serialise(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] NetworkAddress:serialise");
+#endif
         unsigned char *ptr = buf;
         *ptr++ = _type;
 
@@ -81,6 +84,9 @@ public:
     }
     bool fromBuffer(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] NetworkAddress:fromBuffer");
+#endif
         buf++; // skip Type
         _length = *buf;
         buf++;
@@ -107,6 +113,9 @@ public:
     unsigned long _value;
     int serialise(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] IntergerType:serialise");
+#endif
         // here we print out the BER encoded ASN.1 bytes, which includes type, length and value. we return the length of the entire block (TL&V) in bytes;
         unsigned char *ptr = buf;
         *ptr = _type;
@@ -138,6 +147,9 @@ public:
     }
     bool fromBuffer(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] Integer:fromBuffer");
+#endif
         buf++; // skip Type
         _length = *buf;
         buf++;
@@ -185,6 +197,9 @@ public:
     char _value[SNMP_OCTETSTRING_MAX_LENGTH];
     int serialise(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] OctetType:serialise");
+#endif
         // here we print out the BER encoded ASN.1 bytes, which includes type, length and value.
         char *ptr = (char *)buf;
         int numExtraBytes = 0;
@@ -217,6 +232,9 @@ public:
     }
     bool fromBuffer(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] OctetType:fromBuffer");
+#endif
         buf++; // skip Type
         _length = *buf;
         // length should be treated as: if first byte is 0x8x, the x is how many bytes follow
@@ -263,6 +281,9 @@ public:
     char _value[128];
     int serialise(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] OIDType:serialise");
+#endif
         // here we print out the BER encoded ASN.1 bytes, which includes type, length and value.
         char *ptr = (char *)buf;
         *ptr = _type;
@@ -321,6 +342,9 @@ public:
     }
     bool fromBuffer(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] OIDType:fromBuffer");
+#endif
         buf++; // skip Type
         _length = *buf;
         buf++;
@@ -382,6 +406,9 @@ public:
     char _value = 0;
     int serialise(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] NullType:serialise");
+#endif
         // here we print out the BER encoded ASN.1 bytes, which includes type, length and value.
         char *ptr = (char *)buf;
         *ptr = _type;
@@ -391,6 +418,9 @@ public:
     }
     bool fromBuffer(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] NullType:fromBuffer");
+#endif
         _length = 0;
         return true;
     }
@@ -410,6 +440,9 @@ public:
     uint64_t _value;
     int serialise(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] Counter64:serialise");
+#endif
         // here we print out the BER encoded ASN.1 bytes, which includes type, length and value. we return the length of the entire block (TL&V) ni bytes;
         unsigned char *ptr = buf;
         *ptr = _type;
@@ -437,6 +470,9 @@ public:
     }
     bool fromBuffer(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] Counter64:fromBuffer");
+#endif
         buf++; // skip Type
         _length = *buf;
         buf++;
@@ -509,6 +545,9 @@ public:
     ValuesList *_values = 0;
     bool fromBuffer(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] ComplexType:fromBuffer");
+#endif
         // the buffer we get passed in is the complete ASN Container, including the type header.
         buf++; // Skip our own type
         _length = *buf;
@@ -598,6 +637,9 @@ public:
                 /* OPAQUE = 0x44 */
 
             default:
+#ifdef DBEUG
+                Serial.println("[DEBUG_BER] default new ComplexType");
+#endif
                 newObj = new ComplexType(valueType);
                 break;
             }
@@ -614,6 +656,9 @@ public:
 
     int serialise(unsigned char *buf)
     {
+#ifdef DEBUG_BER
+        Serial.println("[DEBUG_BER] ComplexType:serialise");
+#endif
         int actualLength = 0;
         unsigned char *ptr = buf;
         *ptr = _type;
@@ -635,7 +680,9 @@ public:
         // printf("Length to return: %d\n", actualLength);
         if (actualLength > 127)
         {
-            // Serial.println("TOO BIG");
+#ifdef DEBUG_BER
+            Serial.println("TOO BIG - Adding extra byte");
+#endif
             // bad, we have to add another byte and shift everything afterwards by 1 >>
             // first byte is 128 + (actualLength / 128)
             // second is actualLength % 128;

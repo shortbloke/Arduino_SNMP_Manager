@@ -1,3 +1,6 @@
+// #define DEBUG
+// #define DEBUG_BER
+
 #ifndef SNMPManager_h
 #define SNMPManager_h
 
@@ -7,11 +10,11 @@
 
 #ifndef SNMP_PACKET_LENGTH
 #if defined(ESP32)
-#define SNMP_PACKET_LENGTH 1500  // This will limit the size of packets which can be handled.
+#define SNMP_PACKET_LENGTH 1500 // This will limit the size of packets which can be handled.
 #elif defined(ESP8266)
-#define SNMP_PACKET_LENGTH 512  // This will limit the size of packets which can be handled. ESP8266 is unstable and crashes as this value approaches or exceeds1024. This appears to be a problem in the underlying WiFi or UDP implementation
+#define SNMP_PACKET_LENGTH 512 // This will limit the size of packets which can be handled. ESP8266 is unstable and crashes as this value approaches or exceeds1024. This appears to be a problem in the underlying WiFi or UDP implementation
 #else
-#define SNMP_PACKET_LENGTH 484  // This value may need to be made smaller for lower memory devices. This will limit the size of packets which can be handled.
+#define SNMP_PACKET_LENGTH 484 // This value may need to be made smaller for lower memory devices. This will limit the size of packets which can be handled.
 #endif
 #endif
 
@@ -104,7 +107,7 @@ public:
 
     ValueCallbacks *callbacks = new ValueCallbacks();
     ValueCallbacks *callbacksCursor = callbacks;
-    ValueCallback *findCallback(IPAddress ip, const char *oid);  // Find based on responding host IP address and OID
+    ValueCallback *findCallback(IPAddress ip, const char *oid); // Find based on responding host IP address and OID
     ValueCallback *addFloatHandler(IPAddress ip, const char *oid, float *value);
     ValueCallback *addStringHandler(IPAddress ip, const char *, char **); // passing in a pointer to a char*
     ValueCallback *addIntegerHandler(IPAddress ip, const char *oid, int *value);
@@ -117,13 +120,17 @@ public:
     void setUDP(UDP *udp);
     bool begin();
     bool loop();
+    bool testParsePacket(String testPacket);
     char OIDBuf[50];
     UDP *_udp;
     void addHandler(ValueCallback *callback);
 
 private:
     unsigned char _packetBuffer[SNMP_PACKET_LENGTH * 3];
+    bool inline isValidPacket(int packetLength);
     bool inline receivePacket(int length);
+    bool parsePacket(unsigned char *packet);
+    void printPacket(unsigned char *packet, int len);
 };
 
 void SNMPManager::setUDP(UDP *udp)
@@ -154,27 +161,82 @@ bool SNMPManager::loop()
     return true;
 }
 
-bool inline SNMPManager::receivePacket(int packetLength)
+bool SNMPManager::isValidPacket(int packetLength)
 {
-    if (!packetLength)
-        return false;
-    // Serial.print("Packet Length: ");Serial.print(packetLength);Serial.print(" - From: ");Serial.println(_udp->remoteIP());
-    if (packetLength < 0 || packetLength > SNMP_PACKET_LENGTH)
+    if (packetLength <= 0)
     {
-        Serial.println(F("Packet dropped: Incorrect Packet Length. Packet may be too large to handle. Avoid querying long strings or reduce number of requests in each GET request."));
+        Serial.println(F("INVALID Packet - Zero length String"));
         return false;
     }
+    if (packetLength > SNMP_PACKET_LENGTH)
+    {
+        Serial.printf("INVALID Packet - packet length > SNMP_PACKET_LENGTH - Size: %d\n", packetLength);
+        return false;
+    }
+    return true;
+}
+
+void SNMPManager::printPacket(unsigned char *packet, int len)
+{
+    Serial.print("[DEBUG] packet: ");
+    for (int i = 0; i < len; i++)
+    {
+        Serial.printf("%02x ", packet[i]);
+    }
+    Serial.println();
+}
+
+bool SNMPManager::testParsePacket(String testPacket)
+{
+    // Function to test sample packet, each byte to be seperated with a space:
+    // e.g. "32 02 01 01 04 06 70 75 62 6c 69 63 a2 25 02 02 0c 01 02 01 00 02 c1 00 30 19 30 17 06 11 2b 06 01 04 01 81 9e 16 02 03 01 01 01 02 03 01 00 02 02 14 9f";
+    if (!isValidPacket(testPacket.length()))
+        return false;
+    int len = testPacket.length() + 1;
+    memset(_packetBuffer, 0, SNMP_PACKET_LENGTH * 3);
+    char charArrayPacket[len];
+    testPacket.toCharArray(charArrayPacket, len);
+    // split charArray at each ' ' and convert to uint8_t
+    char *p = strtok(charArrayPacket, " ");
+    int i = 0;
+    while (p != NULL)
+    {
+        _packetBuffer[i++] = strtoul(p, NULL, 16);
+        p = strtok(NULL, " ");
+    }
+    _packetBuffer[i] = 0; // null terminate the buffer
+
+#ifdef DEBUG
+    printPacket(_packetBuffer, len);
+#endif
+
+    return parsePacket(_packetBuffer);
+}
+
+bool inline SNMPManager::receivePacket(int packetLength)
+{
+    if ((!packetLength) or (!isValidPacket(packetLength)))
+        return false;
+#ifdef DEBUG
+    Serial.printf("[DEBUG] Packet Length: %d - From: ", packetLength);
+    Serial.println(_udp->remoteIP());
+#endif
+
     memset(_packetBuffer, 0, SNMP_PACKET_LENGTH * 3);
     int len = packetLength;
     _udp->read(_packetBuffer, MIN(len, SNMP_PACKET_LENGTH));
-    // for(int i = 0; i < len; i++){
-    //     _packetBuffer[i] = _udp->read();
-    //     Serial.print(_packetBuffer[i], HEX);
-    //     Serial.print(" ");
-    // }
     _udp->flush();
-    _packetBuffer[len] = 0;
+    _packetBuffer[len] = 0; // null terminate the buffer
 
+#ifdef DEBUG
+    printPacket(_packetBuffer, len);
+#endif
+
+    return parsePacket(_packetBuffer);
+}
+
+bool SNMPManager::parsePacket(unsigned char *packet)
+{
     SNMPGetResponse *snmpgetresponse = new SNMPGetResponse();
     if (snmpgetresponse->parseFrom(_packetBuffer))
     {
@@ -182,14 +244,13 @@ bool inline SNMPManager::receivePacket(int packetLength)
         {
             if (!(snmpgetresponse->version != 1 || snmpgetresponse->version != 2) || strcmp(_community, snmpgetresponse->communityString) != 0)
             {
-                Serial.print(F("Invalid community or version - "));
-                Serial.print("Community: ");
-                Serial.print(snmpgetresponse->communityString);
-                Serial.print(" Version: ");
-                Serial.print(snmpgetresponse->version);
+                Serial.printf("Invalid community or version - Community: %s - Version: %s\n", snmpgetresponse->communityString, snmpgetresponse->communityString);
                 delete snmpgetresponse;
                 return false;
             }
+#ifdef DEBUG
+            Serial.printf("[DEBUG] Valid Community: %s - Version: %s\n", snmpgetresponse->communityString, snmpgetresponse->version);
+#endif
             int varBindIndex = 1;
             snmpgetresponse->varBindsCursor = snmpgetresponse->varBinds;
             while (true)
@@ -198,10 +259,22 @@ bool inline SNMPManager::receivePacket(int packetLength)
                 IPAddress responseIP = _udp->remoteIP();
                 ASN_TYPE responseType = snmpgetresponse->varBindsCursor->value->type;
                 BER_CONTAINER *responseContainer = snmpgetresponse->varBindsCursor->value->value;
-
-                // Serial.print(F("Response from: ")); Serial.print(responseIP);
-                // Serial.print(F(" - OID: ")); Serial.println(responseOID);
+#ifdef DEBUG
+                Serial.print(F("[DEBUG] Response from: "));
+                Serial.print(responseIP);
+                Serial.print(F(" - OID: "));
+                Serial.println(responseOID);
+#endif
                 ValueCallback *callback = findCallback(responseIP, responseOID);
+                if (!callback)
+                {
+                    Serial.print(F("Matching callback not found for recieved SNMP response. Response OID: "));
+                    Serial.print(responseOID);
+                    Serial.print(F(" - From IP Address: "));
+                    Serial.println(responseIP);
+                    delete snmpgetresponse;
+                    return false;
+                }
                 ASN_TYPE callbackType = callback->type;
                 if (callbackType != responseType)
                 {
@@ -239,12 +312,13 @@ bool inline SNMPManager::receivePacket(int packetLength)
                 {
                 case STRING:
                 {
-                    // Serial.println("Type: String");
+#ifdef DEBUG
+                    Serial.println("[DEBUG} Type: String");
+#endif
 
                     // Note: Requires that the size of the variable used to store the response is big enough.
                     // Otherwise move responsibility for the creation of the variable to store the value here, but this would put the onus on the caller to free and reset to null.
                     //*((StringCallback *)callback)->value = (char *)malloc(64); // Allocate memory for string, caller will need to free. Malloc updated to incoming message size.
-                    
                     strncpy(*((StringCallback *)callback)->value, ((OctetType *)responseContainer)->_value, strlen(((OctetType *)responseContainer)->_value));
                     OctetType *value = new OctetType(*((StringCallback *)callback)->value);
                     delete value;
@@ -252,7 +326,9 @@ bool inline SNMPManager::receivePacket(int packetLength)
                 break;
                 case INTEGER:
                 {
-                    // Serial.println("Type: Integer");
+#ifdef DEBUG
+                    Serial.println("[DEBUG} Type: Integer");
+#endif
                     IntegerType *value = new IntegerType();
                     if (!((IntegerCallback *)callback)->isFloat)
                     {
@@ -269,7 +345,9 @@ bool inline SNMPManager::receivePacket(int packetLength)
                 break;
                 case COUNTER32:
                 {
-                    // Serial.println("Type: Counter32");
+#ifdef DEBUG
+                    Serial.println("[DEBUG} Type: Counter32");
+#endif
                     Counter32 *value = new Counter32();
                     *(((Counter32Callback *)callback)->value) = ((Counter32 *)responseContainer)->_value;
                     value->_value = *(((Counter32Callback *)callback)->value);
@@ -278,7 +356,9 @@ bool inline SNMPManager::receivePacket(int packetLength)
                 break;
                 case COUNTER64:
                 {
-                    // Serial.println("Type: Counter64");
+#ifdef DEBUG
+                    Serial.println("[DEBUG} Type: Counter64");
+#endif
                     Counter64 *value = new Counter64();
                     *(((Counter64Callback *)callback)->value) = ((Counter64 *)responseContainer)->_value;
                     value->_value = *(((Counter64Callback *)callback)->value);
@@ -287,7 +367,9 @@ bool inline SNMPManager::receivePacket(int packetLength)
                 break;
                 case GUAGE32:
                 {
-                    // Serial.println("Type: Guage32");
+#ifdef DEBUG
+                    Serial.println("[DEBUG} Type: Guage32");
+#endif
                     Guage *value = new Guage();
                     *(((Guage32Callback *)callback)->value) = ((Guage *)responseContainer)->_value;
                     value->_value = *(((Guage32Callback *)callback)->value);
@@ -296,7 +378,9 @@ bool inline SNMPManager::receivePacket(int packetLength)
                 break;
                 case TIMESTAMP:
                 {
-                    // Serial.println("Type: Timestamp");
+#ifdef DEBUG
+                    Serial.println("[DEBUG} Type: TimeStamp");
+#endif
                     TimestampType *value = new TimestampType();
                     *(((TimestampCallback *)callback)->value) = ((TimestampType *)responseContainer)->_value;
                     value->_value = *(((TimestampCallback *)callback)->value);
@@ -322,10 +406,12 @@ bool inline SNMPManager::receivePacket(int packetLength)
     else
     {
         Serial.println(F("SNMPGETRESPONSE: FAILED TO PARSE"));
-        delete snmpgetresponse;
+        if (snmpgetresponse != nullptr)
+            delete snmpgetresponse;
         return false;
     }
-    delete snmpgetresponse;
+    if (snmpgetresponse != nullptr)
+        delete snmpgetresponse;
     return true;
 }
 
@@ -341,8 +427,10 @@ ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
             strcat(OIDBuf, callbacksCursor->value->OID);
             if ((strcmp(OIDBuf, oid) == 0) && (callbacksCursor->value->ip == ip))
             {
-                // Found
-                // Serial.println(F("Found callback with matching IP"));
+// Found
+#ifdef DEBUG
+                Serial.println(F("[DEBUG] Found callback with matching IP"));
+#endif
                 return callbacksCursor->value;
             }
             if (callbacksCursor->next)
@@ -351,7 +439,9 @@ ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
             }
             else
             {
-                // Serial.println(F("No matching callback found."));
+#ifdef DEBUG
+                Serial.println(F("[DEBUG] No matching callback found."));
+#endif
                 break;
             }
         }
@@ -370,7 +460,7 @@ ValueCallback *SNMPManager::addStringHandler(IPAddress ip, const char *oid, char
     return callback;
 }
 
-ValueCallback *SNMPManager::addIntegerHandler(IPAddress ip,const char *oid, int *value)
+ValueCallback *SNMPManager::addIntegerHandler(IPAddress ip, const char *oid, int *value)
 {
     ValueCallback *callback = new IntegerCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -414,7 +504,6 @@ ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, const char *oid, char *v
     addHandler(callback);
     return callback;
 }
-
 
 ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value)
 {

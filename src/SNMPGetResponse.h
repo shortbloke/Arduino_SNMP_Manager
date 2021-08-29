@@ -9,7 +9,8 @@ public:
 	~SNMPGetResponse()
 	{
 		delete varBinds;
-		delete SNMPPacket;
+		if (SNMPPacket != nullptr)
+			delete SNMPPacket;
 		//delete varBindsCursor;
 	};
 	char *communityString;
