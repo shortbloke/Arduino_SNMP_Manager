@@ -1,4 +1,3 @@
-// #define DEBUG
 // #define DEBUG_BER
 
 #ifndef SNMPManager_h
