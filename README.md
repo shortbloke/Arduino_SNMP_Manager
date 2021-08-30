@@ -22,6 +22,8 @@ If you find this useful, consider providing some support:
 
 <a href="https://www.buymeacoffee.com/martinrowan" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
 
+**Changelog**: [CHANGELOG.md](CHANGELOG.md)
+
 ## Usage
 
 ### SNMPManager
