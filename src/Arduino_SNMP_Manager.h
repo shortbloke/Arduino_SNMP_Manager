@@ -127,10 +127,9 @@ public:
 
 private:
     unsigned char _packetBuffer[SNMP_PACKET_LENGTH * 3];
-    bool inline isValidPacket(int packetLength);
     bool inline receivePacket(int length);
-    bool parsePacket(unsigned char *packet);
-    void printPacket(unsigned char *packet, int len);
+    bool parsePacket();
+    void printPacket(int len);
 };
 
 void SNMPManager::setUDP(UDP *udp)
@@ -161,27 +160,12 @@ bool SNMPManager::loop()
     return true;
 }
 
-bool SNMPManager::isValidPacket(int packetLength)
-{
-    if (packetLength <= 0)
-    {
-        Serial.println(F("INVALID Packet - Zero length String"));
-        return false;
-    }
-    if (packetLength > SNMP_PACKET_LENGTH)
-    {
-        Serial.printf("INVALID Packet - packet length > SNMP_PACKET_LENGTH - Size: %d\n", packetLength);
-        return false;
-    }
-    return true;
-}
-
-void SNMPManager::printPacket(unsigned char *packet, int len)
+void SNMPManager::printPacket(int len)
 {
     Serial.print("[DEBUG] packet: ");
     for (int i = 0; i < len; i++)
     {
-        Serial.printf("%02x ", packet[i]);
+        Serial.printf("%02x ", _packetBuffer[i]);
     }
     Serial.println();
 }
@@ -190,8 +174,6 @@ bool SNMPManager::testParsePacket(String testPacket)
 {
     // Function to test sample packet, each byte to be seperated with a space:
     // e.g. "32 02 01 01 04 06 70 75 62 6c 69 63 a2 25 02 02 0c 01 02 01 00 02 c1 00 30 19 30 17 06 11 2b 06 01 04 01 81 9e 16 02 03 01 01 01 02 03 01 00 02 02 14 9f";
-    if (!isValidPacket(testPacket.length()))
-        return false;
     int len = testPacket.length() + 1;
     memset(_packetBuffer, 0, SNMP_PACKET_LENGTH * 3);
     char charArrayPacket[len];
@@ -205,20 +187,23 @@ bool SNMPManager::testParsePacket(String testPacket)
         p = strtok(NULL, " ");
     }
     _packetBuffer[i] = 0; // null terminate the buffer
-
 #ifdef DEBUG
-    printPacket(_packetBuffer, len);
+    printPacket(len);
 #endif
 
-    return parsePacket(_packetBuffer);
+    return parsePacket();
 }
 
 bool inline SNMPManager::receivePacket(int packetLength)
 {
-    if ((!packetLength) or (!isValidPacket(packetLength)))
+    if (!packetLength)
+    {
         return false;
+    }
 #ifdef DEBUG
-    Serial.printf("[DEBUG] Packet Length: %d - From: ", packetLength);
+    Serial.print(F("[DEBUG] Packet Length: "));
+    Serial.print(packetLength);
+    Serial.print(F(" From Address: "));
     Serial.println(_udp->remoteIP());
 #endif
 
@@ -229,13 +214,13 @@ bool inline SNMPManager::receivePacket(int packetLength)
     _packetBuffer[len] = 0; // null terminate the buffer
 
 #ifdef DEBUG
-    printPacket(_packetBuffer, len);
+    printPacket(len);
 #endif
 
-    return parsePacket(_packetBuffer);
+    return parsePacket();
 }
 
-bool SNMPManager::parsePacket(unsigned char *packet)
+bool SNMPManager::parsePacket()
 {
     SNMPGetResponse *snmpgetresponse = new SNMPGetResponse();
     if (snmpgetresponse->parseFrom(_packetBuffer))
@@ -244,12 +229,18 @@ bool SNMPManager::parsePacket(unsigned char *packet)
         {
             if (!(snmpgetresponse->version != 1 || snmpgetresponse->version != 2) || strcmp(_community, snmpgetresponse->communityString) != 0)
             {
-                Serial.printf("Invalid community or version - Community: %s - Version: %s\n", snmpgetresponse->communityString, snmpgetresponse->communityString);
+                Serial.print(F("Invalid community or version - Community: "));
+                Serial.print(snmpgetresponse->communityString);
+                Serial.print(F(" - Version: "));
+                Serial.println(snmpgetresponse->version);
                 delete snmpgetresponse;
                 return false;
             }
 #ifdef DEBUG
-            Serial.printf("[DEBUG] Valid Community: %s - Version: %s\n", snmpgetresponse->communityString, snmpgetresponse->version);
+            Serial.print(F("[DEBUG] Community: "));
+            Serial.println(snmpgetresponse->communityString);
+            Serial.print(F("[DEBUG] SNMP Version: "));
+            Serial.println(snmpgetresponse->version);
 #endif
             int varBindIndex = 1;
             snmpgetresponse->varBindsCursor = snmpgetresponse->varBinds;
@@ -306,6 +297,7 @@ bool SNMPManager::parsePacket(unsigned char *packet)
                     }
                     Serial.println(responseOID);
                     delete snmpgetresponse;
+                    snmpgetresponse = 0;
                     return false;
                 }
                 switch (callbackType)
@@ -313,7 +305,7 @@ bool SNMPManager::parsePacket(unsigned char *packet)
                 case STRING:
                 {
 #ifdef DEBUG
-                    Serial.println("[DEBUG} Type: String");
+                    Serial.println("[DEBUG] Type: String");
 #endif
 
                     // Note: Requires that the size of the variable used to store the response is big enough.
@@ -327,7 +319,7 @@ bool SNMPManager::parsePacket(unsigned char *packet)
                 case INTEGER:
                 {
 #ifdef DEBUG
-                    Serial.println("[DEBUG} Type: Integer");
+                    Serial.println("[DEBUG] Type: Integer");
 #endif
                     IntegerType *value = new IntegerType();
                     if (!((IntegerCallback *)callback)->isFloat)
@@ -346,7 +338,7 @@ bool SNMPManager::parsePacket(unsigned char *packet)
                 case COUNTER32:
                 {
 #ifdef DEBUG
-                    Serial.println("[DEBUG} Type: Counter32");
+                    Serial.println("[DEBUG] Type: Counter32");
 #endif
                     Counter32 *value = new Counter32();
                     *(((Counter32Callback *)callback)->value) = ((Counter32 *)responseContainer)->_value;
@@ -357,7 +349,7 @@ bool SNMPManager::parsePacket(unsigned char *packet)
                 case COUNTER64:
                 {
 #ifdef DEBUG
-                    Serial.println("[DEBUG} Type: Counter64");
+                    Serial.println("[DEBUG] Type: Counter64");
 #endif
                     Counter64 *value = new Counter64();
                     *(((Counter64Callback *)callback)->value) = ((Counter64 *)responseContainer)->_value;
@@ -368,7 +360,7 @@ bool SNMPManager::parsePacket(unsigned char *packet)
                 case GUAGE32:
                 {
 #ifdef DEBUG
-                    Serial.println("[DEBUG} Type: Guage32");
+                    Serial.println("[DEBUG] Type: Guage32");
 #endif
                     Guage *value = new Guage();
                     *(((Guage32Callback *)callback)->value) = ((Guage *)responseContainer)->_value;
@@ -379,7 +371,7 @@ bool SNMPManager::parsePacket(unsigned char *packet)
                 case TIMESTAMP:
                 {
 #ifdef DEBUG
-                    Serial.println("[DEBUG} Type: TimeStamp");
+                    Serial.println("[DEBUG] Type: TimeStamp");
 #endif
                     TimestampType *value = new TimestampType();
                     *(((TimestampCallback *)callback)->value) = ((TimestampType *)responseContainer)->_value;
@@ -406,12 +398,13 @@ bool SNMPManager::parsePacket(unsigned char *packet)
     else
     {
         Serial.println(F("SNMPGETRESPONSE: FAILED TO PARSE"));
-        if (snmpgetresponse != nullptr)
-            delete snmpgetresponse;
+        delete snmpgetresponse;
         return false;
     }
-    if (snmpgetresponse != nullptr)
-        delete snmpgetresponse;
+#ifdef DEBUG
+    Serial.println(F("[DEBUG] SNMPGETRESPONSE: SUCCESS"));
+#endif
+    delete snmpgetresponse;
     return true;
 }
 

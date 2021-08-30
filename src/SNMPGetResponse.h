@@ -9,9 +9,7 @@ public:
 	~SNMPGetResponse()
 	{
 		delete varBinds;
-		if (SNMPPacket != nullptr)
-			delete SNMPPacket;
-		//delete varBindsCursor;
+		delete SNMPPacket;
 	};
 	char *communityString;
 	int version;
@@ -22,7 +20,7 @@ public:
 	VarBindList *varBinds = 0;
 	VarBindList *varBindsCursor = 0;
 
-	ComplexType *SNMPPacket;
+	ComplexType *SNMPPacket = 0;
 	bool parseFrom(unsigned char *buf);
 	bool serialise(char *buf);
 	enum SNMPExpect EXPECTING = SNMPVERSION;
@@ -31,19 +29,31 @@ public:
 
 bool SNMPGetResponse::parseFrom(unsigned char *buf)
 {
+	// SNMPPacket = new ComplexType(STRUCTURE); // ensure SNMPPacket is initialised to avoid crash in deconstructor
 	// confirm that the packet is a STRUCTURE
 	if (buf[0] != 0x30)
 	{
+#ifdef DEBUG
+		Serial.printf("[DEBUG] Packet is not an SNMPGetResponse, expected 0x30, received: 0x%02x\n", buf[0]);
+#endif
 		isCorrupt = true;
 		return false;
 	}
-	SNMPPacket = new ComplexType(STRUCTURE);
+	SNMPPacket = new ComplexType(STRUCTURE); // ensure SNMPPacket is initialised to avoid crash in deconstructor
 	SNMPPacket->fromBuffer(buf);
+	int actualResponseLength = SNMPPacket->getLength();
+	int declaredResponseLength = buf[1]; // SNMP packet length value
 
-	if (SNMPPacket->getLength() <= 30)
+	if (actualResponseLength <= 30)
 	{
 		Serial.print(F("SNMP packet too short, needs to be > 30. Received only: "));
-		Serial.println(SNMPPacket->getLength());
+		Serial.println(actualResponseLength);
+		return false;
+	}
+	if (declaredResponseLength != actualResponseLength)
+	{
+		Serial.printf("Packet Corrupt. Expected Payload size: %d - Actual size: %d\n", declaredResponseLength, actualResponseLength);
+		isCorrupt = true;
 		return false;
 	}
 	// we now have a full ASN.1 packet in SNMPPacket
