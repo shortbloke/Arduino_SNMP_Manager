@@ -41,19 +41,10 @@ bool SNMPGetResponse::parseFrom(unsigned char *buf)
 	}
 	SNMPPacket = new ComplexType(STRUCTURE); // ensure SNMPPacket is initialised to avoid crash in deconstructor
 	SNMPPacket->fromBuffer(buf);
-	int actualResponseLength = SNMPPacket->getLength();
-	int declaredResponseLength = buf[1]; // SNMP packet length value
 
-	if (actualResponseLength <= 30)
+	if (SNMPPacket->getLength() <= 30)
 	{
-		Serial.print(F("SNMP packet too short, needs to be > 30. Received only: "));
-		Serial.println(actualResponseLength);
-		return false;
-	}
-	if (declaredResponseLength != actualResponseLength)
-	{
-		Serial.printf("Packet Corrupt. Expected Payload size: %d - Actual size: %d\n", declaredResponseLength, actualResponseLength);
-		isCorrupt = true;
+		Serial.print(F("SNMP packet too short, needs to be > 30."));
 		return false;
 	}
 	// we now have a full ASN.1 packet in SNMPPacket

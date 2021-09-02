@@ -1,5 +1,9 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## 1.1.4
+
+- Fixes #12 where additional check for packet length was incorrect and unnecessary.
+
 ## 1.1.3
 
 Focus: Increase robustness
@@ -13,11 +17,11 @@ Focus: Increase robustness
 
 - Reduce max size of SNMP message on ESP8266 to address [reported issue](https://github.com/shortbloke/Broadband_Usage_Display/issues/4_) which triggered exception: `Exception 9: LoadStoreAlignmentCause: Load or store to an unaligned address`
 
-# 1.1.1
+## 1.1.1
 
-- Improve OctetString handling for long stringds
+- Improve OctetString handling for long strings
 - Handle OID > 50 characters
 
-# 1.1.0
+## 1.1.0
 
 - Initial library release
