@@ -1,8 +1,12 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## 1.1.5
+
+- Support longer OIDs. Change in v1.1.1 was incomplete
+
 ## 1.1.4
 
-- Fixes #12 where additional check for packet length was incorrect and unnecessary.
+- Fixes #12 where additional check for packet length was incorrect and unnecessary
 
 ## 1.1.3
 

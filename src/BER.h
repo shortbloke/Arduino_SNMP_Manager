@@ -5,6 +5,10 @@
 #define SNMP_OCTETSTRING_MAX_LENGTH 1024
 #endif
 
+#ifndef MAX_OID_LENGTH
+#define MAX_OID_LENGTH 128
+#endif
+
 #include <Arduino.h>
 #include <math.h>
 
@@ -275,10 +279,10 @@ public:
     OIDType() : BER_CONTAINER(true, OID){};
     OIDType(char *value) : BER_CONTAINER(true, OID)
     {
-        strncpy(_value, value, 128);
+        strncpy(_value, value, MAX_OID_LENGTH);
     };
     ~OIDType(){};
-    char _value[128];
+    char _value[MAX_OID_LENGTH];
     int serialise(unsigned char *buf)
     {
 #ifdef DEBUG_BER

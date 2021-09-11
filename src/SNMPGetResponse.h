@@ -29,7 +29,6 @@ public:
 
 bool SNMPGetResponse::parseFrom(unsigned char *buf)
 {
-	// SNMPPacket = new ComplexType(STRUCTURE); // ensure SNMPPacket is initialised to avoid crash in deconstructor
 	// confirm that the packet is a STRUCTURE
 	if (buf[0] != 0x30)
 	{
@@ -82,7 +81,7 @@ bool SNMPGetResponse::parseFrom(unsigned char *buf)
 					return false;
 				}
 				cursor = cursor->next;
-				EXPECTING = PDU; // temp
+				EXPECTING = PDU;
 			}
 			else
 			{
@@ -191,7 +190,6 @@ bool SNMPGetResponse::parseFrom(unsigned char *buf)
 				}
 				else
 				{
-					//                        tempCursor = ((ComplexType*)cursor->next->value)->_values;
 					tempCursor = tempCursor->next;
 					varBindsCursor = varBindsCursor->next;
 				}

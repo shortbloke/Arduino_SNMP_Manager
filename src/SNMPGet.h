@@ -76,7 +76,7 @@ public:
 		int length = packet->serialise(_packetBuffer);
 		delete packet;
 		packet = 0;
-		_udp->beginPacket(ip, 161); // MFR: Trap 162, Get 161
+		_udp->beginPacket(ip, 161);
 		_udp->write(_packetBuffer, length);
 		return _udp->endPacket();
 	}

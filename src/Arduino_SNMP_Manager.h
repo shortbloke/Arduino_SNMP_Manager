@@ -10,10 +10,8 @@
 #ifndef SNMP_PACKET_LENGTH
 #if defined(ESP32)
 #define SNMP_PACKET_LENGTH 1500 // This will limit the size of packets which can be handled.
-#elif defined(ESP8266)
-#define SNMP_PACKET_LENGTH 512 // This will limit the size of packets which can be handled. ESP8266 is unstable and crashes as this value approaches or exceeds1024. This appears to be a problem in the underlying WiFi or UDP implementation
 #else
-#define SNMP_PACKET_LENGTH 484 // This value may need to be made smaller for lower memory devices. This will limit the size of packets which can be handled.
+#define SNMP_PACKET_LENGTH 512 // This value may need to be made smaller for lower memory devices.
 #endif
 #endif
 
@@ -120,7 +118,7 @@ public:
     bool begin();
     bool loop();
     bool testParsePacket(String testPacket);
-    char OIDBuf[50];
+    char OIDBuf[MAX_OID_LENGTH];
     UDP *_udp;
     void addHandler(ValueCallback *callback);
 
@@ -415,7 +413,7 @@ ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
     {
         while (true)
         {
-            memset(OIDBuf, 0, 50);
+            memset(OIDBuf, 0, MAX_OID_LENGTH);
             strcat(OIDBuf, callbacksCursor->value->OID);
             if ((strcmp(OIDBuf, oid) == 0) && (callbacksCursor->value->ip == ip))
             {
