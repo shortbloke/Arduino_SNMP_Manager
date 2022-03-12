@@ -159,6 +159,7 @@ void getSNMP()
   snmpRequest.addOIDPointer(callbackUptime);
 
   snmpRequest.setIP(WiFi.localIP()); // IP of the listening MCU
+  // snmpRequest.setPort(501);  // Default is UDP port 161 for SNMP. But can be overriden if necessary.
   snmpRequest.setUDP(&udp);
   snmpRequest.setRequestID(rand() % 5555);
   snmpRequest.sendTo(router);
