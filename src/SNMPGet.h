@@ -32,6 +32,7 @@ public:
 	const char *_community;
 	short _version;
 	IPAddress agentIP;
+	short port = 161;
 	short requestID;
 	short errorID = 0;
 	short errorIndex = 0;
@@ -46,6 +47,11 @@ public:
 	void setIP(IPAddress ip)
 	{
 		agentIP = ip;
+	}
+
+	void setPort(short portnumber)
+	{
+		port = portnumber;
 	}
 
 	void setUDP(UDP *udp)
@@ -76,7 +82,13 @@ public:
 		int length = packet->serialise(_packetBuffer);
 		delete packet;
 		packet = 0;
-		_udp->beginPacket(ip, 161);
+#ifdef DEBUG
+    Serial.print(F("[DEBUG] SNMPGet: Sending UDP packet to: "));
+    Serial.print(ip);
+    Serial.print(F(":"));
+    Serial.println(port);
+#endif
+		_udp->beginPacket(ip, port);
 		_udp->write(_packetBuffer, length);
 		return _udp->endPacket();
 	}

@@ -36,7 +36,7 @@ SNMPManager snmpManager = SNMPManager("public");
 
 ### SNMPGet
 
-An SNMPGet object is created to make SNMP GetRequest calls (from UDP port 161). This is initialised with the SNMP community string and an SNMP version. Note SNMPv1 = 0, SNMPv2 = 1.
+An SNMPGet object is created to make SNMP GetRequest calls (from UDP port 161 (by default)). This is initialised with the SNMP community string and an SNMP version. Note SNMPv1 = 0, SNMPv2 = 1. The port scan be changed if required using `setPort(<port number>)` before sending the request.
 
 ```cpp
 SNMPGet snmpRequest = SNMPGet("public", 1);
