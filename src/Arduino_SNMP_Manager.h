@@ -415,7 +415,11 @@ ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
         {
             memset(OIDBuf, 0, MAX_OID_LENGTH);
             strcat(OIDBuf, callbacksCursor->value->OID);
-            if ((strcmp(OIDBuf, oid) == 0) && (callbacksCursor->value->ip == ip))
+            if ((strcmp(OIDBuf, oid) == 0) && (
+                  (callbacksCursor->value->ip[0] == ip[0] || callbacksCursor->value->ip[0] == 255) &&
+                  (callbacksCursor->value->ip[1] == ip[1] || callbacksCursor->value->ip[1] == 255) &&
+                  (callbacksCursor->value->ip[2] == ip[2] || callbacksCursor->value->ip[2] == 255) &&
+                  (callbacksCursor->value->ip[3] == ip[3] || callbacksCursor->value->ip[3] == 255)))
             {
 // Found
 #ifdef DEBUG
