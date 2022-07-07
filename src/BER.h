@@ -315,22 +315,29 @@ public:
             strncpy(tempBuf, start, end - start + 1);
             long tempVal;
             tempVal = atoi(tempBuf);
-            if (tempVal > 127)
-            {
-                // Serial.print("large num: ");Serial.println(tempVal);
-                if (tempVal / 128 > 128)
-                {
-                    *ptr++ = ((tempVal / 128 / 128) | 0x80) & 0xFF; // dodgy
-                    _length += 1;
-                }
-                *ptr++ = ((tempVal / 128) | 0x80) & 0xFF;
-                *ptr++ = tempVal % 128 & 0xFF;
-                _length += 2;
-            }
-            else
+            if (tempVal < 128)
             {
                 _length += 1;
                 *ptr++ = (char)tempVal;
+            }
+            else
+            {
+                // Serial.print("large num: ");Serial.println(tempVal);
+                // FIXME: This will only encode integers upto 4 bytes. Ideall this should be a loop.
+                if (tempVal / 128 / 128 > 128)
+                {
+                    *ptr++ = ((tempVal / 128 / 128 / 128 ) | 0x80) & 0xFF;
+                    _length += 1;
+                }
+                if (tempVal / 128 > 128)
+                {
+                    *ptr++ = ((tempVal / 128 / 128) | 0x80) & 0xFF;
+                    _length += 1;
+                }
+                *ptr++ = ((tempVal / 128) | 0x80) & 0xFF;
+
+                *ptr++ = tempVal % 128 & 0xFF;
+                _length += 2;
             }
 
             valuePtr = end + 1;

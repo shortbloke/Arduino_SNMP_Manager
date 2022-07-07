@@ -1,5 +1,9 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## 1.1.7
+
+- Fixes #18 support OID that use large integers, up to 4 bytes.
+
 ## 1.1.6
 
 - Allow non standard port to be used when making SNMP requests. Default UDP port 161 can be overridden using `setPort(<port number>)`.
