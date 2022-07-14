@@ -44,7 +44,7 @@ class TimestampCallback : public ValueCallback
 {
 public:
     TimestampCallback() : ValueCallback(TIMESTAMP){};
-    int *value;
+    uint32_t *value;
 };
 
 class StringCallback : public ValueCallback
@@ -108,7 +108,7 @@ public:
     ValueCallback *addFloatHandler(IPAddress ip, const char *oid, float *value);
     ValueCallback *addStringHandler(IPAddress ip, const char *, char **); // passing in a pointer to a char*
     ValueCallback *addIntegerHandler(IPAddress ip, const char *oid, int *value);
-    ValueCallback *addTimestampHandler(IPAddress ip, const char *oid, int *value);
+    ValueCallback *addTimestampHandler(IPAddress ip, const char *oid, uint32_t *value);
     ValueCallback *addOIDHandler(IPAddress ip, const char *oid, char *value);
     ValueCallback *addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value);
     ValueCallback *addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value);
@@ -474,7 +474,7 @@ ValueCallback *SNMPManager::addFloatHandler(IPAddress ip, const char *oid, float
     return callback;
 }
 
-ValueCallback *SNMPManager::addTimestampHandler(IPAddress ip, const char *oid, int *value)
+ValueCallback *SNMPManager::addTimestampHandler(IPAddress ip, const char *oid, uint32_t *value)
 {
     ValueCallback *callback = new TimestampCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);

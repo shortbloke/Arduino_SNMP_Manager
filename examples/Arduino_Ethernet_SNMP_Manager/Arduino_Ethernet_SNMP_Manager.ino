@@ -42,8 +42,8 @@ int pollInterval = 10000; // delay in milliseconds
 // Variables
 long unsigned int ifSpeedResponse = 0;
 long unsigned int inOctetsResponse = 0;
-int uptime = 0;
-int lastUptime = 0;
+unsigned int uptime = 0;
+unsigned int lastUptime = 0;
 unsigned long pollStart = 0;
 unsigned long intervalBetweenPolls = 0;
 float bandwidthInUtilPct = 0;

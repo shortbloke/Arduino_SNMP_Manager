@@ -1,5 +1,9 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## 1.1.8
+
+- Fixed #19 timeticks should be of type unsigned integer. This change impacts `SMNPManager::addTimestampHandler`.
+
 ## 1.1.7
 
 - Fixes #18 support OID that use large integers, up to 4 bytes.
