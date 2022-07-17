@@ -1,5 +1,9 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## 1.1.9
+
+- Added a new example file for ESP MCU to show polling of multiple devices and storing results in a device record array. #20
+  
 ## 1.1.8
 
 - Fixed #19 timeticks should be of type unsigned integer. This change impacts `SMNPManager::addTimestampHandler`.

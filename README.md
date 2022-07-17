@@ -1,6 +1,6 @@
 # SNMP Manager For ESP8266/ESP32/Arduino (and more)
 
-An SNMP Manager for Arduino and similar MCU. Providing simple SNMP Get-Request support for specified OIDs.
+An SNMP Manager for ESP, Arduino and similar MCU. Providing simple SNMP Get-Request support for specified OIDs.
 
 The library supports:
 
@@ -158,15 +158,16 @@ The examples folder contains an SNMP GetRequest example for each of the data typ
 
 ### Examples folder contents
 
-- [ESP32_ESP8266_SNMP_Manager.ino](examples/ESP32_ESP8266_SNMP_Manager/ESP32_ESP8266_SNMP_Manager.ino) - ESP32 or ESP2866 boards
+- [ESP32_ESP8266_SNMP_Manager.ino](examples/ESP32_ESP8266_SNMP_Manager/ESP32_ESP8266_SNMP_Manager.ino) - ESP32/ESP2866 boards
+- [ESP_Multiple_SNMP_Device_Polling.ino](examples/ESP_Multiple_SNMP_Device_Polling/ESP_Multiple_SNMP_Device_Polling.ino) - ESP32/ESP8266 boards querying multiple devices and storing results in a device record array
 - [Arduino_Ethernet_SNMP_Manager.ino](examples/Arduino_Ethernet_SNMP_Manager/Arduino_Ethernet_SNMP_Manager.ino) - Arduino Mega with Ethernet Shield
 
 ## Tested Devices
 
-The following devices have been confirmed to work with this library:
+The following devices have been confirmed to work with this library (these are affiliate links that help support my work):
 
-- Wemos D1 Mini (v3.1) - ESP8266 - [eBay UK](https://www.ebay.co.uk/itm/WeMos-D1-Mini-LATEST-V3-1-UK-Stock-Arduino-NodeMCU-MicroPython-WiFi-ESP8266/112325195239)
-- ESP32S Dev Module - [Amazon UK](https://amzn.to/2TAqWZJ)
+- WeMos D1 Mini - ESP8266 - [Amazon UK](https://amzn.to/3z6rQBt) [Amazon US](https://amzn.to/3AY4aBE)
+- ESP32S Dev Module - [Amazon UK](https://amzn.to/2TAqWZJ) [Amazon US](https://amzn.to/3PgUZAx)
 
 ## Projects using this library
 

@@ -1,8 +1,8 @@
 MIT License
 
-Copyright (c) 2020 Martin Rowan (https://github.com/shortbloke/Arduino_SNMP_Manager) - Create SNMP Manager without Agent
-Copyright (c) 2019 Niich (https://github.com/Niich/Arduino_SNMP) - Initial SNMP Manager derived from SNMP Agent
-Copyright (c) 2017 Aidan Cyr (https://github.com/fusionps/Arduino_SNMP) - SNMP Agent
+Copyright (c) 2020-2022 Martin Rowan (https://github.com/shortbloke/Arduino_SNMP_Manager) - Create SNMP Manager without Agent
+Parts Copyright (c) 2019 Niich (https://github.com/Niich/Arduino_SNMP) - Initial SNMP Manager derived from SNMP Agent
+Parts Copyright (c) 2017 Aidan Cyr (https://github.com/fusionps/Arduino_SNMP) - SNMP Agent
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
