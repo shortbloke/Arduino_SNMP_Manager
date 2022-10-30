@@ -15,7 +15,7 @@ The library supports:
   - String (Arduino data type: char*)
   - Counter32 (Arduino data type: unsigned int)
   - Counter64 (Arduino data type: long long unsigned int)
-  - Guage32 (Arduino data type: unsigned int)
+  - Gauge32 (Arduino data type: unsigned int)
   - Timestamp (Arduino data type: unsigned int)
 
 If you find this useful, consider providing some support:

@@ -24,8 +24,8 @@ IPAddress router(192, 168, 200, 1);
 const char *community = "public";
 const int snmpVersion = 1; // SNMP Version 1 = 0, SNMP Version 2 = 1
 // OIDs
-const char *oidIfSpeedGuage = ".1.3.6.1.2.1.10.94.1.1.4.1.2.4"; // Guage ADSL Down Sync Speed (interface 4)
-// const char *oidIfSpeedGuage = ".1.3.6.1.2.1.2.2.1.5.4";         // Guage Regular ethernet interface ifSpeed.4
+const char *oidIfSpeedGauge = ".1.3.6.1.2.1.10.94.1.1.4.1.2.4"; // Gauge ADSL Down Sync Speed (interface 4)
+// const char *oidIfSpeedGauge = ".1.3.6.1.2.1.2.2.1.5.4";         // Gauge Regular ethernet interface ifSpeed.4
 const char *oidInOctetsCount32 = ".1.3.6.1.2.1.2.2.1.10.4"; // Counter32 ifInOctets.4
 const char *oidUptime = ".1.3.6.1.2.1.1.3.0";               // TimeTicks uptime (hundredths of seconds)
 //************************************
@@ -86,7 +86,7 @@ void setup()
   snmp.begin();      // start the SNMP Manager
 
   // Get callbacks from creating a handler for each of the OID
-  callbackIfSpeed = snmp.addGuageHandler(router, oidIfSpeedGuage, &ifSpeedResponse);
+  callbackIfSpeed = snmp.addGaugeHandler(router, oidIfSpeedGauge, &ifSpeedResponse);
   callbackInOctets= snmp.addCounter32Handler(router, oidInOctetsCount32, &inOctetsResponse);
   callbackUptime = snmp.addTimestampHandler(router, oidUptime, &uptime);
 }

@@ -1,5 +1,9 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## 1.1.10
+
+- Fixed spelling error `Guage` now corrected all references to `Gauge`. This maybe a breaking change if for example you are were using `addGuageHandler` or referencing the type `GUAGG32`, which now should be updated to `addGaugeHandler` and `GAUGG32`.
+
 ## 1.1.9
 
 - Added a new example file for ESP MCU to show polling of multiple devices and storing results in a device record array. #20

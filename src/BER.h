@@ -24,7 +24,7 @@ typedef enum ASN_TYPE_WITH_VALUE
     STRUCTURE = 0x30,
     NETWORK_ADDRESS = 0x40,
     COUNTER32 = 0x41,
-    GUAGE32 = 0x42, // USIGNED32
+    GAUGE32 = 0x42, // UNSIGNED32
     TIMESTAMP = 0x43,
     OPAQUE = 0x44,
     COUNTER64 = 0x46,
@@ -518,18 +518,18 @@ public:
     ~Counter32(){};
 };
 
-class Guage : public IntegerType
+class Gauge : public IntegerType
 { // Unsigned int
 public:
-    Guage() : IntegerType()
+    Gauge() : IntegerType()
     {
-        _type = GUAGE32;
+        _type = GAUGE32;
     };
-    Guage(unsigned int value) : IntegerType(value)
+    Gauge(unsigned int value) : IntegerType(value)
     {
-        _type = GUAGE32;
+        _type = GAUGE32;
     };
-    ~Guage(){};
+    ~Gauge(){};
 };
 
 typedef struct BER_LINKED_LIST
@@ -639,8 +639,8 @@ public:
             case COUNTER32:
                 newObj = new Counter32();
                 break;
-            case GUAGE32:
-                newObj = new Guage();
+            case GAUGE32:
+                newObj = new Gauge();
                 break;
             case COUNTER64:
                 newObj = new Counter64();

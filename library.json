@@ -1,6 +1,6 @@
 {
   "name": "SNMP Manager",
-  "version": "1.1.9",
+  "version": "1.1.10",
   "description": "An SNMP Manager library to make SNMP requests to other SNMP enabled devices. Supporting SNMP v1 and v2, SNMP requests can be sent (GetRequest) and their responses received (GetResponse) for various SNMP data types.",
   "repository": {
     "type": "git",

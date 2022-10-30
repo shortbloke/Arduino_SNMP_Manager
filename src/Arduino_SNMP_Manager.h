@@ -68,10 +68,10 @@ public:
     uint32_t *value;
 };
 
-class Guage32Callback : public ValueCallback
+class Gauge32Callback : public ValueCallback
 {
 public:
-    Guage32Callback() : ValueCallback(ASN_TYPE::GUAGE32){};
+    Gauge32Callback() : ValueCallback(ASN_TYPE::GAUGE32){};
     uint32_t *value;
 };
 
@@ -112,7 +112,7 @@ public:
     ValueCallback *addOIDHandler(IPAddress ip, const char *oid, char *value);
     ValueCallback *addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value);
     ValueCallback *addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value);
-    ValueCallback *addGuageHandler(IPAddress ip, const char *oid, uint32_t *value);
+    ValueCallback *addGaugeHandler(IPAddress ip, const char *oid, uint32_t *value);
 
     void setUDP(UDP *udp);
     bool begin();
@@ -354,14 +354,14 @@ bool SNMPManager::parsePacket()
                     delete value;
                 }
                 break;
-                case GUAGE32:
+                case GAUGE32:
                 {
 #ifdef DEBUG
-                    Serial.println("[DEBUG] Type: Guage32");
+                    Serial.println("[DEBUG] Type: Gauge32");
 #endif
-                    Guage *value = new Guage();
-                    *(((Guage32Callback *)callback)->value) = ((Guage *)responseContainer)->_value;
-                    value->_value = *(((Guage32Callback *)callback)->value);
+                    Gauge *value = new Gauge();
+                    *(((Gauge32Callback *)callback)->value) = ((Gauge *)responseContainer)->_value;
+                    value->_value = *(((Gauge32Callback *)callback)->value);
                     delete value;
                 }
                 break;
@@ -517,12 +517,12 @@ ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, const char *oid, u
     return callback;
 }
 
-ValueCallback *SNMPManager::addGuageHandler(IPAddress ip, const char *oid, uint32_t *value)
+ValueCallback *SNMPManager::addGaugeHandler(IPAddress ip, const char *oid, uint32_t *value)
 {
-    ValueCallback *callback = new Guage32Callback();
+    ValueCallback *callback = new Gauge32Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
     strcpy(callback->OID, oid);
-    ((Guage32Callback *)callback)->value = value;
+    ((Gauge32Callback *)callback)->value = value;
     callback->ip = ip;
     addHandler(callback);
     return callback;
