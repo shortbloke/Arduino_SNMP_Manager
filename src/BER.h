@@ -125,7 +125,13 @@ public:
         *ptr = _type;
         ptr++;
         unsigned char *lengthPtr = ptr++;
-        if (_value != 0)
+        // For values < 128 we use a single byte for the value
+        if (_value != 0 && _value < 0x80)
+        {
+            _length = 1;
+            *ptr++ = _value;
+        }
+        else if (_value != 0 && _value >= 0x80)
         {
             _length = 4; // FIXME: need to give this dynamic length
                          //        while(_length > 1){
