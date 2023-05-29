@@ -1,8 +1,12 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## 1.1.11
+
+- Fixed implementation of encoding integers to use the minimum number of bytes necessary. Previously was always used 4 bytes. This Fixes #25.
+
 ## 1.1.10
 
-- Fixed spelling error `Guage` now corrected all references to `Gauge`. This maybe a breaking change if for example you are were using `addGuageHandler` or referencing the type `GUAGG32`, which now should be updated to `addGaugeHandler` and `GAUGG32`.
+- Fixed spelling error `Guage` now corrected all references to `Gauge`. This maybe a breaking change if for example you are were using `addGuageHandler` or referencing the type `GUAGE32`, which now should be updated to `addGaugeHandler` and `GAUGE32`.
 
 ## 1.1.9
 
