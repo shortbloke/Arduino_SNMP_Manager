@@ -125,27 +125,30 @@ public:
         *ptr = _type;
         ptr++;
         unsigned char *lengthPtr = ptr++;
-        // For values < 128 we use a single byte for the value
-        if (_value != 0 && _value < 0x80)
+
+        // // For values <= 127 we use a single byte for the value
+        if (_value != 0 && _value <= 0x7F)
         {
             _length = 1;
             *ptr++ = _value;
         }
         else if (_value != 0 && _value >= 0x80)
         {
-            _length = 4; // FIXME: need to give this dynamic length
-                         //        while(_length > 1){
-                         //            if(_value >> 24 == 0){
-                         //                _length--;
-                         //                _value = _value << 8;
-                         //            } else {
-                         //                break;
-                         //            }
-                         //        }
-            *ptr++ = _value >> 24 & 0xFF;
-            *ptr++ = _value >> 16 & 0xFF;
-            *ptr++ = _value >> 8 & 0xFF;
-            *ptr++ = _value & 0xFF;
+            // Determine the number of bytes required for encoding
+            uint32_t temp = _value;
+            _length = 0;
+            while (temp > 0) {
+                temp >>= 8;
+                _length++;
+            }
+            // Multi-byte encoding
+            *ptr++ = 0x80 | _length;  // Tag for multi-byte encoding
+
+            for (size_t i = 1; i <= _length; i++) {
+                *ptr++ = _value & 0xFF;  // Store the least significant byte
+                _value >>= 8;
+            }
+            _length++;
         }
         else
         {
