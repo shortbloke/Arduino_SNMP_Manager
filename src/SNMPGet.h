@@ -87,6 +87,12 @@ public:
     Serial.print(ip);
     Serial.print(F(":"));
     Serial.println(port);
+		Serial.print("[DEBUG_] composed packet: ");
+    for (int i = 0; i < length; i++)
+    {
+        Serial.printf("%02x ", _packetBuffer[i]);
+    }
+    Serial.println();
 #endif
 		_udp->beginPacket(ip, port);
 		_udp->write(_packetBuffer, length);
