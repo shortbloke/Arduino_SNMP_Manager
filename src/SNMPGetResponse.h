@@ -43,7 +43,12 @@ bool SNMPGetResponse::parseFrom(unsigned char *buf)
 
 	if (SNMPPacket->getLength() <= 30)
 	{
+#ifdef DEBUG
+		Serial.printf("[DEBUG] Packet too short. Expected > 30, Actual: %d\n", SNMPPacket->getLength());
+#endif
+#ifndef SUPPRESS_ERROR_SHORT_PACKET
 		Serial.print(F("SNMP packet too short, needs to be > 30."));
+#endif
 		return false;
 	}
 	// we now have a full ASN.1 packet in SNMPPacket

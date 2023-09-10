@@ -52,9 +52,9 @@ typedef enum ASN_TYPE_WITH_VALUE
 class BER_CONTAINER
 {
 public:
-    BER_CONTAINER(bool isPrimative, ASN_TYPE type) : _isPrimative(isPrimative), _type(type){};
+    BER_CONTAINER(bool isPrimitive, ASN_TYPE type) : _isPrimitive(isPrimitive), _type(type){};
     virtual ~BER_CONTAINER(){};
-    bool _isPrimative;
+    bool _isPrimitive;
     ASN_TYPE _type;
     unsigned short _length;
     virtual int serialise(unsigned char *buf) = 0;
@@ -118,7 +118,7 @@ public:
     int serialise(unsigned char *buf)
     {
 #ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] IntergerType:serialise");
+        Serial.println("[DEBUG_BER] IntegerType:serialise");
 #endif
         // here we print out the BER encoded ASN.1 bytes, which includes type, length and value. we return the length of the entire block (TL&V) in bytes;
         unsigned char *ptr = buf;
@@ -332,7 +332,7 @@ public:
             else
             {
                 // Serial.print("large num: ");Serial.println(tempVal);
-                // FIXME: This will only encode integers upto 4 bytes. Ideall this should be a loop.
+                // FIXME: This will only encode integers upto 4 bytes. Ideally this should be a loop.
                 if (tempVal / 128 / 128 > 128)
                 {
                     *ptr++ = ((tempVal / 128 / 128 / 128 ) | 0x80) & 0xFF;
@@ -657,7 +657,7 @@ public:
                 /* OPAQUE = 0x44 */
 
             default:
-#ifdef DBEUG
+#ifdef DEBUG
                 Serial.println("[DEBUG_BER] default new ComplexType");
 #endif
                 newObj = new ComplexType(valueType);

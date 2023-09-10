@@ -87,7 +87,7 @@ public:
     Serial.print(ip);
     Serial.print(F(":"));
     Serial.println(port);
-		Serial.print("[DEBUG_] composed packet: ");
+		Serial.print("[DEBUG] composed packet: ");
     for (int i = 0; i < length; i++)
     {
         Serial.printf("%02x ", _packetBuffer[i]);

@@ -169,7 +169,7 @@ void SNMPManager::printPacket(int len)
 
 bool SNMPManager::testParsePacket(String testPacket)
 {
-    // Function to test sample packet, each byte to be seperated with a space:
+    // Function to test sample packet, each byte to be separated with a space:
     // e.g. "32 02 01 01 04 06 70 75 62 6c 69 63 a2 25 02 02 0c 01 02 01 00 02 c1 00 30 19 30 17 06 11 2b 06 01 04 01 81 9e 16 02 03 01 01 01 02 03 01 00 02 02 14 9f";
     int len = testPacket.length() + 1;
     memset(_packetBuffer, 0, SNMP_PACKET_LENGTH * 3);
@@ -256,7 +256,7 @@ bool SNMPManager::parsePacket()
                 ValueCallback *callback = findCallback(responseIP, responseOID);
                 if (!callback)
                 {
-                    Serial.print(F("Matching callback not found for recieved SNMP response. Response OID: "));
+                    Serial.print(F("Matching callback not found for received SNMP response. Response OID: "));
                     Serial.print(responseOID);
                     Serial.print(F(" - From IP Address: "));
                     Serial.println(responseIP);
@@ -378,8 +378,10 @@ bool SNMPManager::parsePacket()
                 break;
                 default:
                 {
-                    Serial.print(F("Unsupported Type: "));
+#ifdef DEBUG
+                    Serial.print(F("[DEBUG] Unsupported Type: "));
                     Serial.print(callbackType);
+#endif
                 }
                 break;
                 }
@@ -394,7 +396,9 @@ bool SNMPManager::parsePacket()
     }
     else
     {
+#ifndef SUPPRESS_ERROR_FAILED_PARSE
         Serial.println(F("SNMPGETRESPONSE: FAILED TO PARSE"));
+#endif
         delete snmpgetresponse;
         return false;
     }

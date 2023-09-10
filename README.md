@@ -20,7 +20,7 @@ The library supports:
 
 If you find this useful, consider providing some support:
 
-<a href="https://www.buymeacoffee.com/martinrowan" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/martinrowan){:target="_blank"}
 
 **Changelog**: [CHANGELOG.md](CHANGELOG.md)
 
@@ -148,6 +148,18 @@ To compensate for device reset:
 ### Strings
 
 SNMP can be used to query strings, however long strings lead to larger packet sizes needing larger buffers and increased memory usage. The ESP8266 appears to have a bug in the WiFi or UDP protocol support, leading to a maximum UDP packet size that can be received being 1024 bytes. As there are can be multiple OID responses in a single packet along with headers etc, this will reduce the maximum string size that can be received. Reading strings in to a character arrays can use a significant amount of memory, which may not be available on some MCUs. As such query strings should will likely need to be limited.
+
+## Troubleshooting
+
+### Additional Logging
+
+- Debug logging: add `#define DEBUG` before the library include `#include <Arduino_SNMP_Manager.h>`
+- Additional ASN.1 debug logging: add `#define DEBUG_BER` before the library include `#include <Arduino_SNMP_Manager.h>`
+
+### Suppress Errors
+
+- Suppress errors when SNMP packet <= 30 bytes: add `#define SUPPRESS_ERROR_SHORT_PACKET` before `#include <Arduino_SNMP_Manager.h>`
+- Suppress SNMP payload parsing error: add `#define SUPPRESS_ERROR_FAILED_PARSE` before `#include <Arduino_SNMP_Manager.h>`
 
 ## Examples
 

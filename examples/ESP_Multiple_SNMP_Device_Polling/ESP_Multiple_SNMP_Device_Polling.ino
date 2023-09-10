@@ -49,7 +49,7 @@ struct device
 struct device deviceRecords[UPPEROCTETLIMIT + 1]; // Array of device records. _1 as we're not using the 0 index in the array.
 int lastOctet = LOWEROCTETLIMIT;                  // Initialise last octet to lowest IP
 bool allDevicesPolled = false;                    // Flag to to indicate all devices have been sent SNMP requests. Note responses may not yet have arrived.
-// Initisialise variables used for timer counters to zero.
+// Initialise variables used for timer counters to zero.
 unsigned long devicePollStart = 0;
 unsigned long intervalBetweenDevicePolls = 0;
 unsigned long intervalBetweenLastDeviceReadyPolls = 0;
@@ -57,8 +57,8 @@ unsigned long deviceReadyStart = 0;
 
 // SNMP Objects
 WiFiUDP udp;                                           // UDP object used to send and receive packets
-SNMPManager snmp = SNMPManager(community);             // Starts an SMMPManager to listen to replies to get-requests
-SNMPGet snmpRequest = SNMPGet(community, snmpVersion); // Starts an SMMPGet instance to send requests
+SNMPManager snmp = SNMPManager(community);             // Starts an SNMPManager to listen to replies to get-requests
+SNMPGet snmpRequest = SNMPGet(community, snmpVersion); // Starts an SNMPGet instance to send requests
 ValueCallback *callbackSysName;                        // Callback pointer for each OID
 ValueCallback *callbackUptime;                         // Callback pointer for each OID
 //************************************
@@ -109,7 +109,7 @@ void loop()
     {
       devicePollStart += devicePollInterval;                // This prevents drift in the delays
       IPAddress deviceIP(192, 168, 200, lastOctet);         // Set IP address to be queried. Note: This simple example will only work with the last Octet of the address changing as this is used as a simple index for the device records.
-      sendSNMPRequest(deviceIP, &deviceRecords[lastOctet]); // Function call to send SNMP requests to specified device. Values will be storied in the deviceRecords arrary when they are returned (async)
+      sendSNMPRequest(deviceIP, &deviceRecords[lastOctet]); // Function call to send SNMP requests to specified device. Values will be stored in the deviceRecords array when they are returned (async)
       lastOctet = getNextOctet(lastOctet);                  // Update to the next IP address to be queried
     }
   }

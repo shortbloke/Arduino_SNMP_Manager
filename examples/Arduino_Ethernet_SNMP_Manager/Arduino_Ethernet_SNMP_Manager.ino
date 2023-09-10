@@ -4,7 +4,7 @@
 #include <EthernetUdp.h>
 
 //************************************
-//* Ardunio Boards                   *
+//* Arduino Boards                   *
 //************************************
 // This sketch and associated libraries, require quite a bit of memory. Thus are more suited to the Mega/Mega 2560.
 // It may be possible to create a stripped down version of the libraries with just the capabilities required
@@ -50,8 +50,8 @@ float bandwidthInUtilPct = 0;
 long unsigned int lastInOctets = 0;
 // SNMP Objects
 EthernetUDP udp;                                       // UDP object used to send and receive packets
-SNMPManager snmp = SNMPManager(community);             // Starts an SMMPManager to listen to replies to get-requests
-SNMPGet snmpRequest = SNMPGet(community, snmpVersion); // Starts an SMMPGet instance to send requests
+SNMPManager snmp = SNMPManager(community);             // Starts an SNMPManager to listen to replies to get-requests
+SNMPGet snmpRequest = SNMPGet(community, snmpVersion); // Starts an SNMPGet instance to send requests
 // Blank callback pointer for each OID
 ValueCallback *callbackIfSpeed;
 ValueCallback *callbackInOctets;

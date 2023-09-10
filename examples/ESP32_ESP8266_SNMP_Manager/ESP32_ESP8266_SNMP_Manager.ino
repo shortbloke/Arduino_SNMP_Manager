@@ -54,8 +54,8 @@ float bandwidthInUtilPct = 0;
 unsigned int lastInOctets = 0;
 // SNMP Objects
 WiFiUDP udp;                                           // UDP object used to send and receive packets
-SNMPManager snmp = SNMPManager(community);             // Starts an SMMPManager to listen to replies to get-requests
-SNMPGet snmpRequest = SNMPGet(community, snmpVersion); // Starts an SMMPGet instance to send requests
+SNMPManager snmp = SNMPManager(community);             // Starts an SNMPManager to listen to replies to get-requests
+SNMPGet snmpRequest = SNMPGet(community, snmpVersion); // Starts an SNMPGet instance to send requests
 // Blank callback pointer for each OID
 ValueCallback *callbackIfSpeed;
 ValueCallback *callbackInOctets;

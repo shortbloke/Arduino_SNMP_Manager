@@ -1,5 +1,11 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## 1.1.12
+
+- Added flag to suppress short packet errors. Add `#define SUPPRESS_ERROR_SHORT_PACKET` before `#include <Arduino_SNMP_Manager.h>`
+- Added flag to suppress failed to parse errors. Add `#define SUPPRESS_ERROR_FAILED_PARSE` before `#include <Arduino_SNMP_Manager.h>`
+- Corrected some spelling mistakes.
+
 ## 1.1.11
 
 - Fixed implementation of encoding integers to use the minimum number of bytes necessary. Previously was always used 4 bytes. This Fixes #25.
@@ -14,7 +20,7 @@
   
 ## 1.1.8
 
-- Fixed #19 timeticks should be of type unsigned integer. This change impacts `SMNPManager::addTimestampHandler`.
+- Fixed #19 timeticks should be of type unsigned integer. This change impacts `SNMPManager::addTimestampHandler`.
 
 ## 1.1.7
 
