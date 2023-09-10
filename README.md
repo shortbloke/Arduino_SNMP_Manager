@@ -20,7 +20,7 @@ The library supports:
 
 If you find this useful, consider providing some support:
 
-[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/martinrowan){:target="_blank"}
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/martinrowan)
 
 **Changelog**: [CHANGELOG.md](CHANGELOG.md)
 
