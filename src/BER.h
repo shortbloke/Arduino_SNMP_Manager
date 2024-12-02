@@ -318,8 +318,8 @@ public:
                 end = strchr(start, 0);
                 toBreak = true;
             }
-            char tempBuf[10];
-            memset(tempBuf, 0, 10);
+            char tempBuf[12];
+            memset(tempBuf, 0, 12);
             //            char* tempBuf = (char*) malloc(sizeof(char) * (end-start));
             strncpy(tempBuf, start, end - start + 1);
             long tempVal;
