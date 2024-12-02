@@ -323,7 +323,8 @@ public:
             //            char* tempBuf = (char*) malloc(sizeof(char) * (end-start));
             strncpy(tempBuf, start, end - start + 1);
             long tempVal;
-            tempVal = atoi(tempBuf);
+            char *pEnd;
+            tempVal = (uint32_t)strtoul(tempBuf, &pEnd, 10);
             if (tempVal < 128)
             {
                 _length += 1;
