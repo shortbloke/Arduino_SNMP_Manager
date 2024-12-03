@@ -1,5 +1,8 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## 1.1.13
+- Fix crash when using OIDs with 10 digits. Contributor: [AlphaArslan](https://github.com/AlphaArslan)
+
 ## 1.1.12
 
 - Added flag to suppress short packet errors. Add `#define SUPPRESS_ERROR_SHORT_PACKET` before `#include <Arduino_SNMP_Manager.h>`
