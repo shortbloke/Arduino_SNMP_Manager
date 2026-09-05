@@ -82,8 +82,8 @@ public:
 		_udp = udp;
 	}
 
-	void addOIDPointer(ValueCallback *callback);
-	ValueCallbacks *callbacks = new ValueCallbacks();
+	bool addOIDPointer(ValueCallback *callback);
+	ValueCallbacks *callbacks = new (std::nothrow) ValueCallbacks();
 	ValueCallbacks *callbacksCursor = callbacks;
 
 	UDP *_udp = 0;
@@ -143,71 +143,48 @@ public:
 	void clearOIDList()
     { // Release this request's references; registrations may still belong to a manager.
         releaseCallbacks();
-		callbacks = new ValueCallbacks();
+		callbacks = new (std::nothrow) ValueCallbacks();
 		callbacksCursor = callbacks;
 	}
 };
 
 inline bool SNMPGet::build()
 {
-	// Build the community wrapper and GetRequest PDU.
     delete packet;
     packet = nullptr;
-	packet = new ComplexType(STRUCTURE);
-	packet->addValueToList(new IntegerType((int)_version));
-	packet->addValueToList(new OctetType((char *)_community));
-	ComplexType *getPDU;
-	getPDU = new ComplexType(GetRequestPDU);
-	getPDU->addValueToList(new IntegerType(requestID));
-	getPDU->addValueToList(new IntegerType(errorID));
-	getPDU->addValueToList(new IntegerType(errorIndex));
-	ComplexType *varBindList = new ComplexType(STRUCTURE);
-
-	callbacksCursor = callbacks;
-	if (callbacksCursor->value)
-	{
-		while (true)
-		{
-			ComplexType *varBind = new ComplexType(STRUCTURE);
-			varBind->addValueToList(new OIDType(callbacksCursor->value->OID));
-			// Each requested OID uses an ASN.1 NULL value placeholder.
-			BER_CONTAINER *value = new NullType();
-			varBind->addValueToList(value);
-			varBindList->addValueToList(varBind);
-
-			if (callbacksCursor->next)
-			{
-				callbacksCursor = callbacksCursor->next;
-			}
-			else
-			{
-				break;
-			}
-		}
-	}
-	getPDU->addValueToList(varBindList);
-	packet->addValueToList(getPDU);
-	return true;
+    if (!_community) return false;
+    std::unique_ptr<ComplexType> root(new (std::nothrow) ComplexType(STRUCTURE));
+    std::unique_ptr<ComplexType> pdu(new (std::nothrow) ComplexType(GetRequestPDU));
+    std::unique_ptr<ComplexType> bindings(new (std::nothrow) ComplexType(STRUCTURE));
+    if (!root || !pdu || !bindings) return false;
+    if (!root->addValueToList(new (std::nothrow) IntegerType(_version)) ||
+        !root->addValueToList(new (std::nothrow) OctetType(const_cast<char *>(_community))) ||
+        !pdu->addValueToList(new (std::nothrow) IntegerType(requestID)) ||
+        !pdu->addValueToList(new (std::nothrow) IntegerType(errorID)) ||
+        !pdu->addValueToList(new (std::nothrow) IntegerType(errorIndex))) return false;
+    for (ValueCallbacks *entry=callbacks; entry && entry->value; entry=entry->next)
+    {
+        std::unique_ptr<ComplexType> binding(new (std::nothrow) ComplexType(STRUCTURE));
+        if (!binding || !binding->addValueToList(new (std::nothrow) OIDType(entry->value->OID)) ||
+            !binding->addValueToList(new (std::nothrow) NullType()) ||
+            !bindings->addValueToList(binding.release())) return false;
+    }
+    if (!pdu->addValueToList(bindings.release()) || !root->addValueToList(pdu.release())) return false;
+    packet = root.release();
+    return true;
 }
 
-inline void SNMPGet::addOIDPointer(ValueCallback *callback)
+inline bool SNMPGet::addOIDPointer(ValueCallback *callback)
 {
-    if (!callback) return;
+    if (!callback) return false;
+    ValueCallbacks **tail = &callbacks;
+    while (*tail && (*tail)->value) tail = &(*tail)->next;
+    if (!*tail) *tail = new (std::nothrow) ValueCallbacks();
+    if (!*tail) return false;
     callback->retain();
-	callbacksCursor = callbacks;
-	if (callbacksCursor->value)
-	{
-		while (callbacksCursor->next != 0)
-		{
-			callbacksCursor = callbacksCursor->next;
-		}
-		callbacksCursor->next = new ValueCallbacks();
-		callbacksCursor = callbacksCursor->next;
-		callbacksCursor->value = callback;
-		callbacksCursor->next = 0;
-	}
-	else
-		callbacks->value = callback;
+    (*tail)->value = callback;
+    callbacksCursor = *tail;
+    return true;
 }
 
 #endif

@@ -15,8 +15,12 @@ typedef struct VarBindListStruct
 {
     ~VarBindListStruct()
     {
-        delete next;
-        next = 0;
+        while (next) {
+            auto* node = next;
+            next = node->next;
+            node->next = nullptr;
+            delete node;
+        }
         delete value;
         value = 0;
     };

@@ -8,6 +8,17 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <csignal>
+// Failure injection affects only the library's nothrow allocations.
+static int allocationsBeforeFailure = -1;
+void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
+    if (allocationsBeforeFailure == 0) return nullptr;
+    if (allocationsBeforeFailure > 0) --allocationsBeforeFailure;
+    return ::operator new(size);
+}
+struct FailAllocations {
+    explicit FailAllocations(int count) { allocationsBeforeFailure=count; }
+    ~FailAllocations() { allocationsBeforeFailure=-1; }
+};
 using Bytes = std::vector<unsigned char>;
 #define CHECK(x) do { if (!(x)) throw std::runtime_error(#x); } while(0)
 Bytes encode(BER_CONTAINER& value) { unsigned char b[8192]{}; int n=value.serialise(b,sizeof(b)); CHECK(n>=0 && n<=8192); return Bytes(b,b+n); }
@@ -239,6 +250,35 @@ int main(int argc,char** argv) {
         CHECK(decoded.parseFrom(udp.outgoing.data(),udp.outgoing.size()));
         CHECK(decoded.requestID==static_cast<unsigned long>(INT32_MAX));
         CHECK(sizeof(manager)<SNMP_PACKET_LENGTH+512);
+    });
+    add("allocation failures leave requests and parsers reusable", [] {
+        Manager manager; UDP udp; int32_t value=0;
+        auto* callback=manager.addIntegerHandler(udp.peer,oid,&value);
+        Request request; request.setUDP(&udp); CHECK(request.addOIDPointer(callback));
+        auto wire=message(binding({2,1,42}));
+        for (int allowance=0;allowance<40;++allowance) {
+            {
+                FailAllocations fail(allowance);
+                bool built=request.build();
+                CHECK(built || request.packet==nullptr);
+                SNMPGetResponse response;
+                bool parsed=response.parseFrom(wire.data(),wire.size());
+                CHECK(parsed || response.isCorrupt);
+            }
+            CHECK(request.build());
+        }
+        {
+            FailAllocations fail(0);
+            Manager empty;
+            CHECK(!empty.addIntegerHandler(udp.peer,oid,&value));
+            CHECK(!empty.begin());
+        }
+        Manager empty;
+        {
+            FailAllocations fail(0);
+            CHECK(!empty.addIntegerHandler(udp.peer,oid,&value));
+        }
+        CHECK(empty.addIntegerHandler(udp.peer,oid,&value));
     });
     add("default manager starts without transport", [] {
         SNMPManager manager;

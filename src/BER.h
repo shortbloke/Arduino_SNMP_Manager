@@ -10,7 +10,8 @@
 #endif
 
 #include <Arduino.h>
-#include <math.h>
+#include <new>
+#include <memory>
 
 typedef enum ASN_TYPE_WITH_VALUE
 {
@@ -532,8 +533,12 @@ typedef struct BER_LINKED_LIST
 {
     ~BER_LINKED_LIST()
     {
-        delete next;
-        next = 0;
+        while (next) {
+            auto* node = next;
+            next = node->next;
+            node->next = nullptr;
+            delete node;
+        }
         delete value;
         value = 0;
     }
@@ -585,46 +590,47 @@ public:
             case GetBulkRequestPDU:
             case TrapPDU: // Recognized here; the response parser rejects trap PDUs.
             case Trapv2PDU:
-                newObj = new ComplexType(valueType);
+                newObj = new (std::nothrow) ComplexType(valueType);
                 break;
                 // primitive
             case INTEGER:
-                newObj = new IntegerType();
+                newObj = new (std::nothrow) IntegerType();
                 break;
             case STRING:
-                newObj = new OctetType();
+                newObj = new (std::nothrow) OctetType();
                 break;
             case OID:
-                newObj = new OIDType();
+                newObj = new (std::nothrow) OIDType();
                 break;
             case NULLTYPE:
-                newObj = new NullType();
+                newObj = new (std::nothrow) NullType();
                 break;
                 // derived
             case NETWORK_ADDRESS:
-                newObj = new NetworkAddress();
+                newObj = new (std::nothrow) NetworkAddress();
                 break;
             case TIMESTAMP:
-                newObj = new TimestampType();
+                newObj = new (std::nothrow) TimestampType();
                 break;
             case COUNTER32:
-                newObj = new Counter32();
+                newObj = new (std::nothrow) Counter32();
                 break;
             case GAUGE32:
-                newObj = new Gauge();
+                newObj = new (std::nothrow) Gauge();
                 break;
             case COUNTER64:
-                newObj = new Counter64();
+                newObj = new (std::nothrow) Counter64();
                 break;
             case OPAQUE:
             case NOSUCHOBJECT:
             case NOSUCHINSTANCE:
             case ENDOFMIBVIEW:
-                newObj = new RawType(valueType);
+                newObj = new (std::nothrow) RawType(valueType);
                 break;
             default:
                 return false;
             }
+            if (!newObj) return false;
             bool valid;
             if (!newObj->_isPrimitive)
                 valid = static_cast<ComplexType *>(newObj)->decode(buf + offset, childHeader + valueLength, depth + 1);
@@ -635,7 +641,7 @@ public:
                 delete newObj;
                 return false;
             }
-            addValueToList(newObj);
+            if (!addValueToList(newObj)) return false;
             offset += childHeader + valueLength;
         }
         return true;
@@ -674,28 +680,19 @@ public:
         return _length;
     }
 
-    void addValueToList(BER_CONTAINER *newObj)
+    // Takes ownership of the child on both success and failure.
+    bool addValueToList(BER_CONTAINER *child)
     {
-        ValuesList *conductor = _values;
-        if (_values != 0)
-        {
-            while (conductor->next != 0)
-            {
-                conductor = conductor->next;
-                delay(0);
-            }
-            conductor->next = new ValuesList;
-            conductor = conductor->next;
-            conductor->value = newObj;
-            conductor->next = 0;
-        }
-        else
-        {
-            _values = new ValuesList;
-            _values->value = newObj;
-            _values->next = 0;
-        }
+        if (!child) return false;
+        ValuesList *node = new (std::nothrow) ValuesList();
+        if (!node) { delete child; return false; }
+        node->value = child;
+        ValuesList **tail = &_values;
+        while (*tail) tail = &(*tail)->next;
+        *tail = node;
+        return true;
     }
+
 };
 
 #endif

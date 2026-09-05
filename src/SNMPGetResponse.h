@@ -25,7 +25,6 @@ public:
 
 	ComplexType *SNMPPacket = 0;
 	bool parseFrom(unsigned char *buf, size_t available = static_cast<size_t>(-1));
-	bool serialise(char *buf);
 	enum SNMPExpect EXPECTING = SNMPVERSION;
 	bool isCorrupt = false;
 };
@@ -41,8 +40,8 @@ inline bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
     EXPECTING = SNMPVERSION;
     isCorrupt = true;
     if (available < 2 || buf[0] != STRUCTURE) return false;
-    SNMPPacket = new ComplexType(STRUCTURE);
-    if (!SNMPPacket->fromBuffer(buf, available)) return false;
+    SNMPPacket = new (std::nothrow) ComplexType(STRUCTURE);
+    if (!SNMPPacket || !SNMPPacket->fromBuffer(buf, available)) return false;
 
     // Validate the message and PDU shapes before dereferencing their fields.
     ValuesList *versionField = SNMPPacket->_values;
@@ -66,19 +65,22 @@ inline bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
     requestID = static_cast<IntegerType *>(id->value)->_value;
     errorStatus = static_cast<IntegerType *>(status->value)->_value;
     errorIndex = static_cast<IntegerType *>(index->value)->_value;
-    varBinds = new VarBindList();
+    varBinds = new (std::nothrow) VarBindList();
+    if (!varBinds) return false;
     varBindsCursor = varBinds;
     for (ValuesList *entry = static_cast<ComplexType *>(bindings->value)->_values; entry; entry = entry->next)
     {
         if (entry->value->_type != STRUCTURE) return false;
         ValuesList *oid = static_cast<ComplexType *>(entry->value)->_values;
         if (!oid || oid->value->_type != OID || !oid->next || oid->next->next) return false;
-        VarBind *binding = new VarBind();
+        VarBind *binding = new (std::nothrow) VarBind();
+        if (!binding) return false;
         binding->oid = static_cast<OIDType *>(oid->value);
         binding->type = oid->next->value->_type;
         binding->value = oid->next->value;
         varBindsCursor->value = binding;
-        varBindsCursor->next = new VarBindList();
+        varBindsCursor->next = new (std::nothrow) VarBindList();
+        if (!varBindsCursor->next) return false;
         varBindsCursor = varBindsCursor->next;
     }
     EXPECTING = DONE;
