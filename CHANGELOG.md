@@ -38,11 +38,8 @@ not been published. Existing 1.x projects should read the
 
 ### Robustness and memory
 
-- Retain 1.2.x null-input response rejection, request-aware duplicate-registration
-  matching, successful-update counters, and bounded fresh-response examples.
-- Validate BER boundaries and SNMP version/PDU/value combinations, including
-  full-range OID subidentifiers and the protocol's OID arc-count limit.
-- Drain rejected UDP packets with bounded reads instead of receive-side `flush()`.
+- Validate SNMP version/PDU/value combinations across the expanded manager
+  operations and enforce the protocol's OID arc-count limit.
 - Bound query, walk, table, packet, and payload storage; release invalidated
   payloads and report allocation failures through checked results.
 - Support compact table-index storage and recover from empty successful GETBULK
