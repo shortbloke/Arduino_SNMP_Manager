@@ -28,6 +28,8 @@ void setup()
     if (!checkSecondTranslationUnit())
         return;
     IPAddress peer(192, 0, 2, 1);
+    // Compile-only API coverage: these differing types deliberately share a dummy OID.
+    // This is not a runnable polling example; see examples/ for matching OIDs and types.
     const char *oid = ".1.3.6.1.2.1.1.1.0";
     manager.setUDP(&udp);
     request.setUDP(&udp);

@@ -21,7 +21,7 @@ namespace multi_example
 #include <unistd.h>
 #include <sys/wait.h>
 #include <csignal>
-// Failure injection affects only the library's nothrow allocations.
+// Failure injection covers scalar nothrow new; array new and malloc/strdup are not injected.
 static int allocationsBeforeFailure = -1;
 void *operator new(std::size_t size, const std::nothrow_t &) noexcept
 {
@@ -992,6 +992,19 @@ int main(int argc, char **argv)
             SNMPGetResponse r;
             CHECK(!r.parseFrom(b.data()));
             CHECK(r.isCorrupt);
+        });
+    add("response parser rejects null input and recovers",
+        []
+        {
+            SNMPGetResponse response;
+            CHECK(!response.parseFrom(nullptr));
+            CHECK(!response.parseFrom(nullptr, 0));
+            CHECK(!response.parseFrom(nullptr, 20));
+            auto bytes = message(binding({2, 1, 42}));
+            CHECK(response.parseFrom(bytes.data(), bytes.size()));
+            CHECK(!response.parseFrom(nullptr, bytes.size()));
+            CHECK(response.isCorrupt && !response.SNMPPacket && !response.varBinds);
+            CHECK(response.parseFrom(bytes.data(), bytes.size()));
         });
     add("response rejects wrong version field type",
         []

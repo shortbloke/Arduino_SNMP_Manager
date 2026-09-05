@@ -1,6 +1,6 @@
 # SNMP Manager For ESP8266/ESP32/Arduino (and more)
 
-Version 1.2.0 is a header-only SNMP manager for ESP8266, ESP32, and compatible
+Version 1.2.1 is a header-only SNMP manager for ESP8266, ESP32, and compatible
 network-capable Arduino platforms. It sends GetRequest queries for exact OIDs
 and processes their responses. GetNext, GetBulk, walks, Set, notifications, and
 SNMPv3 are not implemented by this version.
@@ -14,14 +14,14 @@ The library supports:
   - GetRequest (sending query to a SNMP Agent for a specified OID)
   - GetResponse (Decoding the response to the SNMP GetRequest)
 - Value handlers:
-  - Integer32: `int32_t` (or a compatible signed integer destination)
+  - INTEGER: signed 32-bit value, stored in `int32_t` (or a compatible signed integer destination)
   - OCTET STRING text: caller-owned `char` buffer, passed through `char**`
   - Counter32, Gauge32, and TimeTicks: `uint32_t`
   - Counter64: `uint64_t` (SNMPv2c only)
   - OBJECT IDENTIFIER: caller-owned `char` buffer
   - Binary OCTET STRING and Opaque: byte buffer and returned length
 
-`addFloatHandler` retains the legacy convention of converting an Integer32 to a
+`addFloatHandler` retains the legacy convention of converting an INTEGER value to a
 `float` divided by ten. Use it only when that scale matches the queried object;
 it is not a general SNMP floating-point decoder.
 
@@ -30,6 +30,60 @@ If you find this useful, consider providing some support:
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/martinrowan)
 
 **Changelog**: [CHANGELOG.md](CHANGELOG.md)
+
+## Pin your project's library version
+
+Use an exact release for reproducible builds, or a major-version range if you want
+compatible updates. Avoid an unversioned Git URL or a moving branch such as `master`
+when your project must remain on the 1.x API. The 2.x rework is a separate development
+branch, not a published release at the time of 1.2.1.
+
+### PlatformIO
+
+To pin directly to this GitHub release, put this in your environment's
+`platformio.ini` (alongside its existing board/framework settings):
+
+```ini
+lib_deps =
+    https://github.com/shortbloke/Arduino_SNMP_Manager.git#v1.2.1
+```
+
+For the PlatformIO Registry package, choose one dependency constraint:
+
+| Requirement | `lib_deps` entry | Allowed versions |
+| --- | --- | --- |
+| Remain on 1.x | `shortbloke/SNMP Manager@^1.1.13` | At least 1.1.13, below 2.0.0 |
+| Require this patch, remain on 1.x | `shortbloke/SNMP Manager@^1.2.1` | At least 1.2.1, below 2.0.0 |
+| Exact patch | `shortbloke/SNMP Manager@1.2.1` | Only 1.2.1 |
+| Future 2.x opt-in | `shortbloke/SNMP Manager@^2.0.0` | At least 2.0.0, below 3.0.0 |
+
+Registry constraints only work for versions actually published there. A GitHub
+release does not establish PlatformIO Registry availability; use the Git tag above
+if 1.2.1 is not listed. The 2.x constraint is illustrative until 2.0.0 is published;
+migrate your code before changing to it. Git tag pins are exact and do not accept
+Registry-style version ranges. See [PlatformIO dependency configuration](https://docs.platformio.org/en/latest/projectconf/sections/env/options/library/lib_deps.html).
+
+### Arduino IDE and Arduino CLI
+
+In Arduino IDE's Library Manager, find **SNMP Manager** and select the desired
+1.x version from the version selector. Review upgrade prompts instead of accepting
+a future 2.x upgrade for a 1.x project. Library Manager installation is shared by
+sketches using that library directory; it is not a per-project major-version lock.
+Record the exact version in your project's setup instructions.
+
+For scripted Arduino CLI setup, request an exact indexed version:
+
+```sh
+arduino-cli lib update-index
+arduino-cli lib install "SNMP Manager@1.2.1"
+```
+
+If the Arduino index has not yet picked up the release, download the source ZIP
+from the [1.2.1 release](https://github.com/shortbloke/Arduino_SNMP_Manager/releases/tag/v1.2.1)
+and use Arduino IDE's **Sketch > Include Library > Add .ZIP Library**. Avoid keeping
+multiple manual copies with the same headers in your library search paths. To use
+a future 2.x release, install its exact version intentionally after adapting the
+sketch; the CLI command installs a version, not a persistent major-version constraint.
 
 ## Configure the examples
 
@@ -62,7 +116,7 @@ When a callback is included in a successful `SNMPGet::sendTo`, its responses mus
 
 The 1.x API remains header-only: numeric version arguments, `setIP()`, short request IDs/ports, and sketch-local configuration defines remain supported. New checked `tryAddOIDPointer`, `tryAddHandler`, and `tryAddValueToList` methods report allocation failures; the original void methods remain available.
 
-`callback->updateCount()` increments only when a response successfully writes that destination, including when the value is unchanged. Save the count before sending and compare afterwards to distinguish a fresh value from stale storage. Errors, exceptions, rejected values, and duplicate replies do not count as updates. Register handlers once and reuse them; repeated registration still creates additional manager-owned handlers, but replies are matched to the registration used by the request.
+`callback->updateCount()` increments only when a response successfully writes that destination, including when the value is unchanged. Save the count before sending and compare afterwards to distinguish a fresh value from stale storage. Errors, exceptions, and rejected values do not count as updates. Duplicate replies are rejected for tracked requests; legacy untracked handlers do not provide duplicate detection. Register handlers once and reuse them; repeated registration still creates additional manager-owned handlers, but replies are matched to the registration used by the request.
 
 ## Buffer safety and ownership
 
@@ -205,7 +259,12 @@ library include, consistently across translation units:
 #include <Arduino_SNMP_Manager.h>
 ```
 
-Increasing this limit consumes more memory: the manager holds a receive buffer,
+`MAX_OID_LENGTH` separately defaults to 128 bytes of dotted OID text, including
+the terminator. Supply numeric OIDs with a leading dot, as in the examples. This
+text capacity is not the protocol limit of 128 subidentifiers; some valid SNMP
+OIDs will exceed the default text capacity and be rejected.
+
+Increasing these limits consumes more memory: the manager holds a receive buffer,
 request serialization uses a stack buffer three times this size, and decoded BER
 objects also require heap storage. Account for the target board's UDP limits and
 available memory; smaller queries may be preferable to a larger buffer.

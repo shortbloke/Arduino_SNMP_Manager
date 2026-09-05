@@ -102,7 +102,8 @@ public:
     short errorID = 0;
     short errorIndex = 0;
 
-    // Configure the request ID, destination, port, and transport.
+    // Configure the request ID, legacy stored IP, destination port, and transport.
+    // sendTo(ip) uses its argument; setIP() does not configure the local network address.
 
     void setRequestID(short request)
     {
@@ -139,7 +140,8 @@ public:
         {
             return false;
         }
-        // Refuse a send before touching the transport if any callback has no free slot.
+        // In strict mode, refuse a new request when no tracking slot is available.
+        // Rolling mode replaces an older slot; retransmissions can reuse their slot.
         for (ValueCallbacks *entry = callbacks; entry && entry->value; entry = entry->next)
             if (!entry->value->canTrack(static_cast<unsigned long>(requestID), _udp, ip))
                 return false;

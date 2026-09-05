@@ -86,7 +86,8 @@ public:
         previousOctets = octets;
         previousTicks = ticks;
         havePrevious = true;
-        // Reboots and TimeTicks wrap start a new baseline instead of producing a rate.
+        // Backwards TimeTicks (restart or wrap) starts a new baseline. Interface
+        // counter resets without backwards uptime cannot be distinguished from rollover.
         return usable;
     }
 

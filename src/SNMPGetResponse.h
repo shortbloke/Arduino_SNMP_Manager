@@ -86,7 +86,7 @@ inline bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
     communityLength = 0;
     EXPECTING = SNMPVERSION;
     isCorrupt = true;
-    if (available < 2 || buf[0] != STRUCTURE)
+    if (!buf || available < 2 || buf[0] != STRUCTURE)
         return false;
     SNMPPacket = new (std::nothrow) ComplexType(STRUCTURE);
     if (!SNMPPacket || !SNMPPacket->fromBuffer(buf, available))

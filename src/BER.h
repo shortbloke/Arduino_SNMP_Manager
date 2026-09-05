@@ -6,6 +6,7 @@
 #endif
 
 #ifndef MAX_OID_LENGTH
+// Text storage capacity including the NUL, not the SNMP limit on OID arcs.
 #define MAX_OID_LENGTH 128
 #endif
 

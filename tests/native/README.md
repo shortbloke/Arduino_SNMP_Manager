@@ -36,7 +36,8 @@ and portable integer destinations. Both safe bounded methods and legacy forms ar
 covered; a legacy caller still owns responsibility for sufficient buffer storage.
 
 The stub consumes received bytes and models ESP8266's transmit-on-flush behavior.
-It injects bind/send/read/allocation failures, but cannot establish actual Wi-Fi
+It injects bind/send/read failures and scalar nothrow-new allocation failures
+(array allocations and malloc/strdup failures are not injected), but cannot establish actual Wi-Fi
 performance, fragmentation behavior, or hardware interoperability.
 
 For real core compilation, run `pio run -d tests/embedded` and

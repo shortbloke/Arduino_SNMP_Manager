@@ -1,5 +1,14 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## 1.2.1
+
+A backward-compatible patch release correcting 1.x guidance and a public parser edge case.
+
+- Correct README polling, UDP ports, bandwidth calculations, supported functionality, and buffer guidance; add dependency pinning instructions for 1.x and future 2.x projects.
+- Clarify OID text capacity and ownership, strict versus rolling request tracking, example counter-reset limits, and the scope of allocation-failure tests.
+- Reject null input in `SNMPGetResponse::parseFrom()` without crashing; add a regression covering both overloads and recovery after failure.
+- Keep the existing API and example configuration defaults; update both library manifests to 1.2.1.
+
 ## 1.2.0
 
 A robustness and test-coverage release that retains the header-only 1.x API and existing sketch interfaces. It improves packet validation, BER encoding/decoding, callback memory handling, and request tracking, with optional bounded APIs for safer buffer use.

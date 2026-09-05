@@ -12,7 +12,7 @@ SNMPv2c retains the community wrapper but uses version INTEGER 1. The project's 
 
 Get requests address exact object instances; NULL is an appropriate placeholder. Responses preserve request IDs for correlation. Nonzero error-status means binding values must be ignored. In v2c, `noSuchObject` and `noSuchInstance` are per-binding exceptions; `endOfMibView` belongs to GetNext/GetBulk traversal. A `tooBig` response has an empty binding list. [RFC 3416 §§4.1–4.2.4](https://www.rfc-editor.org/rfc/rfc3416.html#section-4.1)
 
-The former `<= 30` response-size rejection rejected legitimate short messages; it has been replaced with structural validation. Empty lists are not inherently malformed. Tests should cover mixed successful/exception bindings, PDU-level errors without updates, request correlation, and short `tooBig` responses. The revised suite separates exception parsing and mixed exception/success dispatch.
+The former `<= 30` response-size rejection rejected legitimate short messages; it has been replaced with structural validation. Empty lists are not inherently malformed. Tests cover mixed successful/exception bindings, PDU-level errors without updates, request correlation, and short `tooBig` responses. The revised suite separates exception parsing and mixed exception/success dispatch.
 
 ## Transport and BER
 
@@ -30,4 +30,4 @@ The integer and OID regression expectations remain justified. Signed and Counter
 
 Integer32 is signed 32-bit. OCTET STRING holds binary or textual bytes, with no implicit C terminator. OID limits are 128 subidentifiers, each at most 2^32−1—not 128 printable characters. Counter32/64 wrap; Gauge32 can increase or decrease; TimeTicks measures hundredths of a second modulo 2^32. [RFC 2578 §7.1](https://www.rfc-editor.org/rfc/rfc2578.html#section-7.1)
 
-Embedded-zero string and maximum-subidentifier regressions are included; full OID-size boundary coverage remains outstanding. The float handler's division by ten is a library convention whose suitability depends on the MIB; SNMP does not mandate that scale. C-string termination is also an API responsibility. Both existing regressions remain useful, but neither is a standalone protocol-conformance assertion.
+Embedded-zero string and maximum-subidentifier regressions are included. The 1.x implementation defaults to `MAX_OID_LENGTH = 128` bytes of dotted-text storage including the terminator; this is an implementation limit, not full support for all 128-subidentifier OIDs. Longer text is rejected. Changing that macro changes storage costs and must be consistent across translation units; full protocol-size boundary coverage remains outstanding. The float handler's division by ten is a library convention whose suitability depends on the MIB; SNMP does not mandate that scale. C-string termination is also an API responsibility. Both existing regressions remain useful, but neither is a standalone protocol-conformance assertion.

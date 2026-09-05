@@ -37,7 +37,8 @@ class ValueCallback
 {
 public:
     ValueCallback(ASN_TYPE atype) : type(atype) {};
-    // Registrations own their OID; destinations and transports remain caller-owned.
+    // Factory registrations own their copied OID; directly assigned OID pointers are borrowed.
+    // Destinations and transports remain caller-owned.
     virtual ~ValueCallback()
     {
         free(ownedOID);
