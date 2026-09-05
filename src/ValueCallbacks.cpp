@@ -1,6 +1,6 @@
 #include "ValueCallbacks.h"
 
-bool ValueCallback::canTrack(unsigned long id, UDP *udp, IPAddress peer) const
+bool ValueCallback::canTrack(int32_t id, UDP *udp, IPAddress peer) const
 {
     for (const auto &entry : pending)
         if (!entry.active || (entry.id == id && entry.udp == udp && entry.peer == peer))
@@ -8,7 +8,7 @@ bool ValueCallback::canTrack(unsigned long id, UDP *udp, IPAddress peer) const
     return false;
 }
 
-void ValueCallback::track(unsigned long id, UDP *udp, IPAddress peer)
+void ValueCallback::track(int32_t id, UDP *udp, IPAddress peer)
 {
     PendingRequest *slot = nullptr;
     for (auto &entry : pending)
@@ -34,7 +34,7 @@ void ValueCallback::track(unsigned long id, UDP *udp, IPAddress peer)
     requestPeer = peer;
 }
 
-bool ValueCallback::consume(unsigned long id, UDP *udp, IPAddress peer)
+bool ValueCallback::consume(int32_t id, UDP *udp, IPAddress peer)
 {
     bool found = false;
     requestPending = false;

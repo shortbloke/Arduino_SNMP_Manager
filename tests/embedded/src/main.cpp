@@ -12,7 +12,7 @@ static_assert(sizeof(float) == 4, "Float callbacks require 32-bit float");
 
 WiFiUDP udp;
 SNMPManager manager("public");
-SNMPGet request("public", 1);
+SNMPGet request("public", SNMPVersion::Version2c);
 int32_t integerValue;
 float floatValue;
 uint32_t counterValue;

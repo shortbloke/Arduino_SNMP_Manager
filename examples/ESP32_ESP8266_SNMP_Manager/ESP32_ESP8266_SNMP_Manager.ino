@@ -19,7 +19,7 @@ const char *password = "PASSWORD";
 //************************************
 IPAddress router(192, 168, 200, 1);
 const char *community = "public";
-const int snmpVersion = 1; // SNMP Version 1 = 0, SNMP Version 2 = 1
+constexpr SNMPVersion snmpVersion = SNMPVersion::Version2c;
 // OIDs
 const char *oidIfSpeedGauge = ".1.3.6.1.2.1.10.94.1.1.4.1.2.4"; // Gauge ADSL Down Sync Speed (interface 4)
 // const char *oidIfSpeedGauge = ".1.3.6.1.2.1.2.2.1.5.4";         // Gauge Regular ethernet interface ifSpeed.4

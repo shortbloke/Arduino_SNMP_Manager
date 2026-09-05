@@ -21,7 +21,7 @@ public:
     size_t communityLength = 0;
     int version = 0;
     ASN_TYPE requestType = STRUCTURE;
-    unsigned long requestID = 0;
+    int32_t requestID = 0;
     int errorStatus = 0;
     int errorIndex = 0;
     VarBindList *varBinds = 0;

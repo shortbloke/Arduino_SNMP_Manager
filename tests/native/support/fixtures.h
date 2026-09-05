@@ -33,7 +33,7 @@ Bytes message(Bytes bindings, int version = 1, const char *community = "public",
 using Manager = SNMPManager;
 struct Request : SNMPGet
 {
-    Request(int v = 1) : SNMPGet("public", v)
+    Request(SNMPVersion version = SNMPVersion::Version2c) : SNMPGet("public", version)
     {
         setRequestID(7);
     }

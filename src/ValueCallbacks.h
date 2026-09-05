@@ -36,7 +36,7 @@ public:
     // Legacy summary fields describe the most recent send and whether any reply is pending.
     bool requestTracked = false;
     bool requestPending = false;
-    unsigned long expectedRequestID = 0;
+    int32_t expectedRequestID = 0;
     UDP *requestUDP = nullptr;
     IPAddress requestPeer;
 
@@ -45,7 +45,7 @@ private:
     struct PendingRequest
     {
         bool active = false;
-        unsigned long id = 0;
+        int32_t id = 0;
         UDP *udp = nullptr;
         IPAddress peer;
     };
@@ -56,9 +56,9 @@ public:
     {
         return trackingEnabled;
     }
-    bool canTrack(unsigned long id, UDP *udp, IPAddress peer) const;
-    void track(unsigned long id, UDP *udp, IPAddress peer);
-    bool consume(unsigned long id, UDP *udp, IPAddress peer);
+    bool canTrack(int32_t id, UDP *udp, IPAddress peer) const;
+    void track(int32_t id, UDP *udp, IPAddress peer);
+    bool consume(int32_t id, UDP *udp, IPAddress peer);
     // Explicitly abandon lost/timed-out requests; tracked callbacks still reject unsolicited
     // replies.
     void clearPendingRequests();

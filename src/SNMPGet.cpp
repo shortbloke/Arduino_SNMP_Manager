@@ -3,16 +3,9 @@
 #include <memory>
 #include <utility>
 
-SNMPGet::SNMPGet(const char *community, short version) : _community(community), _version(version)
+SNMPGet::SNMPGet(const char *community, SNMPVersion version)
+    : _community(community), _version(version)
 {
-    if (version == 0)
-    {
-        version1 = true;
-    }
-    if (version == 1)
-    {
-        version2 = true;
-    }
 }
 
 SNMPGet::SNMPGet(SNMPGet &&other) : SNMPGet(other._community, other._version)
@@ -24,8 +17,6 @@ SNMPGet::SNMPGet(SNMPGet &&other) : SNMPGet(other._community, other._version)
     _udp = other._udp;
     port = other.port;
     requestID = other.requestID;
-    errorID = other.errorID;
-    errorIndex = other.errorIndex;
 }
 
 void SNMPGet::releaseCallbacks()
@@ -45,7 +36,7 @@ bool SNMPGet::sendTo(IPAddress ip)
     }
     // Refuse a send before touching the transport if any callback has no free slot.
     for (ValueCallbacks *entry = callbacks; entry && entry->value; entry = entry->next)
-        if (!entry->value->canTrack(static_cast<unsigned long>(requestID), _udp, ip))
+        if (!entry->value->canTrack(requestID, _udp, ip))
             return false;
     if (!build())
     {
@@ -85,7 +76,7 @@ bool SNMPGet::sendTo(IPAddress ip)
     for (ValueCallbacks *entry = callbacks; entry && entry->value; entry = entry->next)
     {
         ValueCallback *callback = entry->value;
-        callback->track(static_cast<unsigned long>(requestID), _udp, ip);
+        callback->track(requestID, _udp, ip);
     }
     return true;
 }
@@ -114,11 +105,12 @@ bool SNMPGet::build()
     std::unique_ptr<ComplexType> bindings(new (std::nothrow) ComplexType(STRUCTURE));
     if (!root || !pdu || !bindings)
         return false;
-    if (!root->addValueToList(new (std::nothrow) IntegerType(_version)) ||
+    if (!root->addValueToList(new (std::nothrow)
+                                  IntegerType(static_cast<unsigned long>(_version))) ||
         !root->addValueToList(new (std::nothrow) OctetType(const_cast<char *>(_community))) ||
         !pdu->addValueToList(new (std::nothrow) IntegerType(requestID)) ||
-        !pdu->addValueToList(new (std::nothrow) IntegerType(errorID)) ||
-        !pdu->addValueToList(new (std::nothrow) IntegerType(errorIndex)))
+        !pdu->addValueToList(new (std::nothrow) IntegerType(0)) ||
+        !pdu->addValueToList(new (std::nothrow) IntegerType(0)))
         return false;
     for (ValueCallbacks *entry = callbacks; entry && entry->value; entry = entry->next)
     {

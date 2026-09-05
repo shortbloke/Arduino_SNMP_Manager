@@ -3,7 +3,7 @@ int compatibilityValue();
 int main()
 {
     SNMPManager manager;
-    SNMPGet request("public", 1);
+    SNMPGet request("public", SNMPVersion::Version2c);
     manager.setUDP(nullptr);
     return manager.begin() || compatibilityValue() != 128;
 }

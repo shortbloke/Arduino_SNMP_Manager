@@ -18,7 +18,7 @@ const char *password = "PASSWORD";
 //* SNMP Device Info                 *
 //************************************
 const char *community = "public"; // SNMP Community string
-const int snmpVersion = 1;        // Enum, SNMP Version 1 = 0, SNMP Version 2 = 1
+constexpr SNMPVersion snmpVersion = SNMPVersion::Version2c;
 // OIDs
 const char *oidSysName = ".1.3.6.1.2.1.1.5.0"; // OctetString SysName
 const char *oidUptime = ".1.3.6.1.2.1.1.3.0";  // TimeTicks uptime (hundredths of seconds)

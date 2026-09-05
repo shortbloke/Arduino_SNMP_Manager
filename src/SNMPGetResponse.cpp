@@ -38,7 +38,7 @@ bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
         status->value->_type != INTEGER || index->value->_type != INTEGER ||
         bindings->value->_type != STRUCTURE)
         return false;
-    requestID = static_cast<IntegerType *>(id->value)->_value;
+    requestID = static_cast<int32_t>(static_cast<IntegerType *>(id->value)->_value);
     errorStatus = static_cast<IntegerType *>(status->value)->_value;
     errorIndex = static_cast<IntegerType *>(index->value)->_value;
     varBinds = new (std::nothrow) VarBindList();

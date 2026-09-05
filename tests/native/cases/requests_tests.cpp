@@ -14,16 +14,17 @@ void registerRequestsTests(std::vector<Test> &tests)
     add("request golden wire and ports",
         []
         {
-            for (int version : {0, 1})
+            for (SNMPVersion version : {SNMPVersion::Version1, SNMPVersion::Version2c})
             {
                 Manager m;
-                int value = 0;
+                int32_t value = 0;
                 UDP udp;
                 Request r(version);
                 r.setUDP(&udp);
                 r.addOIDPointer(m.addIntegerHandler(udp.peer, oid, &value));
                 CHECK(r.sendTo(udp.peer));
-                CHECK(udp.outgoing == message(binding({5, 0}), version, "public", 0xa0));
+                CHECK(udp.outgoing ==
+                      message(binding({5, 0}), static_cast<int>(version), "public", 0xa0));
                 CHECK(udp.destination == udp.peer);
                 CHECK(udp.destinationPort == 161);
                 r.setPort(1161);
@@ -80,7 +81,7 @@ void registerRequestsTests(std::vector<Test> &tests)
             CHECK(udp.destinationPort == 65535);
             SNMPGetResponse decoded;
             CHECK(decoded.parseFrom(udp.outgoing.data(), udp.outgoing.size()));
-            CHECK(decoded.requestID == static_cast<unsigned long>(INT32_MAX));
+            CHECK(decoded.requestID == INT32_MAX);
             CHECK(sizeof(manager) < SNMP_PACKET_LENGTH + 512);
         });
 }
