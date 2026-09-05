@@ -1,161 +1,138 @@
 #if defined(ESP8266)
-#include <ESP8266WiFi.h> // ESP8266 Core WiFi Library
+#include <ESP8266WiFi.h>
 #else
-#include <WiFi.h> // ESP32 Core WiFi Library
+#include <WiFi.h>
 #endif
-
 #include <WiFiUdp.h>
 #include <Arduino_SNMP_Manager.h>
+#include "Polling.h"
 
-//************************************
-//* Your WiFi info                   *
-//************************************
 const char *ssid = "SSID";
 const char *password = "PASSWORD";
-//************************************
+const char *community = "public";
+const short snmpVersion = 1; // 0 = SNMPv1, 1 = SNMPv2c.
+const char *oidSysName = ".1.3.6.1.2.1.1.5.0";
+const char *oidUptime = ".1.3.6.1.2.1.1.3.0";
+const uint32_t devicePollInterval = 100;
+const uint32_t lastDeviceWaitPeriod = 5000;
+const uint32_t responseTimeout = 2000;
+#define LOWEROCTETLIMIT 1
+#define UPPEROCTETLIMIT 6
+static_assert(LOWEROCTETLIMIT >= 1 && UPPEROCTETLIMIT <= 254 && LOWEROCTETLIMIT <= UPPEROCTETLIMIT,
+              "Configure a valid last-octet range");
 
-//************************************
-//* SNMP Device Info                 *
-//************************************
-const char *community = "public"; // SNMP Community string
-const int snmpVersion = 1;        // Enum, SNMP Version 1 = 0, SNMP Version 2 = 1
-// OIDs
-const char *oidSysName = ".1.3.6.1.2.1.1.5.0"; // OctetString SysName
-const char *oidUptime = ".1.3.6.1.2.1.1.3.0";  // TimeTicks uptime (hundredths of seconds)
-//************************************
-
-//************************************
-//* Settings                         *
-//************************************
-int devicePollInterval = 100;    // delay in milliseconds
-int lastDeviceWaitPeriod = 5000; // delay in milliseconds
-#define LOWEROCTETLIMIT 1        // Set the lowest IP address to 1, .0 typically isn't used and isn't well supported.
-#define UPPEROCTETLIMIT 6        // Set the upper limit of the range of IPs to query
-//************************************
-
-//************************************
-//* Initialise                       *
-//************************************
-// Structures
-struct device
+WiFiUDP udp;
+SNMPManager snmp(community);
+struct Device
 {
-  IPAddress address;
-  char name[50];
-  char *sysName = name; // StringHandler needs pointer to char*
-  unsigned int uptime;
-}; // Structure for the device records
-
-// Global Variables
-struct device deviceRecords[UPPEROCTETLIMIT + 1]; // Array of device records. _1 as we're not using the 0 index in the array.
-int lastOctet = LOWEROCTETLIMIT;                  // Initialise last octet to lowest IP
-bool allDevicesPolled = false;                    // Flag to to indicate all devices have been sent SNMP requests. Note responses may not yet have arrived.
-// Initialise variables used for timer counters to zero.
-unsigned long devicePollStart = 0;
-unsigned long intervalBetweenDevicePolls = 0;
-unsigned long intervalBetweenLastDeviceReadyPolls = 0;
-unsigned long deviceReadyStart = 0;
-
-// SNMP Objects
-WiFiUDP udp;                                           // UDP object used to send and receive packets
-SNMPManager snmp = SNMPManager(community);             // Starts an SNMPManager to listen to replies to get-requests
-SNMPGet snmpRequest = SNMPGet(community, snmpVersion); // Starts an SNMPGet instance to send requests
-ValueCallback *callbackSysName;                        // Callback pointer for each OID
-ValueCallback *callbackUptime;                         // Callback pointer for each OID
-//************************************
-
-//************************************
-//* Function declarations            *
-//************************************
-void sendSNMPRequest(IPAddress, struct device *deviceRecord);
-int getNextOctet(int current);
-void printVariableValues();
-//************************************
+    IPAddress address;
+    char name[50] = {};
+    char *namePointer = name;
+    uint32_t uptime = 0;
+    SNMPGet request{community, snmpVersion};
+    PollState<2> sample;
+    bool fresh = false;
+};
+const size_t deviceCount = UPPEROCTETLIMIT - LOWEROCTETLIMIT + 1;
+Device devices[deviceCount];
+size_t nextDevice = 0;
+uint32_t lastSend = 0;
+short requestID = 0;
+bool ready = false, firstSend = true;
 
 void setup()
 {
-  Serial.begin(115200);
-  WiFi.begin(ssid, password);
-  Serial.println("");
-  // Wait for connection
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.printf("\nConnected to SSID: %s - IP Address: ", ssid);
-  Serial.println(WiFi.localIP());
-
-  snmp.setUDP(&udp); // give snmp a pointer to the UDP object
-  snmp.begin();      // start the SNMP Manager
+    Serial.begin(115200);
+    WiFi.begin(ssid, password);
+    const uint32_t start = millis();
+    while (WiFi.status() != WL_CONNECTED && uint32_t(millis() - start) < 30000)
+        delay(100);
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.println(F("Wi-Fi connection failed."));
+        return;
+    }
+    snmp.setUDP(&udp);
+    if (!snmp.begin())
+    {
+        Serial.println(F("SNMP bind failed."));
+        return;
+    }
+    for (size_t i = 0; i < deviceCount; ++i)
+    {
+        Device &device = devices[i];
+        device.address = IPAddress(192, 168, 200, LOWEROCTETLIMIT + i); // Configure your subnet.
+        device.request.setUDP(&udp);
+        // These registrations and OID lists are reused on every polling cycle.
+        if (!device.sample.add(snmp.addStringHandler(device.address, oidSysName,
+                                                     &device.namePointer, sizeof(device.name)),
+                               device.request) ||
+            !device.sample.add(snmp.addTimestampHandler(device.address, oidUptime, &device.uptime),
+                               device.request))
+        {
+            Serial.println(F("SNMP registration failed."));
+            return;
+        }
+    }
+    ready = true;
 }
 
 void loop()
 {
-  snmp.loop();                                                       // Needs to be called frequently to process incoming SNMP responses.
-  intervalBetweenDevicePolls = millis() - devicePollStart;           // Timer for triggering per device Polls
-  intervalBetweenLastDeviceReadyPolls = millis() - deviceReadyStart; // Timer to trigger end of polling all devices (allowing some time for final packets to be processed)
-  if (allDevicesPolled)
-  {
-    if (intervalBetweenLastDeviceReadyPolls > lastDeviceWaitPeriod) // Waiting time after all devices polled complete?
+    if (!ready)
     {
-      deviceReadyStart += lastDeviceWaitPeriod; // This prevents drift in the delays
-      printVariableValues();                    // Print the values to the serial console
-      allDevicesPolled = false;                 // Reset the flag
+        delay(10);
+        return;
     }
-  }
-  else
-  {
-    if (intervalBetweenDevicePolls >= devicePollInterval) // Time to poll the next device?
+    snmp.loop();
+    const uint32_t now = millis();
+    bool pending = false;
+    for (Device &device : devices)
     {
-      devicePollStart += devicePollInterval;                // This prevents drift in the delays
-      IPAddress deviceIP(192, 168, 200, lastOctet);         // Set IP address to be queried. Note: This simple example will only work with the last Octet of the address changing as this is used as a simple index for the device records.
-      sendSNMPRequest(deviceIP, &deviceRecords[lastOctet]); // Function call to send SNMP requests to specified device. Values will be stored in the deviceRecords array when they are returned (async)
-      lastOctet = getNextOctet(lastOctet);                  // Update to the next IP address to be queried
+        if (device.sample.complete())
+        {
+            device.fresh = true;
+            device.sample.finish();
+        }
+        else if (device.sample.expired(now, responseTimeout))
+            device.sample.finish();
+        pending = pending || device.sample.active();
     }
-  }
-}
-
-void sendSNMPRequest(IPAddress target, struct device *deviceRecord)
-{
-  Serial.print("sendSNMPRequest - target: ");
-  Serial.println(target);
-  deviceRecord->address = target;
-  // Get callbacks from creating a handler for each of the OID
-  callbackSysName = snmp.addStringHandler(target, oidSysName, &deviceRecord->sysName);
-  callbackUptime = snmp.addTimestampHandler(target, oidUptime, &deviceRecord->uptime);
-
-  // Build a SNMP get-request add each OID to the request
-  snmpRequest.addOIDPointer(callbackSysName);
-  snmpRequest.addOIDPointer(callbackUptime);
-
-  snmpRequest.setIP(WiFi.localIP()); // IP of the listening MCU
-  snmpRequest.setUDP(&udp);
-  snmpRequest.setRequestID(rand() % 5555);
-  snmpRequest.sendTo(target);
-  snmpRequest.clearOIDList();
-}
-
-int getNextOctet(int current)
-{
-  if (current == UPPEROCTETLIMIT)
-  {
-    allDevicesPolled = true;
-    return LOWEROCTETLIMIT;
-  }
-  return current + 1;
-}
-
-void printVariableValues()
-{
-  int i;
-  for (i = LOWEROCTETLIMIT; i <= UPPEROCTETLIMIT; i++)
-  {
-    Serial.print("Address: ");
-    Serial.print(deviceRecords[i].address);
-    Serial.print(" - Name: ");
-    Serial.print(deviceRecords[i].name);
-    Serial.print(" - Uptime: ");
-    Serial.print(deviceRecords[i].uptime);
-    Serial.println();
-  }
+    if (nextDevice < deviceCount)
+    {
+        if (firstSend || uint32_t(now - lastSend) >= devicePollInterval)
+        {
+            firstSend = false;
+            lastSend = now;
+            Device &device = devices[nextDevice++];
+            device.fresh = false;
+            requestID = nextRequestID(requestID);
+            device.request.setRequestID(requestID);
+            if (!device.sample.begin(now) || !device.request.sendTo(device.address))
+            {
+                device.sample.finish();
+                Serial.print(F("SNMP send failed: "));
+                Serial.println(device.address);
+            }
+        }
+    }
+    else if (!pending && uint32_t(now - lastSend) >= lastDeviceWaitPeriod)
+    {
+        // Wait from the actual final send, rather than a timer anchored to startup.
+        for (const Device &device : devices)
+        {
+            Serial.print(device.address);
+            if (!device.fresh)
+                Serial.println(F(" - no fresh complete response"));
+            else
+            {
+                Serial.print(F(" - Name: "));
+                Serial.print(device.name);
+                Serial.print(F(" - Uptime: "));
+                Serial.println(device.uptime);
+            }
+        }
+        nextDevice = 0;
+        firstSend = true;
+    }
 }

@@ -9,7 +9,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install platformio==6.1.19 clang-format==19.1.7
-      - run: clang-format --dry-run --Werror src/*.h tests/native/*.cpp tests/native/stubs/*.h tests/native/compatibility/*.cpp tests/platformio/test_snmp/*.cpp tests/embedded/src/*.cpp
+      - run: clang-format --dry-run --Werror src/*.h tests/native/*.cpp tests/native/stubs/*.h tests/native/compatibility/*.cpp tests/platformio/test_snmp/*.cpp tests/embedded/src/*.cpp examples/*/*.h examples/*/*.ino
       - run: make -C tests/native check
       - run: make -C tests/native sanitize
       - run: pio test -e native

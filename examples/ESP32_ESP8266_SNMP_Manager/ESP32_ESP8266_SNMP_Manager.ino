@@ -1,179 +1,144 @@
 #if defined(ESP8266)
-#include <ESP8266WiFi.h> // ESP8266 Core WiFi Library         
+#include <ESP8266WiFi.h>
 #else
-#include <WiFi.h>        // ESP32 Core WiFi Library    
+#include <WiFi.h>
 #endif
-
 #include <WiFiUdp.h>
 #include <Arduino_SNMP_Manager.h>
+#include "Polling.h"
 
-//************************************
-//* Your WiFi info                   *
-//************************************
 const char *ssid = "SSID";
 const char *password = "PASSWORD";
-//************************************
-
-//************************************
-//* SNMP Device Info                 *
-//************************************
+// Configure the agent and interface index for your device.
 IPAddress router(192, 168, 200, 1);
 const char *community = "public";
-const int snmpVersion = 1; // SNMP Version 1 = 0, SNMP Version 2 = 1
-// OIDs
-const char *oidIfSpeedGauge = ".1.3.6.1.2.1.10.94.1.1.4.1.2.4"; // Gauge ADSL Down Sync Speed (interface 4)
-// const char *oidIfSpeedGauge = ".1.3.6.1.2.1.2.2.1.5.4";         // Gauge Regular ethernet interface ifSpeed.4
-const char *oidInOctetsCount32 = ".1.3.6.1.2.1.2.2.1.10.4"; // Counter32 ifInOctets.4
-const char *oidServiceCountInt = ".1.3.6.1.2.1.1.7.0";      // Integer sysServices
-const char *oidSysName = ".1.3.6.1.2.1.1.5.0";              // OctetString SysName
-const char *oid64Counter = ".1.3.6.1.2.1.31.1.1.1.6.4";     // Counter64 64-bit ifInOctets.4
-const char *oidUptime = ".1.3.6.1.2.1.1.3.0";               // TimeTicks uptime (hundredths of seconds)
-//************************************
+const short snmpVersion = 1; // 0 = SNMPv1, 1 = SNMPv2c.
+const char *oidIfSpeedGauge = ".1.3.6.1.2.1.2.2.1.5.4";
+const char *oidInOctetsCount32 = ".1.3.6.1.2.1.2.2.1.10.4";
+const char *oidUptime = ".1.3.6.1.2.1.1.3.0";
+const uint32_t pollInterval = 10000;
+const uint32_t responseTimeout = 2000;
 
-//************************************
-//* Settings                         *
-//************************************
-int pollInterval = 10000; // delay in milliseconds
-//************************************
-
-//************************************
-//* Initialise                       *
-//************************************
-// Variables
-unsigned int ifSpeedResponse = 0;
-unsigned int inOctetsResponse = 0;
+uint32_t ifSpeedResponse = 0, inOctetsResponse = 0, uptime = 0;
+const char *oidServiceCountInt = ".1.3.6.1.2.1.1.7.0";
+const char *oidSysName = ".1.3.6.1.2.1.1.5.0";
+const char *oid64Counter = ".1.3.6.1.2.1.31.1.1.1.6.4";
 int servicesResponse = 0;
-char sysName[50];
+char sysName[50] = {};
 char *sysNameResponse = sysName;
-long long unsigned int hcCounter = 0;
-unsigned int uptime = 0;
-unsigned int lastUptime = 0;
-unsigned long pollStart = 0;
-unsigned long intervalBetweenPolls = 0;
-float bandwidthInUtilPct = 0;
-unsigned int lastInOctets = 0;
-// SNMP Objects
-WiFiUDP udp;                                           // UDP object used to send and receive packets
-SNMPManager snmp = SNMPManager(community);             // Starts an SNMPManager to listen to replies to get-requests
-SNMPGet snmpRequest = SNMPGet(community, snmpVersion); // Starts an SNMPGet instance to send requests
-// Blank callback pointer for each OID
-ValueCallback *callbackIfSpeed;
-ValueCallback *callbackInOctets;
-ValueCallback *callbackServices;
-ValueCallback *callbackSysName;
-ValueCallback *callback64Counter;
-ValueCallback *callbackUptime;
-//************************************
+uint64_t hcCounter = 0;
+WiFiUDP udp;
+SNMPManager snmp(community);
+SNMPGet snmpRequest(community, snmpVersion);
+PollState<6> sample;
+Counter32Rate rate;
+uint32_t pollStart = 0;
+short requestID = 0;
+bool ready = false, firstPoll = true;
 
-//************************************
-//* Function declarations            *
-//************************************
-void getSNMP();
-void doSNMPCalculations();
-void printVariableValues();
-//************************************
+void printSample()
+{
+    double utilisation = 0;
+    if (rate.sample(inOctetsResponse, uptime, ifSpeedResponse, utilisation))
+    {
+        Serial.print(F("Bandwidth In Utilisation %: "));
+        Serial.println(utilisation, 1);
+    }
+    else
+        Serial.println(
+            F("Fresh sample received; bandwidth unavailable until a usable interval exists."));
+    Serial.print(F("ifSpeed: "));
+    Serial.println(ifSpeedResponse);
+    Serial.print(F("ifInOctets: "));
+    Serial.println(inOctetsResponse);
+    Serial.print(F("Uptime: "));
+    Serial.println(uptime);
+    Serial.print(F("Services: "));
+    Serial.println(servicesResponse);
+    Serial.print(F("Name: "));
+    Serial.println(sysNameResponse);
+    if (snmpVersion == 1)
+        Serial.printf("HC counter: %llu\n", static_cast<unsigned long long>(hcCounter));
+    Serial.println(F("----------------------"));
+}
 
 void setup()
 {
-  Serial.begin(115200);
-  WiFi.begin(ssid, password);
-  Serial.println("");
-  // Wait for connection
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.print("Connected to SSID: ");
-  Serial.println(ssid);
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-
-  snmp.setUDP(&udp); // give snmp a pointer to the UDP object
-  snmp.begin();      // start the SNMP Manager
-
-  // Get callbacks from creating a handler for each of the OID
-  callbackIfSpeed = snmp.addGaugeHandler(router, oidIfSpeedGauge, &ifSpeedResponse);
-  callbackInOctets= snmp.addCounter32Handler(router, oidInOctetsCount32, &inOctetsResponse);
-  callbackServices = snmp.addIntegerHandler(router, oidServiceCountInt, &servicesResponse);
-  callbackSysName = snmp.addStringHandler(router, oidSysName, &sysNameResponse);
-  callback64Counter = snmp.addCounter64Handler(router, oid64Counter, &hcCounter);
-  callbackUptime = snmp.addTimestampHandler(router, oidUptime, &uptime);
+    Serial.begin(115200);
+    WiFi.begin(ssid, password);
+    const uint32_t start = millis();
+    while (WiFi.status() != WL_CONNECTED && uint32_t(millis() - start) < 30000)
+        delay(100);
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.println(F("Wi-Fi connection failed; check configuration."));
+        return;
+    }
+    Serial.print(F("IP address: "));
+    Serial.println(WiFi.localIP());
+    snmp.setUDP(&udp);
+    if (!snmp.begin())
+    {
+        Serial.println(F("SNMP bind failed."));
+        return;
+    }
+    snmpRequest.setUDP(&udp);
+    // Register and build the OID list once; later polls reuse both.
+    bool registered =
+        sample.add(snmp.addGaugeHandler(router, oidIfSpeedGauge, &ifSpeedResponse), snmpRequest) &&
+        sample.add(snmp.addCounter32Handler(router, oidInOctetsCount32, &inOctetsResponse),
+                   snmpRequest) &&
+        sample.add(snmp.addTimestampHandler(router, oidUptime, &uptime), snmpRequest);
+    registered =
+        registered &&
+        sample.add(snmp.addIntegerHandler(router, oidServiceCountInt, &servicesResponse),
+                   snmpRequest) &&
+        sample.add(snmp.addStringHandler(router, oidSysName, &sysNameResponse, sizeof(sysName)),
+                   snmpRequest);
+    // Counter64 is a v2c type. Remove this optional binding if your agent lacks it.
+    if (snmpVersion == 1)
+        registered =
+            registered &&
+            sample.add(snmp.addCounter64Handler(router, oid64Counter, &hcCounter), snmpRequest);
+    if (!registered)
+    {
+        Serial.println(F("SNMP registration failed."));
+        return;
+    }
+    ready = true;
 }
 
 void loop()
 {
-  // put your main code here, to run repeatedly:
-  snmp.loop();
-  intervalBetweenPolls = millis() - pollStart;
-  if (intervalBetweenPolls >= pollInterval)
-  {
-    pollStart += pollInterval; // this prevents drift in the delays
-    getSNMP();
-    doSNMPCalculations(); // Do something with the data collected
-    printVariableValues(); // Print the values to the serial console
-  }
-}
-
-void doSNMPCalculations()
-{
-
-  if (uptime == lastUptime)
-  {
-    Serial.println("Data not updated between polls");
-    return;
-  }
-  else if (uptime < lastUptime)
-  { // Check if device has rebooted which will reset counters
-    Serial.println("Uptime < lastUptime. Device restarted?");
-  }
-  else
-  {
-    if (inOctetsResponse > 0 && ifSpeedResponse > 0 && lastInOctets > 0)
+    if (!ready)
     {
-      if (inOctetsResponse > lastInOctets)
-      {
-        bandwidthInUtilPct = ((float)((inOctetsResponse - lastInOctets) * 8) / (float)(ifSpeedResponse * ((uptime - lastUptime) / 100)) * 100);
-      }
-      else if (lastInOctets > inOctetsResponse)
-      {
-        Serial.println("inOctets Counter wrapped");
-        bandwidthInUtilPct = (((float)((4294967295 - lastInOctets) + inOctetsResponse) * 8) / (float)(ifSpeedResponse * ((uptime - lastUptime) / 100)) * 100);
-      }
+        delay(10);
+        return;
     }
-  }
-  // Update last samples
-  lastUptime = uptime;
-  lastInOctets = inOctetsResponse;
-}
-
-void getSNMP()
-{
-  // Build a SNMP get-request add each OID to the request
-  snmpRequest.addOIDPointer(callbackIfSpeed);
-  snmpRequest.addOIDPointer(callbackInOctets);
-  snmpRequest.addOIDPointer(callbackServices);
-  snmpRequest.addOIDPointer(callbackSysName);
-  snmpRequest.addOIDPointer(callback64Counter);
-  snmpRequest.addOIDPointer(callbackUptime);
-
-  snmpRequest.setIP(WiFi.localIP()); // IP of the listening MCU
-  // snmpRequest.setPort(501);  // Default is UDP port 161 for SNMP. But can be overriden if necessary.
-  snmpRequest.setUDP(&udp);
-  snmpRequest.setRequestID(rand() % 5555);
-  snmpRequest.sendTo(router);
-  snmpRequest.clearOIDList();
-}
-
-void printVariableValues()
-{
-    Serial.printf("Bandwidth In Utilisation %%: %.1f\n", bandwidthInUtilPct);
-    Serial.printf("ifSpeedResponse: %d\n", ifSpeedResponse);
-    Serial.printf("inOctetsResponse: %d\n", inOctetsResponse);
-    Serial.printf("servicesResponse: %d\n", servicesResponse);
-    Serial.printf("sysNameResponse: %s\n", sysNameResponse);
-    Serial.printf("Uptime: %d\n", uptime);
-    Serial.printf("HCCounter: %llu\n", hcCounter);
-    Serial.println("----------------------");
+    snmp.loop();
+    const uint32_t now = millis();
+    if (sample.complete())
+    {
+        sample.finish();
+        printSample(); // Every requested destination was updated by this request.
+    }
+    else if (sample.expired(now, responseTimeout))
+    {
+        sample.finish();
+        rate.reset();
+        Serial.println(F("Missing or rejected SNMP values; sample skipped."));
+    }
+    if (!sample.active() && (firstPoll || uint32_t(now - pollStart) >= pollInterval))
+    {
+        firstPoll = false;
+        pollStart = now; // No catch-up burst after a slow response.
+        requestID = nextRequestID(requestID);
+        snmpRequest.setRequestID(requestID);
+        if (!sample.begin(now) || !snmpRequest.sendTo(router))
+        {
+            sample.finish();
+            rate.reset();
+            Serial.println(F("SNMP send failed; sample skipped."));
+        }
+    }
 }

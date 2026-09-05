@@ -40,5 +40,9 @@ It injects bind/send/read/allocation failures, but cannot establish actual Wi-Fi
 performance, fragmentation behavior, or hardware interoperability.
 
 For real core compilation, run `pio run -d tests/embedded` and
-`pio run -d tests/examples`. The latter builds the unchanged 1.1.13 examples.
+`pio run -d tests/examples`. The latter builds the maintained 1.x examples.
 Those are compile checks only; neither command uploads firmware.
+
+The suite also exercises each example’s local `Polling.h` against mocked UDP
+responses: fresh and unchanged values, incomplete samples, late replies, timeout
+wraparound, and Counter32 rate calculation boundaries.

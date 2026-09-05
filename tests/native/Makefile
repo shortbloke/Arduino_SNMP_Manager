@@ -3,7 +3,7 @@ CPPFLAGS += -Istubs -I../../src
 CXXFLAGS ?= -std=gnu++11 -g -O0
 BUILD := build
 .PHONY: test check regressions debug sanitize sanitize-regressions clean
-$(BUILD)/tests: Makefile tests.cpp stubs/Arduino.h stubs/Udp.h $(wildcard ../../src/*.h)
+$(BUILD)/tests: Makefile tests.cpp $(wildcard ../../examples/*/Polling.h) stubs/Arduino.h stubs/Udp.h $(wildcard ../../src/*.h)
 	@mkdir -p $(BUILD)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests.cpp -o $@
 test: $(BUILD)/tests

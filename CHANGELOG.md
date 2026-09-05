@@ -11,7 +11,9 @@ A robustness and test-coverage release that retains the header-only 1.x API and 
 - Retain the header-only 1.x API, numeric versions, short request fields, setIP(), capacity-free text calls, original BER virtual methods, and safe copying; add bounded/checked alternatives and portable numeric destination overloads.
 - Fix OID callback registration and returned OID handling (#32).
 - Match repeated IP/OID registrations to their pending requests and expose successful-update counts for reliable freshness checks.
-- Add native regression/sanitizer tests (#13), source-compatibility checks, and ESP8266, ESP32, ESP32-C3, and Nano ESP32 compilation checks, including the unchanged examples.
+- Add native regression/sanitizer tests (#13), source-compatibility checks, and ESP8266, ESP32, ESP32-C3, and Nano ESP32 compilation checks, including the maintained examples.
+
+- Improve examples with reusable registrations, bounded names, fresh-response checks, checked setup/send failures, wrap-safe polling, and overflow-safe bandwidth calculations.
 
 ## 1.1.13
 - Fix crash when using OIDs with 10 digits. Contributor: [AlphaArslan](https://github.com/AlphaArslan)
