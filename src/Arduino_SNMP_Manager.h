@@ -29,7 +29,7 @@ public:
     // Allows deletion through the base pointer; does not free OID or destination storage.
     virtual ~ValueCallback() = default;
     IPAddress ip;
-    char *OID;
+    char *OID = nullptr;
     ASN_TYPE type;
     bool overwritePrefix = false;
     // One outstanding request per callback; only successful sends replace it.
@@ -97,7 +97,7 @@ typedef struct ValueCallbackList
     {
         delete next;
     }
-    ValueCallback *value;
+    ValueCallback *value = nullptr;
     struct ValueCallbackList *next = 0;
 } ValueCallbacks;
 
@@ -108,8 +108,8 @@ class SNMPManager
 {
 public:
     SNMPManager(){};
-    SNMPManager(const char *community) : _community(community){};
-    const char *_community;
+    SNMPManager(const char *community) : _community(community ? community : "public"){};
+    const char *_community = "public";
 
     ValueCallbacks *callbacks = new ValueCallbacks();
     ValueCallbacks *callbacksCursor = callbacks;
@@ -128,7 +128,7 @@ public:
     bool loop();
     bool testParsePacket(String testPacket);
     char OIDBuf[MAX_OID_LENGTH];
-    UDP *_udp;
+    UDP *_udp = nullptr;
     void addHandler(ValueCallback *callback);
 
 private:

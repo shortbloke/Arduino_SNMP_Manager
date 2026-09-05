@@ -29,7 +29,7 @@ Bytes message(Bytes bindings, int version=1, const char* community="public", int
 }
 // Production has no manager/request destructors. Release test-owned registrations explicitly.
 struct Manager : SNMPManager {
-    Manager() : SNMPManager("public") { _udp=nullptr; }
+    Manager() : SNMPManager("public") {}
     ~Manager() {
         for(auto* p=callbacks;p;p=p->next) if(p->value) {
             auto* v=p->value; free(v->OID);
@@ -91,6 +91,17 @@ int main(int argc,char** argv) {
     bool regressions=argc>1 && std::string(argv[1])=="--regressions";
     std::vector<Test> tests;
     auto add=[&](const char* name,std::function<void()> f,bool regression=false){tests.push_back({name,regression,f});};
+    add("default manager starts without transport", [] {
+        SNMPManager manager;
+        CHECK(manager._udp==nullptr);
+        CHECK(std::string(manager._community)=="public");
+        CHECK(!manager.begin() && !manager.loop());
+        UDP udp;
+        manager.setUDP(&udp);
+        CHECK(udp.stops==0 && manager.begin());
+        delete manager.callbacks; // Removed once production ownership is added.
+        manager.callbacks=nullptr;
+    });
     add("integer small wire values",[]{for(unsigned long n: {0UL,1UL,127UL}){IntegerType v(n); CHECK(encode(v)==Bytes({2,1,static_cast<unsigned char>(n)}));}});
     add("integer big endian decode",[]{Bytes b{2,4,0x12,0x34,0x56,0x78}; IntegerType v; CHECK(v.fromBuffer(b.data())); CHECK(v._value==0x12345678UL);});
     add("unsigned application type decoding",[]{Bytes b{0x41,5,0,255,255,255,255}; Counter32 c; Gauge g; TimestampType t; c.fromBuffer(b.data()); b[0]=0x42; g.fromBuffer(b.data()); b[0]=0x43; t.fromBuffer(b.data()); CHECK(c._value==UINT32_MAX); CHECK(g._value==UINT32_MAX); CHECK(t._value==UINT32_MAX);});
