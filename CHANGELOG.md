@@ -6,8 +6,7 @@ contains the earlier releases and ongoing backward-compatible fixes.
 
 ## 2.0.0-alpha.1
 
-First preview of the 2.x API. This release is being prepared for review and has
-not been published. Existing 1.x projects should read the
+First preview of the 2.x API (unpublished draft). Existing 1.x projects should read the
 [migration guide](MIGRATION.md) before upgrading.
 
 ### Friendly query API
@@ -56,10 +55,8 @@ not been published. Existing 1.x projects should read the
 - Automate release preparation PRs and checked publication for both major lines.
 - Gate CI and releases with workflow/shell, Python, and Arduino packaging lint checks.
 
-### Scope and review status
+### Current limitations
 
 - SNMPv3, DNS resolution, runtime MIB parsing, and sending traps/INFORMs are not
   implemented. This is a bounded SNMPv1/SNMPv2c manager, not full SNMP conformance
   certification.
-- Further maintainer checks are pending. The GitHub release remains a draft;
-  publication is a separate decision.
