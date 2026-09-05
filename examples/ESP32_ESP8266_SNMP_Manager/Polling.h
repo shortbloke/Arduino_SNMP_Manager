@@ -1,4 +1,5 @@
-#pragma once
+#ifndef ESP32_ESP8266_SNMP_MANAGER_POLLING_H
+#define ESP32_ESP8266_SNMP_MANAGER_POLLING_H
 #include <Arduino_SNMP_Manager.h>
 
 // Kept beside each sketch so Arduino IDE examples remain self-contained.
@@ -93,3 +94,5 @@ private:
     uint32_t previousOctets = 0, previousTicks = 0;
     bool havePrevious = false;
 };
+
+#endif // ESP32_ESP8266_SNMP_MANAGER_POLLING_H
