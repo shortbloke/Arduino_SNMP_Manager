@@ -2,6 +2,9 @@
 
 ## 2.0.0
 
+- Release invalidated walk/table payloads on restart and add optional compact table index storage with checked bounds.
+- Add an independent Net-SNMP wire test and a physical-board read/walk harness with heap sampling.
+
 - Add compiling examples for typed walks, host storage, printer supplies, explicit SET/read-back, and trap/INFORM reception, with an operation and value-type guide.
 
 - Separate owned query payload capacity from OID capacity, retain shared payloads across polls, and increase default dotted OID storage to accommodate longer compound indices.

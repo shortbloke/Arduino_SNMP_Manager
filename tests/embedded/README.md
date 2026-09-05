@@ -20,3 +20,7 @@ The project installs the checkout as a local library dependency, compiling its i
 
 The smoke sketch also compiles the new client, typed reads, selected-column tables,
 SET setup/cancellation, and notification registration against the real UDP API.
+
+The separate [physical-board test](../hardware/README.md) runs repeated live reads
+and walks while sampling heap use. Its compile check does not constitute a recorded
+hardware run. The [host wire test](../interop/README.md) uses an independent Net-SNMP agent.

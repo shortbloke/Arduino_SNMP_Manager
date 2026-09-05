@@ -15,7 +15,7 @@ WiFiUDP udp;
 SNMPClient client(udp);
 // A NAS/server with HOST-RESOURCES-MIB enabled. Indices are discovered, not assumed.
 SNMPDevice host(client, "192.168.1.20", "public");
-SNMPTableRead<16, 4> storage(host);
+SNMPTableRead<16, 4, 16> storage(host);
 bool ready = false;
 void setup()
 {

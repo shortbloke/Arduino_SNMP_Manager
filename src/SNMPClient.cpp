@@ -446,6 +446,10 @@ SNMPStatus SNMPClient::schedule(SNMPOperation &operation)
             operation.status_ = SNMPStatus::Pending;
             if (operation.walking_)
             {
+                // An accepted restart invalidates old results, including payloads
+                // in slots a shorter walk may never visit again.
+                for (size_t i = 0; i < operation.count_; ++i)
+                    operation.results_[i] = SNMPResult();
                 operation.count_ = 0;
                 strcpy(operation.cursor_, operation.root_);
                 operation.mode_ = operation.device_.version_ == SNMPVersion::Version1

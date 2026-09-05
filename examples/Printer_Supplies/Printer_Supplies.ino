@@ -14,7 +14,7 @@ WiFiUDP udp;
 SNMPClient client(udp);
 // Printer-MIB rows have a compound device/supply index; keep the full suffix.
 SNMPDevice printer(client, "192.168.1.30", "public");
-SNMPTableRead<16, 3> supplies(printer);
+SNMPTableRead<16, 3, 24> supplies(printer);
 bool ready = false;
 void setup()
 {

@@ -103,6 +103,84 @@ void registerMIBTests(std::vector<Test> &tests)
             CHECK(copy.setBytes(nullptr, 0).ok());
             CHECK(copy.isText());
         });
+    add("accepted walk and table restarts release old payload slots",
+        []
+        {
+            UDP udp;
+            MockAgent agent;
+            const char *root = ".1.3.6.1.2.1.2.2.1.2";
+            agent.put(".1.3.6.1.2.1.2.2.1.2.7", tlv(4, Bytes(120, 'x')));
+            SNMPClient client(udp);
+            SNMPDevice device(client, udp.peer, "public");
+            CHECK(client.begin().ok());
+            auto finish = [&](SNMPOperation &operation)
+            {
+                for (uint32_t now = 0; operation.pending() && now < 1000; now += 10)
+                {
+                    client.loop(now);
+                    agent.service(udp);
+                }
+                CHECK(operation.status().ok());
+            };
+            SNMPWalk<2> walk(device);
+            CHECK(walk.configure(root).ok());
+            CHECK(walk.start().ok());
+            finish(walk);
+            CHECK(walk.size() == 1);
+            // References expose the existing slot, whose object lifetime continues.
+            const auto &slot = walk[0].value;
+            SNMPValue snapshot = slot;
+            CHECK(walk.start().ok());
+            CHECK(slot.length == 0);
+            CHECK(snapshot.length == 120);
+            walk.cancel();
+            SNMPTableRead<2, 1> table(device);
+            CHECK(table.addColumn(root, STRING).ok());
+            CHECK(table.start().ok());
+            for (uint32_t now = 0; table.pending() && now < 1000; now += 10)
+            {
+                client.loop(now);
+                agent.service(udp);
+            }
+            CHECK(table.status().ok() && table.size() == 1);
+            const auto &cell = table[0][0].value;
+            CHECK(cell.length == 120);
+            // Rejected starts retain the visible previous result.
+            device.port = 0;
+            CHECK(!table.start().ok());
+            CHECK(cell.length == 120);
+            device.port = 161;
+            CHECK(table.start().ok());
+            CHECK(cell.length == 0);
+            CHECK(snapshot.length == 120);
+            table.cancel();
+        });
+    add("compact table indices save RAM and reject overflow without truncation",
+        []
+        {
+            static_assert(sizeof(SNMPTableRead<16, 1, 16>) + 16 * (MAX_OID_LENGTH - 16) <=
+                              sizeof(SNMPTableRead<16, 1>),
+                          "Compact indices must reduce row storage");
+            UDP udp;
+            MockAgent agent;
+            agent.put(".1.3.6.1.2.1.2.2.1.2.123", tlv(4, {'a'}));
+            agent.put(".1.3.6.1.2.1.2.2.1.2.1234", tlv(4, {'b'}));
+            SNMPClient client(udp);
+            SNMPDevice device(client, udp.peer, "public");
+            SNMPTableRead<2, 1, 4> table(device);
+            CHECK(table.addColumn(".1.3.6.1.2.1.2.2.1.2", STRING).ok());
+            CHECK(client.begin().ok());
+            CHECK(table.start().ok());
+            for (uint32_t now = 0; table.pending() && now < 1000; now += 10)
+            {
+                client.loop(now);
+                agent.service(udp);
+            }
+            CHECK(table.status().code() == SNMPStatus::CapacityExceeded);
+            CHECK(table.size() == 1);
+            CHECK(std::string(table[0].index) == "123");
+            CHECK(table[0][0].ok() && table[0][0].value.bytes[0] == 'a');
+        });
     add("host storage conversion uses wide arithmetic and checked types",
         []
         {

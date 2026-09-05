@@ -114,10 +114,17 @@ traffic.addColumn(".1.3.6.1.2.1.2.2.1.10", COUNTER32);
 traffic.addColumn(".1.3.6.1.2.1.2.2.1.16", COUNTER32);
 ```
 
+For compact known indices, use `SNMPTableRead<48, 2, 16>`: the third parameter
+bounds the row's index text including its terminator. It defaults to `MAX_OID_LENGTH`.
+`SNMPInterfaceRead<48, 16>` exposes the same option. Oversized indices return
+`CapacityExceeded`, without truncation or accidental row merging. Full OID buffers
+remain independently bounded by `MAX_OID_LENGTH`.
+
 Check each `addColumn()` result before starting. Table rows are joined by the full
 index suffix, including composite indices; they retain discovery order. A missing
 cell stays `Missing`. Row capacity applies to the union of discovered indices;
-excess rows produce `CapacityExceeded`, retaining collected rows. Tables progress
+excess rows produce `CapacityExceeded`, retaining collected rows. Accepted restarts
+release previous row payloads, including slots absent from the new result set. Tables progress
 through `client.loop()` without a second service method.
 
 `SNMPInterfaceRead<48>` selects interface descriptions and traffic counters. It

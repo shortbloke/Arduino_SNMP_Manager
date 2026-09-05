@@ -150,3 +150,8 @@ The [example guide](../../examples/README.md) maps protocol operations and value
 to compiling sketches, including server storage, printer supplies, SET read-back,
 and notification reception. The examples build matrix checks each new sketch on
 ESP8266 and ESP32 through `pio run -d tests/examples`.
+
+Memory regressions cover payload release on accepted walk/table restarts, retention
+on rejected starts, and compact index bounds without truncation. See the
+[independent Net-SNMP test](../interop/README.md) and
+[physical-board procedure and memory measurements](../hardware/README.md).

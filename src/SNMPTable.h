@@ -13,9 +13,9 @@ struct SNMPCell
     }
 };
 
-template <size_t Columns> struct SNMPTableRow
+template <size_t Columns, size_t IndexCapacity = MAX_OID_LENGTH> struct SNMPTableRow
 {
-    char index[MAX_OID_LENGTH] = {}; // Entire suffix, including composite indices.
+    char index[IndexCapacity] = {}; // Entire suffix, including composite indices.
     SNMPCell cells[Columns];
     const SNMPCell &operator[](size_t column) const
     {
@@ -25,7 +25,7 @@ template <size_t Columns> struct SNMPTableRow
 
 // Walk selected columns one at a time and join them by the complete index suffix.
 // The table owns all rows; a single streaming walk supplies bounded working state.
-template <size_t Rows, size_t Columns> class SNMPTableRead
+template <size_t Rows, size_t Columns, size_t IndexCapacity = MAX_OID_LENGTH> class SNMPTableRead
 {
 public:
     explicit SNMPTableRead(SNMPDevice &device) : walk_(device)
@@ -79,6 +79,10 @@ public:
         SNMPStatus status = walk_.start();
         if (!status.ok())
             return status;
+        // Release old payloads only after start succeeds. Otherwise a smaller
+        // table (or a timeout) could retain invisible rows from the previous poll.
+        for (size_t row = 0; row < count_; ++row)
+            rows_[row] = SNMPTableRow<Columns, IndexCapacity>();
         count_ = 0;
         current_ = 0;
         completed_ = false;
@@ -110,23 +114,24 @@ public:
     {
         return count_;
     }
-    const SNMPTableRow<Columns> &operator[](size_t row) const
+    const SNMPTableRow<Columns, IndexCapacity> &operator[](size_t row) const
     {
         return rows_[row];
     }
-    const SNMPTableRow<Columns> *begin() const
+    const SNMPTableRow<Columns, IndexCapacity> *begin() const
     {
         return rows_;
     }
-    const SNMPTableRow<Columns> *end() const
+    const SNMPTableRow<Columns, IndexCapacity> *end() const
     {
         return rows_ + count_;
     }
 
 private:
     static_assert(Rows > 0 && Columns > 0, "Table requires row and column capacities");
+    static_assert(IndexCapacity > 1 && IndexCapacity <= MAX_OID_LENGTH, "Invalid index capacity");
     SNMPWalk<1> walk_;
-    SNMPTableRow<Columns> rows_[Rows];
+    SNMPTableRow<Columns, IndexCapacity> rows_[Rows];
     char column_[Columns][MAX_OID_LENGTH] = {}, fallback_[Columns][MAX_OID_LENGTH] = {};
     ASN_TYPE expected_[Columns] = {}, fallbackExpected_[Columns] = {};
     size_t columns_ = 0, count_ = 0, current_ = 0;
@@ -139,6 +144,8 @@ private:
                             strlen(table.usingFallback_ ? table.fallback_[table.current_]
                                                         : table.column_[table.current_]) +
                             1;
+        if (strlen(index) >= IndexCapacity)
+            return false; // Explicit CapacityExceeded; never truncate or merge indices.
         size_t row = 0;
         while (row < table.count_ && strcmp(table.rows_[row].index, index))
             ++row;
@@ -146,7 +153,7 @@ private:
         {
             if (row == Rows)
                 return false;
-            table.rows_[row] = SNMPTableRow<Columns>();
+            table.rows_[row] = SNMPTableRow<Columns, IndexCapacity>();
             strcpy(table.rows_[row].index, index);
             ++table.count_;
         }
@@ -213,11 +220,12 @@ private:
 
 // Interface descriptions and traffic: prefer Counter64, filling unavailable cells
 // from Counter32 columns. Each cell retains its actual SNMP type and width.
-template <size_t Rows> class SNMPInterfaceRead : public SNMPTableRead<Rows, 3>
+template <size_t Rows, size_t IndexCapacity = MAX_OID_LENGTH>
+class SNMPInterfaceRead : public SNMPTableRead<Rows, 3, IndexCapacity>
 {
 public:
     explicit SNMPInterfaceRead(SNMPDevice &device, bool highCapacity = true)
-        : SNMPTableRead<Rows, 3>(device)
+        : SNMPTableRead<Rows, 3, IndexCapacity>(device)
     {
         this->addColumn(".1.3.6.1.2.1.2.2.1.2", STRING); // ifDescr
         this->addColumn(highCapacity ? ".1.3.6.1.2.1.31.1.1.1.6" : ".1.3.6.1.2.1.2.2.1.10",

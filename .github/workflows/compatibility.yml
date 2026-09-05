@@ -9,7 +9,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install platformio==6.1.19 clang-format==19.1.7
-      - run: clang-format --dry-run --Werror src/*.h src/*.cpp tests/native/*.cpp tests/native/cases/*.cpp tests/native/support/*.h tests/native/support/*.cpp tests/platformio/test_snmp/*.cpp tests/native/stubs/*.h tests/native/stubs/*.cpp tests/native/compatibility/*.cpp tests/native/lifecycle/*.cpp tests/embedded/src/*.cpp
+      - run: clang-format --dry-run --Werror src/*.h src/*.cpp tests/native/*.cpp tests/native/cases/*.cpp tests/native/support/*.h tests/native/support/*.cpp tests/platformio/test_snmp/*.cpp tests/native/stubs/*.h tests/native/stubs/*.cpp tests/native/compatibility/*.cpp tests/native/lifecycle/*.cpp tests/embedded/src/*.cpp tests/hardware/src/*.cpp tests/interop/*.cpp
       - run: make -C tests/native check
       - run: make -C tests/native BUILD=build-sanitize CXXFLAGS='-std=c++11 -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all' check
       - run: make -C tests/native leaks
@@ -44,3 +44,14 @@ jobs:
           path: ~/.platformio
           key: pio-${{ runner.os }}-examples-${{ hashFiles('tests/examples/platformio.ini') }}
       - run: pio run -d tests/examples
+      - run: pio run -d tests/hardware
+
+  wire_interoperability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y snmp snmpd
+      - run: python3 tests/interop/run.py
