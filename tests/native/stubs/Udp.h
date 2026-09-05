@@ -9,7 +9,11 @@ class UDP
 public:
     std::vector<uint8_t> incoming, outgoing;
     IPAddress peer{192, 168, 1, 10}, destination;
-    uint16_t listenPort = 0, destinationPort = 0;
+    uint16_t listenPort = 0, destinationPort = 0, peerPort = 161;
+    uint16_t remotePort()
+    {
+        return peerPort;
+    }
     int stops = 0, flushes = 0, reads = 0, packets = 0;
     int endResult = 1;
     int beginPacketResult = 1;

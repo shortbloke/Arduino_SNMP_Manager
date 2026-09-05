@@ -104,3 +104,11 @@ The native builds compile and link the library's `src/*.cpp` sources alongside t
 `make -C tests/native lifecycle` runs the shared ownership and response cases directly in one process, including allocation-failure recovery, repeated packet building, parser reuse, and destruction. It returns normally so destructors and exit-time leak checking can run; assertions or crashes fail the executable. A process timeout prevents a hang. This target is also part of `make check`.
 
 Run `make -C tests/native leaks` for explicit leak detection. On Linux it uses AddressSanitizer/UndefinedBehaviorSanitizer with LeakSanitizer enabled; CI runs this target on Ubuntu. On macOS it uses the system `leaks --atExit` tool with an unsanitized debug build. Tool failures and detected leaks fail the target. These checks cover the exercised lifecycles; they do not prove all allocation paths are leak-free.
+
+## Device and query regressions
+
+The `Client` group covers checked address/configuration handling, response matching,
+owned results, timeout/retry and cancellation, large query batching, SET encoding,
+walk progression, sparse table joins and counter fallback, and trap/INFORM handling.
+Run `make test` for the complete suite or `./build/tests --group Client` after building.
+The existing manager/handler regression groups remain active for compatibility.

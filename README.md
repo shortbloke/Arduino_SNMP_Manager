@@ -2,9 +2,9 @@
 
 Version 2.0 contains breaking API and build changes. Existing users should read the [migration guide](MIGRATION.md).
 
-A simpler device and query API is being designed. See the [API proposal and usage sketches](docs/API_PROPOSAL.md); these describe planned functionality, not the currently supported API.
+The new [device and query API](docs/QUERY_API.md) provides checked IPv4 strings, owned results, batched reads, table discovery, writes, and notification reception. Start with the [simple read](examples/Simple_Read/Simple_Read.ino) or [interface traffic](examples/Interface_Traffic/Interface_Traffic.ino) example. The existing handler API remains available.
 
-An SNMP Manager for network-capable ESP8266 and ESP32 Arduino platforms, providing SNMP GetRequest support for specified OIDs.
+An SNMP Manager for network-capable ESP8266 and ESP32 Arduino platforms, providing SNMPv1 and SNMPv2c manager operations.
 
 Validated build targets include NodeMCU ESP8266, ESP32, ESP32-C3, and Arduino Nano ESP32. Other modern 32-bit Arduino platforms can be added as tested targets; older AVR platforms are not supported. See [embedded compatibility builds](tests/embedded/README.md).
 
@@ -12,10 +12,13 @@ The library supports:
 
 - SNMP Versions:
   - v1 (protocol version 0)
-  - v2 (protocol version 1)
+  - v2c (protocol version 1)
 - SNMP PDUs
   - GetRequest (sending query to a SNMP Agent for a specified OID)
-  - GetResponse (Decoding the response to the SNMP GetRequest)
+  - GetResponse (decoding responses and acknowledging v2c INFORMs)
+  - GetNextRequest and GetBulkRequest (walking and table discovery; GETBULK is v2c only)
+  - SetRequest (single-packet writes)
+  - SNMPv1 and SNMPv2c trap reception, plus v2c INFORM reception
 - SNMP Data Types:
   - Integer32 (`int32_t`; float callbacks scale integer tenths)
   - String (Arduino data type: char*)

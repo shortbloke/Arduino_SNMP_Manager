@@ -16,3 +16,5 @@ void registerTrackingTests(std::vector<Test> &tests);
 void registerOwnershipTests(std::vector<Test> &tests);
 
 void registerConfigurationTests(std::vector<Test> &tests);
+
+void registerClientTests(std::vector<Test> &tests);

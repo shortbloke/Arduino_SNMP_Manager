@@ -462,6 +462,7 @@ bool ComplexType::decode(unsigned char *buf, size_t available, unsigned int dept
         case SetRequestPDU:
         case GetBulkRequestPDU:
         case TrapPDU: // Recognized here; the response parser rejects trap PDUs.
+        case InformRequestPDU:
         case Trapv2PDU:
             newObj = new (std::nothrow) ComplexType(valueType);
             break;

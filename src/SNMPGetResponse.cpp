@@ -25,7 +25,9 @@ bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
         return false;
     requestType = pduField->value->_type;
     if (requestType != GetRequestPDU && requestType != GetNextRequestPDU &&
-        requestType != GetResponsePDU && requestType != SetRequestPDU)
+        requestType != GetResponsePDU && requestType != SetRequestPDU &&
+        requestType != GetBulkRequestPDU && requestType != InformRequestPDU &&
+        requestType != Trapv2PDU)
         return false;
     version = static_cast<IntegerType *>(versionField->value)->_value + 1;
     communityString = static_cast<OctetType *>(communityField->value)->_value;

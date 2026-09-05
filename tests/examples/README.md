@@ -9,3 +9,6 @@ pio run -d tests/examples
 ```
 
 The Wi-Fi examples compile for ESP8266 and ESP32. The Ethernet example compiles with the ESP8266 Arduino core's bundled Ethernet library; it remains a compile check rather than a claim of hardware compatibility.
+
+The default builds also compile Simple_Read, Multiple_Devices, and Interface_Traffic
+on ESP8266 and ESP32, exercising the new device/query API with real Arduino cores.

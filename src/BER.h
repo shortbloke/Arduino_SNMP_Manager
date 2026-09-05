@@ -38,6 +38,7 @@ typedef enum ASN_TYPE_WITH_VALUE
     SetRequestPDU = 0xA3,
     TrapPDU = 0xA4,
     GetBulkRequestPDU = 0xA5,
+    InformRequestPDU = 0xA6,
     Trapv2PDU = 0xA7
 } ASN_TYPE;
 

@@ -105,3 +105,17 @@ bool fromBuffer(unsigned char *buffer, size_t available) override;
 ```
 
 Return a negative serialization length or `false` when the supplied bounds are insufficient. Built-in decoders require the complete TLV size so they can reject truncated or overlong input.
+
+## Optional device and query API
+
+Existing bounded handler code continues to work. New sketches can use
+`SNMPClient`, `SNMPDevice`, `SNMPQuery`, `SNMPWalk`, and `SNMPTableRead` without
+callback registration or explicit request IDs. The client accepts a UDP reference;
+devices accept `IPAddress` or checked dotted IPv4 strings and own their community.
+Results belong to their operation and include individual status. See the
+[query API guide](docs/QUERY_API.md) and new examples for exact usage.
+
+`SNMPClient::begin()` returns a status object; the old `SNMPManager::begin()` still
+returns bool. Do not run both engines on the same UDP instance. `SNMPSet` does not
+split or automatically retry writes. Notification handling supports v1/v2c traps
+and v2c INFORM acknowledgement; SNMPv3 remains unsupported.

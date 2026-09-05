@@ -2,6 +2,11 @@
 
 ## 2.0.0
 
+- Add a device/query API with checked IPv4 strings, owned results, automatic request IDs, bounded scheduling, batching, retries, and completion status.
+- Add SNMPv1/v2c walks, selected-column tables, and interface traffic reads with Counter64-to-Counter32 fallback.
+- Add single-packet SET requests, v1/v2c trap reception, and v2c INFORM acknowledgement while retaining the existing handler API.
+- Add compiling single-device, multiple-device, and interface-table examples and query regression coverage.
+
 - Split declarations and implementations into independently includable headers and compiled source files.
 - Added bounded BER parsing/serialization and bounded text, binary OCTET STRING, Opaque, and OID callbacks.
 - Use fixed-width callback types for SNMP Integer32, Counter32, Gauge32, TimeTicks, and Counter64 values.

@@ -44,3 +44,8 @@ struct SerialStub
 };
 extern SerialStub Serial;
 inline void delay(unsigned long) {}
+
+inline unsigned long millis()
+{
+    return 0;
+}

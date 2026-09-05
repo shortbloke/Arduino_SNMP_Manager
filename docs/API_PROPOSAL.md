@@ -1,8 +1,9 @@
 # Proposed device and query API
 
-Status: design proposal for the next stage of the 2.0 refactor. None of the new
-API names below is implemented. These sketches are usage contracts, not runnable
-examples; existing examples continue to demonstrate the supported API.
+Status: original design rationale. The first implementation is now available; see
+[the implemented API](QUERY_API.md) and its compiling examples for exact syntax,
+limits, and behaviour. The sketches below preserve the design intent and are not
+a declaration that every proposed spelling or extension is implemented.
 
 The goal is to let users request information without creating callback objects,
 managing destination pointers, building packets, or assigning request IDs. The

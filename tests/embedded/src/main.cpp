@@ -6,6 +6,14 @@
 #endif
 #include <WiFiUdp.h>
 #include <Arduino_SNMP_Manager.h>
+#include <SNMPTable.h>
+
+WiFiUDP queryUDP;
+SNMPClient client(queryUDP);
+SNMPDevice device(client, "192.0.2.1", "public");
+SNMPRead<SystemUptime> uptime(device);
+SNMPTableRead<2, 2> table(device);
+SNMPSet<1> writeRequest(device);
 
 static_assert(sizeof(int) >= 4, "Supported targets require 32-bit int");
 static_assert(sizeof(float) == 4, "Float callbacks require 32-bit float");
@@ -44,8 +52,19 @@ void setup()
     request.build();
     // Compile the real UDP send/receive path; no Wi-Fi credentials are configured.
     request.sendTo(peer);
+    client.begin();
+    uptime.start();
+    table.addColumn(".1.3.6.1.2.1.2.2.1.10");
+    table.addColumn(".1.3.6.1.2.1.2.2.1.16");
+    table.start();
+    writeRequest.addValue(".1.3.6.1.2.1.1.7.0", SNMPValue::integer32(0));
+    // Exercise encoding without sending a write to a real device.
+    writeRequest.start();
+    writeRequest.cancel();
+    client.notifications("public", [](const SNMPNotification &, void *) { return true; });
 }
 void loop()
 {
     manager.loop();
+    client.loop();
 }

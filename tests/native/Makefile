@@ -48,6 +48,7 @@ configuration:
 	$(MAKE) BUILD=$(BUILD)-config-large CPPFLAGS='$(CPPFLAGS) -DSNMP_PACKET_LENGTH=768 -DSNMP_OCTETSTRING_MAX_LENGTH=2048 -DMAX_OID_LENGTH=192 -DSNMP_MAX_PENDING_REQUESTS=6' configuration-run
 configuration-run: $(BUILD)/tests
 	./$(BUILD)/tests --group Configuration
+	./$(BUILD)/tests --group Client
 
 .PHONY: lifecycle leaks
 $(BUILD)/lifecycle: $(LIFECYCLE_OBJECTS) $(BUILD)/libsnmp.a

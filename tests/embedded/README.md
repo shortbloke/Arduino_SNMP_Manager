@@ -17,3 +17,6 @@ These are compile/link checks, not hardware or network interoperability tests. D
 Supported metadata currently names ESP8266 and ESP32. Other modern 32-bit Arduino platforms are candidates for additional build profiles, not implicitly certified targets. AVR-era boards are outside the supported scope.
 
 The project installs the checkout as a local library dependency, compiling its implementation files as well as the smoke sketch. The `esp32_custom` environment repeats the ESP32 build with nondefault packet, octet-string, OID, and pending-request limits to check configuration across the application/library boundary. It is included in the default build and CI matrix.
+
+The smoke sketch also compiles the new client, typed reads, selected-column tables,
+SET setup/cancellation, and notification registration against the real UDP API.
