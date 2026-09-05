@@ -10,7 +10,8 @@
 #endif
 
 #include <Arduino.h>
-#include <math.h>
+#include <new>
+#include <memory>
 
 typedef enum ASN_TYPE_WITH_VALUE
 {
@@ -20,8 +21,10 @@ typedef enum ASN_TYPE_WITH_VALUE
     NULLTYPE = 0x05,
     OID = 0x06,
 
-    // Complex
+    // Constructed sequence
     STRUCTURE = 0x30,
+
+    // Application types
     NETWORK_ADDRESS = 0x40,
     COUNTER32 = 0x41,
     GAUGE32 = 0x42, // UNSIGNED32
@@ -29,10 +32,12 @@ typedef enum ASN_TYPE_WITH_VALUE
     OPAQUE = 0x44,
     COUNTER64 = 0x46,
 
+    // Per-binding exception tags
     NOSUCHOBJECT = 0x80,
     NOSUCHINSTANCE = 0x81,
     ENDOFMIBVIEW = 0x82,
 
+    // Constructed PDU tags
     GetRequestPDU = 0xA0,
     GetNextRequestPDU = 0xA1,
     GetResponsePDU = 0xA2,
@@ -42,38 +47,87 @@ typedef enum ASN_TYPE_WITH_VALUE
     Trapv2PDU = 0xA7
 } ASN_TYPE;
 
-// Primitive types inherits straight off the container, complex come off complexType.
-// All primitives have to serialise themselves (type, length, data), to be put straight into the packet.
-// For deserialising from the parent container we check the type, then create an object of that type and call deSerialise,
-// passing in the data, which pulls it out and saves it.
-// If complexType, first split up its children into separate BERs, then passes the child with it's data using the same process.
-// Complex types have a linked list of BER_CONTAINERS to hold its' children.
+// Primitive types derive from BER_CONTAINER and serialise as type, length, and value (TLV).
+// ComplexType owns a linked list of child BER_CONTAINER objects. Its fromBuffer method
+// selects each child's decoder by tag and passes the complete child TLV to it.
+
+// Read a definite-length TLV header without reading beyond the supplied buffer.
+// The legacy pointer-only entry points cannot validate the allocation size.
+inline bool readBERHeader(const unsigned char *buf, size_t available, size_t &header,
+                          size_t &length)
+{
+    if (!buf || available < 2)
+        return false;
+    header = 2;
+    length = buf[1];
+    if (length & 0x80)
+    {
+        size_t octets = length & 0x7f;
+        if (octets == 0 || octets == 127 || octets > available - header)
+            return false;
+        length = 0;
+        while (octets--)
+        {
+            if (length > 65535u / 256u)
+                return false;
+            length = length * 256 + buf[header++];
+        }
+    }
+    return length <= 65535u && length <= available - header;
+}
 
 class BER_CONTAINER
 {
 public:
-    BER_CONTAINER(bool isPrimitive, ASN_TYPE type) : _isPrimitive(isPrimitive), _type(type){};
-    virtual ~BER_CONTAINER(){};
+    BER_CONTAINER(bool isPrimitive, ASN_TYPE type) : _isPrimitive(isPrimitive), _type(type) {};
+    virtual ~BER_CONTAINER() {};
     bool _isPrimitive;
     ASN_TYPE _type;
-    unsigned short _length;
+    unsigned short _length = 0;
     virtual int serialise(unsigned char *buf) = 0;
+    virtual int serialise(unsigned char *buf, size_t capacity)
+    {
+        // Legacy custom types have no bounded implementation. Their original
+        // pointer-only entry point remains available to existing callers.
+        return buf && capacity == static_cast<size_t>(-1) ? serialise(buf) : -1;
+    }
     virtual bool fromBuffer(unsigned char *buf) = 0;
+    virtual bool fromBuffer(unsigned char *buf, size_t available)
+    {
+        return available == static_cast<size_t>(-1) && fromBuffer(buf);
+    }
     virtual int getLength() = 0;
+    // Custom owning types may opt in to safe copying.
+    virtual BER_CONTAINER *clone() const
+    {
+        return nullptr;
+    }
 };
 
 class NetworkAddress : public BER_CONTAINER
 {
 public:
-    NetworkAddress() : BER_CONTAINER(true, NETWORK_ADDRESS){};
-    NetworkAddress(IPAddress ip) : _value(ip), BER_CONTAINER(true, NETWORK_ADDRESS){};
-    ~NetworkAddress(){};
+    BER_CONTAINER *clone() const override
+    {
+        return new (std::nothrow) NetworkAddress(*this);
+    }
+    NetworkAddress() : BER_CONTAINER(true, NETWORK_ADDRESS) {};
+    NetworkAddress(IPAddress ip) : BER_CONTAINER(true, NETWORK_ADDRESS), _value(ip) {};
+    ~NetworkAddress() {};
     IPAddress _value;
-    int serialise(unsigned char *buf)
+    int serialise(unsigned char *buf) override
+    {
+        return serialise(buf, static_cast<size_t>(-1));
+    }
+    int serialise(unsigned char *buf, size_t capacity) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NetworkAddress:serialise");
 #endif
+        if (capacity < 6)
+            return -1;
+        if (!buf)
+            return 6;
         unsigned char *ptr = buf;
         *ptr++ = _type;
 
@@ -86,14 +140,21 @@ public:
         *ptr++ = _value[3];
         return _length + 2;
     }
-    bool fromBuffer(unsigned char *buf)
+    bool fromBuffer(unsigned char *buf) override
+    {
+        return fromBuffer(buf, static_cast<size_t>(-1));
+    }
+    bool fromBuffer(unsigned char *buf, size_t available) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NetworkAddress:fromBuffer");
 #endif
-        buf++; // skip Type
-        _length = *buf;
-        buf++;
+        size_t header, length;
+        if (!readBERHeader(buf, available, header, length) || buf[0] != NETWORK_ADDRESS ||
+            length != 4)
+            return false;
+        _length = length;
+        buf += header;
         byte tempAddress[4];
         tempAddress[0] = *buf++;
         tempAddress[1] = *buf++;
@@ -102,7 +163,7 @@ public:
         _value = IPAddress(tempAddress);
         return true;
     }
-    int getLength()
+    int getLength() override
     {
         return _length;
     }
@@ -111,73 +172,78 @@ public:
 class IntegerType : public BER_CONTAINER
 {
 public:
-    IntegerType() : BER_CONTAINER(true, INTEGER){};
-    IntegerType(unsigned long value) : _value(value), BER_CONTAINER(true, INTEGER){};
-    ~IntegerType(){};
-    unsigned long _value;
-    int serialise(unsigned char *buf)
+    BER_CONTAINER *clone() const override
+    {
+        return new (std::nothrow) IntegerType(*this);
+    }
+    IntegerType() : BER_CONTAINER(true, INTEGER) {};
+    IntegerType(unsigned long value) : BER_CONTAINER(true, INTEGER), _value(value) {};
+    ~IntegerType() {};
+    unsigned long _value = 0;
+    int serialise(unsigned char *buf) override
+    {
+        return serialise(buf, static_cast<size_t>(-1));
+    }
+    int serialise(unsigned char *buf, size_t capacity) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] IntegerType:serialise");
 #endif
-        // here we print out the BER encoded ASN.1 bytes, which includes type, length and value. we return the length of the entire block (TL&V) in bytes;
-        unsigned char *ptr = buf;
-        *ptr = _type;
-        ptr++;
-        unsigned char *lengthPtr = ptr++;
-
-        // // For values <= 127 we use a single byte for the value
-        if (_value != 0 && _value <= 0x7F)
+        // INTEGER carries signed Integer32 bits; application types are unsigned.
+        // Work on a copy so repeated serialization preserves the stored value.
+        const uint32_t value = static_cast<uint32_t>(_value);
+        unsigned char contents[5] = {
+            0, static_cast<unsigned char>(value >> 24), static_cast<unsigned char>(value >> 16),
+            static_cast<unsigned char>(value >> 8), static_cast<unsigned char>(value)};
+        size_t start = _type == INTEGER ? 1 : 0;
+        while (start < 4)
         {
-            _length = 1;
-            *ptr++ = _value;
+            const bool redundantZero = contents[start] == 0 && !(contents[start + 1] & 0x80);
+            const bool redundantSign =
+                _type == INTEGER && contents[start] == 0xff && (contents[start + 1] & 0x80);
+            if (!redundantZero && !redundantSign)
+                break;
+            ++start;
         }
-        else if (_value != 0 && _value >= 0x80)
-        {
-            // Determine the number of bytes required for encoding
-            uint32_t temp = _value;
-            _length = 0;
-            while (temp > 0) {
-                temp >>= 8;
-                _length++;
-            }
-            // Multi-byte encoding
-            *ptr++ = 0x80 | _length;  // Tag for multi-byte encoding
-
-            for (size_t i = 1; i <= _length; i++) {
-                *ptr++ = _value & 0xFF;  // Store the least significant byte
-                _value >>= 8;
-            }
-            _length++;
-        }
-        else
-        {
-            _length = 1;
-            *ptr = 0;
-        }
-        *lengthPtr = _length;
+        _length = sizeof(contents) - start;
+        if (capacity < static_cast<size_t>(_length) + 2)
+            return -1;
+        if (!buf)
+            return _length + 2;
+        buf[0] = _type;
+        buf[1] = _length;
+        memcpy(buf + 2, contents + start, _length);
         return _length + 2;
     }
-    bool fromBuffer(unsigned char *buf)
+    bool fromBuffer(unsigned char *buf) override
+    {
+        return fromBuffer(buf, static_cast<size_t>(-1));
+    }
+    bool fromBuffer(unsigned char *buf, size_t available) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Integer:fromBuffer");
 #endif
-        buf++; // skip Type
-        _length = *buf;
-        buf++;
-        unsigned short tempLength = _length;
-        //        _value = *buf; // TODO: make work for integers more than 255
-        _value = 0;
-        while (tempLength > 0)
+        size_t header, length;
+        if (!readBERHeader(buf, available, header, length) || buf[0] != _type)
+            return false;
+        buf += header;
+        const bool isSigned = _type == INTEGER;
+        if (length == 0 || length > (isSigned ? 4u : 5u))
+            return false;
+        if (!isSigned && ((buf[0] & 0x80) || (length == 5 && buf[0] != 0)))
+            return false;
+        // Extend the sign through unsigned long, including on 64-bit hosts.
+        unsigned long value = isSigned && (buf[0] & 0x80) ? ~0UL : 0;
+        for (unsigned int i = 0; i < length; ++i)
         {
-            _value = _value << 8;
-            _value = _value | *buf++;
-            tempLength--;
+            value = (value << 8) | *buf++;
         }
+        _value = value;
+        _length = length;
         return true;
     }
-    int getLength()
+    int getLength() override
     {
         return _length;
     }
@@ -194,89 +260,155 @@ public:
     {
         _type = TIMESTAMP;
     };
-    ~TimestampType(){};
+    ~TimestampType() {};
 };
 
 class OctetType : public BER_CONTAINER
 {
 public:
-    OctetType() : BER_CONTAINER(true, STRING){};
+    BER_CONTAINER *clone() const override
+    {
+        return new (std::nothrow) OctetType(*this);
+    }
+    OctetType() : BER_CONTAINER(true, STRING)
+    {
+        _length = 0;
+    }
     OctetType(char *value) : BER_CONTAINER(true, STRING)
     {
-        strncpy(_value, value, sizeof(_value));
-        _value[sizeof(_value)] = 0;
-    };
-    ~OctetType(){};
-    char _value[SNMP_OCTETSTRING_MAX_LENGTH];
-    int serialise(unsigned char *buf)
-    {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] OctetType:serialise");
-#endif
-        // here we print out the BER encoded ASN.1 bytes, which includes type, length and value.
-        char *ptr = (char *)buf;
-        int numExtraBytes = 0;
-        char temp[SNMP_OCTETSTRING_MAX_LENGTH];
-        int valueLength = sprintf(temp, "%s", _value);
-
-        *ptr++ = _type; // Set the type identifier
-        // If > 127 first byte needs to be 0x8x where x is the how many bytes follow which defines string length
-        if (valueLength > 127)
-        {
-            numExtraBytes++;       // Need an extra byte
-            if (valueLength > 256) // Max 65,536 characters, but likely will fail due to UDP packet fragmentation.
-            {
-                numExtraBytes++; // Need another extra byte to store the length
-            }
-            *ptr++ = (numExtraBytes | 0x80); // 0x8x where x is the number of bytes which provide the total string length
-            if (valueLength > 256)
-            {
-                *ptr++ = valueLength / 256;
-                valueLength = valueLength % 256;
-            }
-            *ptr++ = valueLength;
-        }
-        else
-        {
-            *ptr++ = valueLength;
-        }
-        _length = sprintf(ptr, "%s", _value);
-        return _length + numExtraBytes + 2;
+        const size_t length = strlen(value);
+        valid = length < sizeof(_value);
+        _length = valid ? length : 0;
+        if (valid)
+            memcpy(_value, value, length + 1);
     }
-    bool fromBuffer(unsigned char *buf)
+    char _value[SNMP_OCTETSTRING_MAX_LENGTH] = {};
+    int serialise(unsigned char *buf) override
     {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] OctetType:fromBuffer");
-#endif
-        buf++; // skip Type
-        _length = *buf;
-        // length should be treated as: if first byte is 0x8x, the x is how many bytes follow
-        if (_length > 127)
+        return serialise(buf, static_cast<size_t>(-1));
+    }
+    int serialise(unsigned char *buf, size_t capacity) override
+    {
+        if (!valid)
+            return -1;
+        // Decoded strings retain their binary length. Directly populated legacy
+        // C-string values use their terminator to determine the length.
+        size_t length = _length;
+        if (!decoded)
         {
-            int numBytes = _length &= 0x7F;
-            unsigned int special_length = 0;
-            for (int k = 0; k < numBytes; k++)
-            {
-                buf++;
-                special_length <<= 8;
-                special_length |= *buf;
-            }
-            _length = special_length;
+            length = 0;
+            while (length < sizeof(_value) && _value[length])
+                ++length;
+            if (length == sizeof(_value))
+                return -1;
         }
-        buf++;
-        memset(_value, 0, sizeof(_value)); // Null out _value
-        if (_length < sizeof(_value))
+        size_t header = length < 128 ? 2 : (length < 256 ? 3 : 4);
+        if (header + length > capacity)
+            return -1;
+        if (!buf)
+            return header + length;
+        buf[0] = _type;
+        if (length < 128)
+            buf[1] = length;
+        else if (length < 256)
         {
-            strncpy(_value, (char *)buf, _length); // Copy buffer to Value, using length from ASN structure.
+            buf[1] = 0x81;
+            buf[2] = length;
+            header = 3;
         }
         else
         {
-            Serial.println(F("OctetString too large, adjust SNMP_OCTETSTRING_MAX_LENGTH. String Truncated."));
-            strncpy(_value, (char *)buf, 253); // Copy truncated buffer to Value
+            buf[1] = 0x82;
+            buf[2] = length >> 8;
+            buf[3] = length;
+            header = 4;
         }
+        memcpy(buf + header, _value, length);
+        _length = length;
+        return header + length;
+    }
+    bool fromBuffer(unsigned char *buf) override
+    {
+        return fromBuffer(buf, static_cast<size_t>(-1));
+    }
+    bool fromBuffer(unsigned char *buf, size_t available) override
+    {
+        size_t header, length;
+        if (!readBERHeader(buf, available, header, length) || buf[0] != STRING ||
+            length >= sizeof(_value))
+            return false;
+        memcpy(_value, buf + header, length);
+        _value[length] = 0;
+        _length = length;
+        decoded = true;
+        valid = true;
         return true;
     }
-    int getLength()
+    int getLength() override
+    {
+        return _length;
+    }
+
+private:
+    bool decoded = false;
+    bool valid = true;
+};
+
+// Opaque and exception values are primitive payloads, never nested TLVs.
+class RawType : public BER_CONTAINER
+{
+public:
+    BER_CONTAINER *clone() const override
+    {
+        return new (std::nothrow) RawType(*this);
+    }
+    explicit RawType(ASN_TYPE type = OPAQUE) : BER_CONTAINER(true, type) {}
+    unsigned char _value[SNMP_OCTETSTRING_MAX_LENGTH] = {};
+    bool fromBuffer(unsigned char *buf) override
+    {
+        return fromBuffer(buf, static_cast<size_t>(-1));
+    }
+    bool fromBuffer(unsigned char *buf, size_t available) override
+    {
+        size_t header, length;
+        if (!readBERHeader(buf, available, header, length) || buf[0] != _type ||
+            length > sizeof(_value))
+            return false;
+        if (_type != OPAQUE && length != 0)
+            return false;
+        memcpy(_value, buf + header, length);
+        _length = length;
+        return true;
+    }
+    int serialise(unsigned char *buf) override
+    {
+        return serialise(buf, static_cast<size_t>(-1));
+    }
+    int serialise(unsigned char *buf, size_t capacity) override
+    {
+        size_t header = _length < 128 ? 2 : (_length < 256 ? 3 : 4);
+        if (header + _length > capacity)
+            return -1;
+        if (!buf)
+            return header + _length;
+        buf[0] = _type;
+        if (header == 2)
+            buf[1] = _length;
+        else if (header == 3)
+        {
+            buf[1] = 0x81;
+            buf[2] = _length;
+        }
+        else
+        {
+            buf[1] = 0x82;
+            buf[2] = _length >> 8;
+            buf[3] = _length;
+        }
+        memcpy(buf + header, _value, _length);
+        return header + _length;
+    }
+    int getLength() override
     {
         return _length;
     }
@@ -285,135 +417,156 @@ public:
 class OIDType : public BER_CONTAINER
 {
 public:
-    OIDType() : BER_CONTAINER(true, OID){};
+    BER_CONTAINER *clone() const override
+    {
+        return new (std::nothrow) OIDType(*this);
+    }
+    OIDType() : BER_CONTAINER(true, OID)
+    {
+        _length = 0;
+    }
     OIDType(char *value) : BER_CONTAINER(true, OID)
     {
-        strncpy(_value, value, MAX_OID_LENGTH);
-    };
-    ~OIDType(){};
-    char _value[MAX_OID_LENGTH];
-    int serialise(unsigned char *buf)
-    {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] OIDType:serialise");
-#endif
-        // here we print out the BER encoded ASN.1 bytes, which includes type, length and value.
-        char *ptr = (char *)buf;
-        *ptr = _type;
-        ptr++;
-        char *lengthPtr = ptr;
-        ptr++;
-        *ptr = 0x2b;
-        char *internalPtr = ++ptr;
-        char *valuePtr = &_value[5];
-        _length = 3;
-        bool toBreak = false;
-        while (true)
-        {
-            char *start = valuePtr;
-            char *end = strchr(start, '.');
-
-            if (!end)
-            {
-                end = strchr(start, 0);
-                toBreak = true;
-            }
-            char tempBuf[12];
-            memset(tempBuf, 0, 12);
-            //            char* tempBuf = (char*) malloc(sizeof(char) * (end-start));
-            strncpy(tempBuf, start, end - start + 1);
-            long tempVal;
-            char *pEnd;
-            tempVal = (uint32_t)strtoul(tempBuf, &pEnd, 10);
-            if (tempVal < 128)
-            {
-                _length += 1;
-                *ptr++ = (char)tempVal;
-            }
-            else
-            {
-                // Serial.print("large num: ");Serial.println(tempVal);
-                // FIXME: This will only encode integers upto 4 bytes. Ideally this should be a loop.
-                if (tempVal / 128 / 128 > 128)
-                {
-                    *ptr++ = ((tempVal / 128 / 128 / 128 ) | 0x80) & 0xFF;
-                    _length += 1;
-                }
-                if (tempVal / 128 > 128)
-                {
-                    *ptr++ = ((tempVal / 128 / 128) | 0x80) & 0xFF;
-                    _length += 1;
-                }
-                *ptr++ = ((tempVal / 128) | 0x80) & 0xFF;
-
-                *ptr++ = tempVal % 128 & 0xFF;
-                _length += 2;
-            }
-
-            valuePtr = end + 1;
-
-            //            free(tempBuf);
-            if (toBreak)
-                break;
-            // delay(1);
-        }
-        *lengthPtr = _length - 2;
-
-        return _length;
+        _length = 0;
+        if (strlen(value) < sizeof(_value))
+            strcpy(_value, value);
     }
-    bool fromBuffer(unsigned char *buf)
+    char _value[MAX_OID_LENGTH] = {};
+    int serialise(unsigned char *buf) override
     {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] OIDType:fromBuffer");
-#endif
-        buf++; // skip Type
-        _length = *buf;
-        buf++;
-        buf++;
-        memset(_value, 0, 128);
-        _value[0] = '.';
-        _value[1] = '1';
-        _value[2] = '.';
-        _value[3] = '3'; // we fill in the first two bytes already
-        char *ptr = &_value[4];
-        char i = _length - 1;
-        while (i > 0)
+        return serialise(buf, static_cast<size_t>(-1));
+    }
+    int serialise(unsigned char *buf, size_t capacity) override
+    {
+        size_t textLength = 0;
+        while (textLength < sizeof(_value) && _value[textLength])
+            ++textLength;
+        if (textLength == sizeof(_value))
+            return -1;
+        const char *cursor = _value;
+        const char *end = _value + textLength;
+        unsigned char contents[MAX_OID_LENGTH];
+        size_t length = 0, arcs = 0;
+        uint64_t first = 0;
+        while (cursor < end)
         {
-            if (*buf < 128)
-            { // we can keep raw
-                ptr += sprintf(ptr, ".%d", *buf);
-                i--;
-                buf++;
+            if (*cursor++ != '.' || cursor == end)
+                return -1;
+            uint64_t arc = 0;
+            const char *digits = cursor;
+            while (cursor < end && *cursor != '.')
+            {
+                if (*cursor < '0' || *cursor > '9')
+                    return -1;
+                arc = arc * 10 + (*cursor++ - '0');
+                if (arc > UINT32_MAX)
+                    return -1;
             }
-            else
-            {                                   // we have to do the special >128 thing
-                long value = 0;                 // keep track of the actual thing
-                unsigned char n = 0;            // count how many large bits have been set
-                unsigned char tempBuf[6] = {0}; // no bigger than 4 bytes
-                while (*buf > 127)
-                {
-                    i--;
-                    *buf &= 0x7F;
-                    tempBuf[n] = *buf;
-                    n++;
-                    buf++;
-                }
-                value = *buf;
-                buf++;
-                i--;
-                for (unsigned char k = 0; k < n; k++)
-                {
-                    value += (pow(128, (n - k))) * tempBuf[k];
-                }
-                ptr += sprintf(ptr, ".%d", value);
+            if (cursor == digits)
+                return -1;
+            if (arcs++ == 0)
+            {
+                if (arc > 2)
+                    return -1;
+                first = arc;
+                continue;
+            }
+            if (arcs == 2)
+            {
+                if (first < 2 && arc > 39)
+                    return -1;
+                arc += first * 40;
+            }
+            unsigned char encoded[5];
+            size_t start = sizeof(encoded);
+            do
+            {
+                encoded[--start] = arc & 0x7f;
+                arc >>= 7;
+            } while (arc);
+            if (length + sizeof(encoded) - start > sizeof(contents))
+                return -1;
+            while (start < sizeof(encoded))
+            {
+                contents[length++] = encoded[start] | (start + 1 < sizeof(encoded) ? 0x80 : 0);
+                ++start;
             }
         }
-        // Serial.print("OID: " );Serial.println(_value);
-        //        memcpy(_value, buf, _length);
+        if (arcs < 2)
+            return -1;
+        size_t header = length < 128 ? 2 : (length < 256 ? 3 : 4);
+        if (header + length > capacity)
+            return -1;
+        if (!buf)
+            return header + length;
+        buf[0] = OID;
+        if (length < 128)
+            buf[1] = length;
+        else if (length < 256)
+        {
+            buf[1] = 0x81;
+            buf[2] = length;
+            header = 3;
+        }
+        else
+        {
+            buf[1] = 0x82;
+            buf[2] = length >> 8;
+            buf[3] = length;
+            header = 4;
+        }
+        memcpy(buf + header, contents, length);
+        _length = length;
+        return header + length;
+    }
+    bool fromBuffer(unsigned char *buf) override
+    {
+        return fromBuffer(buf, static_cast<size_t>(-1));
+    }
+    bool fromBuffer(unsigned char *buf, size_t available) override
+    {
+        size_t header, length;
+        if (!readBERHeader(buf, available, header, length) || buf[0] != OID || length == 0)
+            return false;
+        char text[MAX_OID_LENGTH] = {};
+        size_t used = 0, offset = 0;
+        bool first = true;
+        while (offset < length)
+        {
+            uint64_t arc = 0;
+            unsigned char byte;
+            unsigned int octets = 0;
+            do
+            {
+                if (offset == length || ++octets > 5)
+                    return false;
+                byte = buf[header + offset++];
+                if (octets == 1 && byte == 0x80)
+                    return false;
+                arc = (arc << 7) | (byte & 0x7f);
+            } while (byte & 0x80);
+            if (arc > static_cast<uint64_t>(UINT32_MAX) + (first ? 80 : 0))
+                return false;
+            int written;
+            if (first)
+            {
+                unsigned long root = arc < 40 ? 0 : (arc < 80 ? 1 : 2);
+                written = snprintf(text + used, sizeof(text) - used, ".%lu.%lu", root,
+                                   static_cast<unsigned long>(arc - root * 40));
+                first = false;
+            }
+            else
+                written = snprintf(text + used, sizeof(text) - used, ".%lu",
+                                   static_cast<unsigned long>(arc));
+            if (written < 0 || static_cast<size_t>(written) >= sizeof(text) - used)
+                return false;
+            used += written;
+        }
+        memcpy(_value, text, used + 1);
+        _length = length;
         return true;
     }
-
-    int getLength()
+    int getLength() override
     {
         return _length;
     }
@@ -422,31 +575,50 @@ public:
 class NullType : public BER_CONTAINER
 {
 public:
-    NullType() : BER_CONTAINER(true, NULLTYPE){};
-    ~NullType(){};
+    BER_CONTAINER *clone() const override
+    {
+        return new (std::nothrow) NullType(*this);
+    }
+    NullType() : BER_CONTAINER(true, NULLTYPE) {};
+    ~NullType() {};
     char _value = 0;
-    int serialise(unsigned char *buf)
+    int serialise(unsigned char *buf) override
+    {
+        return serialise(buf, static_cast<size_t>(-1));
+    }
+    int serialise(unsigned char *buf, size_t capacity) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NullType:serialise");
 #endif
-        // here we print out the BER encoded ASN.1 bytes, which includes type, length and value.
+        if (capacity < 2)
+            return -1;
+        if (!buf)
+            return 2;
+        // NULL has a zero-length value, so its TLV contains only the tag and length.
         char *ptr = (char *)buf;
         *ptr = _type;
         ptr++;
         *ptr = 0;
         return 2;
     }
-    bool fromBuffer(unsigned char *buf)
+    bool fromBuffer(unsigned char *buf) override
+    {
+        return fromBuffer(buf, static_cast<size_t>(-1));
+    }
+    bool fromBuffer(unsigned char *buf, size_t available) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NullType:fromBuffer");
 #endif
+        size_t header, length;
+        if (!readBERHeader(buf, available, header, length) || buf[0] != NULLTYPE || length != 0)
+            return false;
         _length = 0;
         return true;
     }
 
-    int getLength()
+    int getLength() override
     {
         return 0;
     }
@@ -455,60 +627,75 @@ public:
 class Counter64 : public BER_CONTAINER
 {
 public:
-    Counter64() : BER_CONTAINER(true, COUNTER64){};
-    Counter64(uint64_t value) : _value(value), BER_CONTAINER(true, COUNTER64){};
-    ~Counter64(){};
-    uint64_t _value;
-    int serialise(unsigned char *buf)
+    BER_CONTAINER *clone() const override
+    {
+        return new (std::nothrow) Counter64(*this);
+    }
+    Counter64() : BER_CONTAINER(true, COUNTER64) {};
+    Counter64(uint64_t value) : BER_CONTAINER(true, COUNTER64), _value(value) {};
+    ~Counter64() {};
+    uint64_t _value = 0;
+    int serialise(unsigned char *buf) override
+    {
+        return serialise(buf, static_cast<size_t>(-1));
+    }
+    int serialise(unsigned char *buf, size_t capacity) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Counter64:serialise");
 #endif
-        // here we print out the BER encoded ASN.1 bytes, which includes type, length and value. we return the length of the entire block (TL&V) ni bytes;
-        unsigned char *ptr = buf;
-        *ptr = _type;
-        ptr++;
-        unsigned char *lengthPtr = ptr++;
-        if (_value != 0)
+        // Up to eight value octets plus a leading zero to preserve the positive sign.
+        unsigned char contents[9];
+        size_t start = sizeof(contents);
+        uint64_t remaining = _value;
+        do
         {
-            _length = 8;
-            *ptr++ = _value >> 56 & 0xFF;
-            *ptr++ = _value >> 48 & 0xFF;
-            *ptr++ = _value >> 40 & 0xFF;
-            *ptr++ = _value >> 32 & 0xFF;
-            *ptr++ = _value >> 24 & 0xFF;
-            *ptr++ = _value >> 16 & 0xFF;
-            *ptr++ = _value >> 8 & 0xFF;
-            *ptr++ = _value & 0xFF;
-        }
-        else
+            contents[--start] = static_cast<unsigned char>(remaining & 0xff);
+            remaining >>= 8;
+        } while (remaining != 0);
+        if (contents[start] & 0x80)
         {
-            _length = 1;
-            *ptr = 0;
+            contents[--start] = 0;
         }
-        *lengthPtr = _length;
+        _length = sizeof(contents) - start;
+        if (capacity < static_cast<size_t>(_length) + 2)
+            return -1;
+        if (!buf)
+            return _length + 2;
+        buf[0] = _type;
+        buf[1] = _length;
+        memcpy(buf + 2, contents + start, _length);
         return _length + 2;
     }
-    bool fromBuffer(unsigned char *buf)
+
+    bool fromBuffer(unsigned char *buf) override
+    {
+        return fromBuffer(buf, static_cast<size_t>(-1));
+    }
+    bool fromBuffer(unsigned char *buf, size_t available) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Counter64:fromBuffer");
 #endif
-        buf++; // skip Type
-        _length = *buf;
-        buf++;
-        unsigned short tempLength = _length;
-        //        _value = *buf; // TODO: make work for integers more than 255
-        _value = 0;
-        while (tempLength > 0)
+        size_t header, length;
+        if (!readBERHeader(buf, available, header, length) || buf[0] != _type)
+            return false;
+        buf += header;
+        if (length == 0 || length > 9 || (buf[0] & 0x80))
+            return false;
+        if (length == 9 && buf[0] != 0)
+            return false;
+        uint64_t value = 0;
+        for (unsigned int i = 0; i < length; ++i)
         {
-            _value = _value << 8;
-            _value = _value | *buf++;
-            tempLength--;
+            value = (value << 8) | *buf++;
         }
+        _length = length;
+        _value = value;
         return true;
     }
-    int getLength()
+
+    int getLength() override
     {
         return _length;
     }
@@ -521,33 +708,38 @@ public:
     {
         _type = COUNTER32;
     };
-    Counter32(unsigned int value) : IntegerType(value)
+    Counter32(uint32_t value) : IntegerType(value)
     {
         _type = COUNTER32;
     };
-    ~Counter32(){};
+    ~Counter32() {};
 };
 
 class Gauge : public IntegerType
-{ // Unsigned int
+{ // Gauge32 uses unsigned 32-bit values.
 public:
     Gauge() : IntegerType()
     {
         _type = GAUGE32;
     };
-    Gauge(unsigned int value) : IntegerType(value)
+    Gauge(uint32_t value) : IntegerType(value)
     {
         _type = GAUGE32;
     };
-    ~Gauge(){};
+    ~Gauge() {};
 };
 
 typedef struct BER_LINKED_LIST
 {
     ~BER_LINKED_LIST()
     {
-        delete next;
-        next = 0;
+        while (next)
+        {
+            auto *node = next;
+            next = node->next;
+            node->next = nullptr;
+            delete node;
+        }
         delete value;
         value = 0;
     }
@@ -558,61 +750,79 @@ typedef struct BER_LINKED_LIST
 class ComplexType : public BER_CONTAINER
 {
 public:
-    ComplexType(ASN_TYPE type) : BER_CONTAINER(false, type){};
+    ComplexType(ASN_TYPE type) : BER_CONTAINER(false, type) {};
+    ComplexType(const ComplexType &other) : BER_CONTAINER(false, other._type)
+    {
+        copyValid = copyFrom(other);
+    }
+    ComplexType &operator=(const ComplexType &other)
+    {
+        if (this != &other)
+            copyFrom(other);
+        return *this;
+    }
+    BER_CONTAINER *clone() const override
+    {
+        ComplexType *copy = new (std::nothrow) ComplexType(*this);
+        if (copy && !copy->copyValid)
+        {
+            delete copy;
+            return nullptr;
+        }
+        return copy;
+    }
+
+private:
+    bool copyValid = true;
+    bool copyFrom(const ComplexType &other)
+    {
+        ComplexType copy(other._type);
+        for (const ValuesList *entry = other._values; entry; entry = entry->next)
+            if (!entry->value || !copy.tryAddValueToList(entry->value->clone()))
+                return false;
+        std::swap(_values, copy._values);
+        _type = other._type;
+        _length = other._length;
+        return true;
+    }
+
+public:
     ~ComplexType()
     {
         delete _values;
     }
     ValuesList *_values = 0;
-    bool fromBuffer(unsigned char *buf)
+    bool fromBuffer(unsigned char *buf) override
     {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] ComplexType:fromBuffer");
-#endif
-        // the buffer we get passed in is the complete ASN Container, including the type header.
-        buf++; // Skip our own type
-        _length = *buf;
-        // length should be treated as: if first byte is 0x8x, the x is how many bytes follow
-        if (_length > 127)
+        return fromBuffer(buf, static_cast<size_t>(-1));
+    }
+    bool fromBuffer(unsigned char *buf, size_t available) override
+    {
+        return decode(buf, available, 0);
+    }
+    bool decode(unsigned char *buf, size_t available, unsigned int depth)
+    {
+        delete _values;
+        _values = nullptr;
+        size_t header, length;
+        if (depth >= 32 || !readBERHeader(buf, available, header, length))
+            return false;
+        _length = length;
+        size_t offset = header;
+        const size_t end = header + length;
+        while (offset < end)
         {
-            int numBytes = _length &= 0x7F;
-            unsigned int special_length = 0;
-            for (int k = 0; k < numBytes; k++)
-            {
-                buf++;
-                special_length <<= 8;
-                special_length |= *buf;
-            }
-            _length = special_length;
-        }
-        buf++;
-        // now we are at the front of a list of one or many other types, lets do our loop
-        unsigned int i = 1;
-        while (i < _length)
-        {
-            ASN_TYPE valueType = (ASN_TYPE)*buf;
-            buf++;
-            i++;
-            unsigned int valueLength = *buf;
-
-            int doubleL = 0;
-            if (valueLength > 127)
-            {
-                int numBytes = valueLength &= 0x7F;
-                unsigned int special_length = 0;
-                for (int k = 0; k < numBytes; k++)
-                {
-                    buf++;
-                    i++;
-                    special_length <<= 8;
-                    special_length |= *buf;
-                }
-                valueLength = special_length;
-                doubleL = numBytes;
-            }
-            buf++;
-            i++;
-
+            size_t childHeader, valueLength;
+            if (!readBERHeader(buf + offset, end - offset, childHeader, valueLength))
+                return false;
+            ASN_TYPE valueType = static_cast<ASN_TYPE>(buf[offset]);
+            // Enforce the payload lengths of NULL, exceptions, and IPv4 addresses.
+            if ((valueType == NULLTYPE || valueType == NOSUCHOBJECT ||
+                 valueType == NOSUCHINSTANCE || valueType == ENDOFMIBVIEW) &&
+                valueLength != 0)
+                return false;
+            if (valueType == NETWORK_ADDRESS && valueLength != 4)
+                return false;
             BER_CONTAINER *newObj;
             switch (valueType)
             {
@@ -622,160 +832,169 @@ public:
             case GetResponsePDU:
             case SetRequestPDU:
             case GetBulkRequestPDU:
-            case TrapPDU: // should never get trap, but put it in anyway
+            case TrapPDU: // Recognized here; the response parser rejects trap PDUs.
             case Trapv2PDU:
-                newObj = new ComplexType(valueType);
+                newObj = new (std::nothrow) ComplexType(valueType);
                 break;
                 // primitive
             case INTEGER:
-                newObj = new IntegerType();
+                newObj = new (std::nothrow) IntegerType();
                 break;
             case STRING:
-                newObj = new OctetType();
+                newObj = new (std::nothrow) OctetType();
                 break;
             case OID:
-                newObj = new OIDType();
+                newObj = new (std::nothrow) OIDType();
                 break;
             case NULLTYPE:
-                newObj = new NullType();
+                newObj = new (std::nothrow) NullType();
                 break;
                 // derived
             case NETWORK_ADDRESS:
-                newObj = new NetworkAddress();
+                newObj = new (std::nothrow) NetworkAddress();
                 break;
             case TIMESTAMP:
-                newObj = new TimestampType();
+                newObj = new (std::nothrow) TimestampType();
                 break;
             case COUNTER32:
-                newObj = new Counter32();
+                newObj = new (std::nothrow) Counter32();
                 break;
             case GAUGE32:
-                newObj = new Gauge();
+                newObj = new (std::nothrow) Gauge();
                 break;
             case COUNTER64:
-                newObj = new Counter64();
+                newObj = new (std::nothrow) Counter64();
                 break;
-                /* OPAQUE = 0x44 */
-
+            case OPAQUE:
+            case NOSUCHOBJECT:
+            case NOSUCHINSTANCE:
+            case ENDOFMIBVIEW:
+                newObj = new (std::nothrow) RawType(valueType);
+                break;
             default:
-#ifdef DEBUG
-                Serial.println("[DEBUG_BER] default new ComplexType");
-#endif
-                newObj = new ComplexType(valueType);
-                break;
+                return false;
             }
-            newObj->fromBuffer(buf - (2 + doubleL));
-
-            buf += valueLength;
-            i += valueLength;
-            //newObj->fromBuffer(newValue);
-            //            free(newValue);
-            addValueToList(newObj);
+            if (!newObj)
+                return false;
+            bool valid;
+            if (!newObj->_isPrimitive)
+                valid = static_cast<ComplexType *>(newObj)->decode(
+                    buf + offset, childHeader + valueLength, depth + 1);
+            else
+                valid = newObj->fromBuffer(buf + offset, childHeader + valueLength);
+            if (!valid)
+            {
+                delete newObj;
+                return false;
+            }
+            if (!tryAddValueToList(newObj))
+                return false;
+            offset += childHeader + valueLength;
         }
         return true;
     }
 
-    int serialise(unsigned char *buf)
+    int serialise(unsigned char *buf) override
     {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] ComplexType:serialise");
-#endif
-        int actualLength = 0;
-        unsigned char *ptr = buf;
-        *ptr = _type;
-        ptr++;
-        unsigned char *lengthPtr = ptr++;
-        *lengthPtr = 0;
-        ValuesList *conductor = _values;
-        int tempLength = 0;
-        while (conductor)
+        if (!buf)
+            return serialise(nullptr, static_cast<size_t>(-1));
+        // Preserve legacy custom children that cannot measure into a null buffer.
+        // The pointer-only API still requires caller-provided sufficient storage.
+        size_t length = 0;
+        for (ValuesList *entry = _values; entry; entry = entry->next)
         {
-            // Serial.print("about to serialise something of type: ");Serial.println(conductor->value->_type, HEX);
-            delay(0);
-
-            int length = conductor->value->serialise(ptr);
-            ptr += length;
-            actualLength += length;
-            conductor = conductor->next;
+            const int child = entry->value->serialise(buf + 2 + length);
+            if (child < 0 || static_cast<size_t>(child) > 65535u - length)
+                return -1;
+            length += child;
         }
-        // printf("Length to return: %d\n", actualLength);
-        if (actualLength > 127)
+        const size_t header = length < 128 ? 2 : (length < 256 ? 3 : 4);
+        memmove(buf + header, buf + 2, length);
+        buf[0] = _type;
+        if (header == 2)
+            buf[1] = length;
+        else if (header == 3)
         {
-#ifdef DEBUG_BER
-            Serial.println("TOO BIG - Adding extra byte");
-#endif
-            // bad, we have to add another byte and shift everything afterwards by 1 >>
-            // first byte is 128 + (actualLength / 128)
-            // second is actualLength % 128;
-            int tempVal = 1;
-            if (actualLength > 256)
-            {
-                *lengthPtr++ = (2 | 0x80) & 0xFF; // dodgy
-
-                tempLength += 1;
-                unsigned char *endPtrPos = ++ptr;
-                for (unsigned char *i = endPtrPos; i > buf + 1; i--)
-                {
-                    // i is the char we are moving INTO
-                    *i = *(i - 1);
-                }
-                tempVal = 2;
-                *lengthPtr++ = actualLength / 256;
-            }
-            else
-            {
-                *lengthPtr++ = (1 | 0x80) & 0xFF;
-            }
-
-            // *lengthPtr = 129;
-            // if(actualLength > 256){
-            //     *lengthPtr = 130;
-            // }
-            // lets move everything right one byte, start from back..
-            unsigned char *endPtrPos = ptr + 1;
-            for (unsigned char *i = endPtrPos; i > buf + tempVal; i--)
-            {
-                // i is the char we are moving INTO
-                *i = *(i - 1);
-            }
-            *lengthPtr++ = actualLength % 256;
-
-            // *(lengthPtr+1) = (actualLength % 128)|0x80;
-            tempLength += 1; // account for extra byte in Length param
+            buf[1] = 0x81;
+            buf[2] = length;
         }
         else
         {
-            *lengthPtr = actualLength;
+            buf[1] = 0x82;
+            buf[2] = length >> 8;
+            buf[3] = length;
         }
-        return actualLength + 2 + tempLength;
+        _length = length;
+        return header + length;
+    }
+    int serialise(unsigned char *buf, size_t capacity) override
+    {
+        // Measure before writing, so insufficient capacity leaves the buffer unchanged.
+        size_t length = 0;
+        for (ValuesList *entry = _values; entry; entry = entry->next)
+        {
+            int child = entry->value->serialise(nullptr, static_cast<size_t>(-1));
+            if (child < 0 || static_cast<size_t>(child) > 65535u - length)
+                return -1;
+            length += child;
+        }
+        size_t header = length < 128 ? 2 : (length < 256 ? 3 : 4);
+        if (header + length > capacity)
+            return -1;
+        if (!buf)
+            return header + length;
+        buf[0] = _type;
+        if (header == 2)
+            buf[1] = length;
+        else if (header == 3)
+        {
+            buf[1] = 0x81;
+            buf[2] = length;
+        }
+        else
+        {
+            buf[1] = 0x82;
+            buf[2] = length >> 8;
+            buf[3] = length;
+        }
+        size_t offset = header;
+        for (ValuesList *entry = _values; entry; entry = entry->next)
+        {
+            int child = entry->value->serialise(buf + offset, capacity - offset);
+            if (child < 0)
+                return -1;
+            offset += child;
+        }
+        _length = length;
+        return offset;
     }
 
-    int getLength()
+    int getLength() override
     {
         return _length;
     }
 
-    void addValueToList(BER_CONTAINER *newObj)
+    // Takes ownership of the child on both success and failure.
+    void addValueToList(BER_CONTAINER *child)
     {
-        ValuesList *conductor = _values;
-        if (_values != 0)
+        tryAddValueToList(child);
+    }
+    bool tryAddValueToList(BER_CONTAINER *child)
+    {
+        if (!child)
+            return false;
+        ValuesList *node = new (std::nothrow) ValuesList();
+        if (!node)
         {
-            while (conductor->next != 0)
-            {
-                conductor = conductor->next;
-                delay(0);
-            }
-            conductor->next = new ValuesList;
-            conductor = conductor->next;
-            conductor->value = newObj;
-            conductor->next = 0;
+            delete child;
+            return false;
         }
-        else
-        {
-            _values = new ValuesList;
-            _values->value = newObj;
-            _values->next = 0;
-        }
+        node->value = child;
+        ValuesList **tail = &_values;
+        while (*tail)
+            tail = &(*tail)->next;
+        *tail = node;
+        return true;
     }
 };
 

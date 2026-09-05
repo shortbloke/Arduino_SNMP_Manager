@@ -1,0 +1,29 @@
+name: 1.x compatibility
+on: [push, pull_request]
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install platformio==6.1.19 clang-format==19.1.7
+      - run: clang-format --dry-run --Werror src/*.h tests/native/*.cpp tests/native/stubs/*.h tests/native/compatibility/*.cpp tests/platformio/test_snmp/*.cpp tests/embedded/src/*.cpp
+      - run: make -C tests/native check
+      - run: make -C tests/native sanitize
+      - run: pio test -e native
+  embedded:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install platformio==6.1.19
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-1x-${{ runner.os }}-${{ hashFiles('tests/embedded/platformio.ini', 'tests/examples/platformio.ini') }}
+      - run: pio run -d tests/embedded
+      - run: pio run -d tests/examples

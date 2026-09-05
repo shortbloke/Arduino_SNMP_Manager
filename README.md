@@ -24,6 +24,32 @@ If you find this useful, consider providing some support:
 
 **Changelog**: [CHANGELOG.md](CHANGELOG.md)
 
+## 1.x compatibility and tests
+
+Run `pio test -e native` to execute all native tests through PlatformIO, or `pio test -e native -a "--gtest_filter=Baseline.*"` for the passing baseline. The suite includes checks for previously reported defects. No Arduino board is required. The standalone Make runner is also retained. See [native test documentation](tests/native/README.md) for coverage, sanitizer checks, and the regression group. The suite also checks the 1.x API, including unchanged examples and sketch-local configuration.
+
+When a callback is included in a successful `SNMPGet::sendTo`, its responses must match a pending request ID, peer, and UDP transport. Each callback supports `SNMP_MAX_PENDING_REQUESTS` outstanding requests (default 4). By default a full window replaces an older pending slot so lost replies do not stop existing polling loops. Set `callback->strictTracking = true` to opt into refusing sends when the window is full. Retransmission with the same ID reuses its slot; matching replies consume it. Call `callback->clearPendingRequests()` to abandon timed-out requests. Use distinct IDs while earlier replies may still arrive. Callbacks never included in a successful send retain legacy direct-response handling.
+
+The 1.x API remains header-only: numeric version arguments, `setIP()`, short request IDs/ports, and sketch-local configuration defines remain supported. New checked `tryAddOIDPointer`, `tryAddHandler`, and `tryAddValueToList` methods report allocation failures; the original void methods remain available.
+
+## Buffer safety and ownership
+
+Use `serialise(buffer, capacity)` and `fromBuffer(buffer, length)` when calling BER objects directly. `serialise(nullptr)` measures the encoded size; insufficient capacity returns a negative result. Decoding returns false for malformed or incomplete input. The legacy forms without sizes remain available and require sufficient storage or complete input. The original pointer-only BER virtual signatures remain supported. Custom subclasses can additionally override the bounded overloads; without that override bounded calls fail safely. Built-in BER classes support both forms.
+
+String and OID handlers accept a destination capacity including the terminator:
+
+```cpp
+char text[64] = {};
+char *textPointer = text;
+snmp.addStringHandler(deviceIP, oid, &textPointer, sizeof(text));
+char oidValue[128] = {};
+snmp.addOIDHandler(deviceIP, oid, oidValue, sizeof(oidValue));
+```
+
+For binary OCTET STRING or Opaque values, use `addOctetHandler` or `addOpaqueHandler` with a byte buffer, its capacity, and a `size_t*` receiving the actual length. These handlers preserve embedded NULs. Insufficient capacity leaves the destination and length unchanged; C-string handlers also reject embedded NULs. Legacy string/OID calls without capacities remain caller-sized APIs.
+
+Managers own registrations returned by the `add*Handler` factories; requests retain references to registrations they use. The original `addHandler` borrows a caller-created callback (including its OID text); the caller must keep it alive. `tryAddHandler` instead transfers callback ownership on success. Clearing or destroying a request releases those references. Registrations and their OID strings are freed when the last owner releases them. Do not delete a registered callback directly. Destination buffers, community strings, and UDP objects remain caller-owned and must outlive operations that use them. Manager and request copies own independent lists while retaining shared registrations and caller-owned destinations. Built-in BER trees and parsed responses are deep-copied. Custom BER types can implement `clone()` to support copying within an owning tree.
+
 ## Usage
 
 ### SNMPManager

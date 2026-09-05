@@ -3,9 +3,8 @@
 
 typedef struct VarBindStruct
 {
-    ~VarBindStruct(){
-        // if(value) delete value;
-        // if(oid) delete oid;
+    ~VarBindStruct() {
+        // oid and value are borrowed from the response BER tree, which owns them.
     };
     OIDType *oid = 0;
     ASN_TYPE type;
@@ -16,8 +15,13 @@ typedef struct VarBindListStruct
 {
     ~VarBindListStruct()
     {
-        delete next;
-        next = 0;
+        while (next)
+        {
+            auto *node = next;
+            next = node->next;
+            node->next = nullptr;
+            delete node;
+        }
         delete value;
         value = 0;
     };
