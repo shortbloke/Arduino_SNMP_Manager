@@ -12,8 +12,9 @@ const char *password = "YOUR_PASSWORD";
 WiFiUDP udp;
 SNMPClient client(udp);
 SNMPDevice networkSwitch(client, "192.168.1.10", "public");
-// Fixed capacity: reduce this if the rest of the sketch needs more RAM.
-SNMPInterfaceRead<48, 16> interfaces(networkSwitch);
+// Capacity counts logical interfaces, not physical ports. A 24-port switch can
+// expose more than 48 rows. Reduce this if the rest of the sketch needs more RAM.
+SNMPInterfaceRead<64, 16> interfaces(networkSwitch);
 
 bool ready = false;
 uint32_t lastPoll = 0;

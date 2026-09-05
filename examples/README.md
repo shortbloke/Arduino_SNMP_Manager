@@ -40,7 +40,10 @@ views vary: an empty table does not prove that a device has no disks or supplies
 
 The new walk and device-table examples run once after connecting. Reset to repeat,
 or adapt the periodic scheduling in Simple_Read. Table templates bound retained
-rows; increase them only with sufficient RAM. Interface and storage examples use
+rows; increase them only with sufficient RAM. Interface_Traffic reserves 64 rows
+because logical interfaces can outnumber physical ports; a full table reports
+`CapacityExceeded` and may stop before counter columns are read.
+Interface and storage examples use
 16-byte index buffers; the printer example uses 24 bytes for compound indices.
 These capacities include termination; longer indices cause `CapacityExceeded`. Missing cells remain unavailable,
 and capacity errors leave collected rows inspectable. Table columns are queried

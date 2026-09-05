@@ -100,6 +100,66 @@ void registerClientTests(std::vector<Test> &tests)
             client.loop(3);
             CHECK(walk.status().ok() && walk.size() == 1);
         });
+    add("lost bulk fallback remains bounded and preserves the walk deadline",
+        []
+        {
+            for (bool deadline : {false, true})
+            {
+                UDP udp;
+                SNMPClient client(udp);
+                SNMPDevice device(client, udp.peer, "public");
+                device.timeoutMs = deadline ? 30000 : 10;
+                device.retries = 0;
+                SNMPWalk<2> walk(device);
+                CHECK(client.begin().ok() && walk.configure(".1.3.6.1.2.1.1").ok());
+                CHECK(walk.start().ok());
+                client.loop(100);
+                client.loop(deadline ? 30100 : 110);
+                CHECK(walk.pending());
+                client.loop(deadline ? 30101 : 111);
+                SNMPGetResponse request;
+                CHECK(request.parseFrom(udp.outgoing.data(), udp.outgoing.size()));
+                CHECK(request.requestType == GetNextRequestPDU && udp.packets == 2);
+                client.loop(deadline ? 60100 : 121);
+                CHECK(walk.status().code() == SNMPStatus::Timeout && udp.packets == 2);
+            }
+        });
+    add("lost read batch shrinks and completes without splitting SET",
+        []
+        {
+            UDP udp;
+            SNMPClient client(udp);
+            SNMPDevice device(client, udp.peer, "public");
+            device.timeoutMs = 10;
+            device.retries = 0;
+            SNMPQuery<2> query(device);
+            CHECK(query.addOID(oid, INTEGER).ok());
+            CHECK(query.addOID(".1.3.6.1.2.1.1.2.0", INTEGER).ok());
+            CHECK(client.begin().ok() && query.start().ok());
+            client.loop(0);
+            client.loop(10);
+            client.loop(11);
+            SNMPGetResponse request;
+            CHECK(request.parseFrom(udp.outgoing.data(), udp.outgoing.size()));
+            CHECK(request.varBinds && request.varBinds->value);
+            CHECK(!request.varBinds->next || !request.varBinds->next->value);
+            udp.incoming = reply(udp, binding({2, 1, 7}));
+            client.loop(12);
+            CHECK(query.pending() && query[0].ok());
+            Bytes secondOID = oidWire;
+            secondOID[secondOID.size() - 2] = 2;
+            udp.incoming = reply(udp, tlv(0x30, join({secondOID, {2, 1, 9}})));
+            client.loop(13);
+            CHECK(query.status().ok() && query[1].value.integer() == 9);
+            SNMPSet<2> write(device);
+            CHECK(write.addValue(oid, SNMPValue::integer32(1)).ok());
+            CHECK(write.addValue(".1.3.6.1.2.1.1.2.0", SNMPValue::integer32(2)).ok());
+            CHECK(write.start().ok());
+            client.loop(20);
+            const int sent = udp.packets;
+            client.loop(30);
+            CHECK(write.status().code() == SNMPStatus::Timeout && udp.packets == sent);
+        });
     add("addresses and setup fail explicitly without sending",
         []
         {

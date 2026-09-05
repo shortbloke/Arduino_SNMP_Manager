@@ -51,6 +51,59 @@ void registerAgentTests(std::vector<Test> &tests)
 {
     auto add = [&](const char *name, std::function<void()> run)
     { tests.push_back({"Agent", name, run}); };
+    add("oversized bulk replies recover through GETNEXT without losing rows",
+        []
+        {
+            UDP udp;
+            MockAgent agent;
+            SNMPClient client(udp);
+            SNMPDevice device(client, udp.peer, "public");
+            device.timeoutMs = 10;
+            device.retries = 1;
+            const char *root = ".1.3.6.1.4.1.999";
+            for (unsigned i : {1u, 7u, 26u, 65u, 91u})
+            {
+                std::string name = std::string(root) + "." + std::to_string(i);
+                agent.put(name.c_str(), tlv(4, Bytes(SNMP_PACKET_LENGTH / 3, 'x')));
+            }
+            SNMPWalk<8> walk(device);
+            CHECK(client.begin().ok() && walk.configure(root).ok() && walk.start().ok());
+            complete(client, agent, udp, walk);
+            CHECK(walk.status().ok() && walk.size() == 5);
+            CHECK(agent.exchanges.front().response.size() > SNMP_PACKET_LENGTH);
+            bool next = false;
+            for (const auto &exchange : agent.exchanges)
+                next = next || exchange.pdu == 0xa1;
+            CHECK(next);
+            CHECK(std::string(walk[2].oid) == std::string(root) + ".26");
+            CHECK(std::string(walk[3].oid) == std::string(root) + ".65");
+            for (size_t i = 0; i < walk.size(); ++i)
+                CHECK(walk[i].ok() && walk[i].value.length == SNMP_PACKET_LENGTH / 3);
+        });
+    add("logical interfaces beyond physical ports fit the expanded example capacity",
+        []
+        {
+            UDP udp;
+            MockAgent agent;
+            SNMPClient client(udp);
+            SNMPDevice device(client, udp.peer, "public");
+            for (unsigned n = 0; n < 53; ++n)
+            {
+                const std::string index = "." + std::to_string(n < 26 ? n + 1 : n + 39);
+                agent.put((".1.3.6.1.2.1.2.2.1.2" + index).c_str(), tlv(4, {'p'}));
+                agent.put((".1.3.6.1.2.1.31.1.1.1.6" + index).c_str(), {0x46, 1, 7});
+                agent.put((".1.3.6.1.2.1.31.1.1.1.10" + index).c_str(), {0x46, 1, 9});
+            }
+            SNMPInterfaceRead<64, 16> table(device);
+            CHECK(client.begin().ok() && table.start().ok());
+            complete(client, agent, udp, table);
+            CHECK(table.status().ok() && table.size() == 53);
+            CHECK(std::string(table[25].index) == "26");
+            CHECK(std::string(table[26].index) == "65");
+            for (const auto &row : table)
+                CHECK(row[0].ok() && row[1].ok() && row[2].ok() && row[1].value.unsigned64() == 7 &&
+                      row[2].value.unsigned64() == 9);
+        });
     add("mock numeric ordering and bulk repetition semantics have independent expectations",
         []
         {

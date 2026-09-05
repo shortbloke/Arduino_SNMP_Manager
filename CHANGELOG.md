@@ -37,6 +37,10 @@ First preview of the 2.x API (unpublished draft). Existing 1.x projects should r
 
 ### Robustness and memory
 
+- Recover from lost or oversized GETBULK replies with GETNEXT after bounded retries;
+  reduce timed-out GET batches while leaving SET unsplit and unretried.
+- Allow more logical interfaces in the interface example with a bounded 64-row table.
+
 - Validate SNMP version/PDU/value combinations across the expanded manager
   operations and enforce the protocol's OID arc-count limit.
 - Bound query, walk, table, packet, and payload storage; release invalidated

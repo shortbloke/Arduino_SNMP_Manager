@@ -823,6 +823,21 @@ void SNMPClient::loop(uint32_t now)
                     ++op->attempts_;
                     send(*op, now);
                 }
+                else if (op->walking_ && op->mode_ == GetBulkRequestPDU)
+                {
+                    // A dropped oversized bulk reply cannot carry a tooBig error.
+                    // Try one successor at a time, retaining the cursor and deadline.
+                    op->mode_ = GetNextRequestPDU;
+                    op->sent_ = false;
+                    op->attempts_ = 0;
+                }
+                else if (op->mode_ == GetRequestPDU && op->batch_ > 1)
+                {
+                    // Read batches can shrink after loss; SET must never be split.
+                    op->batchLimit_ = op->batch_ / 2;
+                    op->sent_ = false;
+                    op->attempts_ = 0;
+                }
                 else
                     op->finish(SNMPStatus::Timeout);
             }
