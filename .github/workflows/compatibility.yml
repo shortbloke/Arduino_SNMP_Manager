@@ -4,16 +4,16 @@ jobs:
   markdown:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: '24'
-      - run: npx --yes markdownlint-cli@0.45.0 $(git ls-files '*.md')
+      - run: npx --yes markdownlint-cli@0.49.1 $(git ls-files '*.md')
   native:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: '3.12'
       - run: pip install platformio==6.1.19 clang-format==19.1.7
@@ -24,12 +24,12 @@ jobs:
   embedded:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: '3.12'
       - run: pip install platformio==6.1.19
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6.1.0
         with:
           path: ~/.platformio
           key: pio-1x-${{ runner.os }}-${{ hashFiles('tests/embedded/platformio.ini', 'tests/examples/platformio.ini') }}

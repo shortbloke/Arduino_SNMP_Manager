@@ -15,8 +15,6 @@
 #endif
 #endif
 
-#define MIN(X, Y) ((X < Y) ? X : Y)
-
 #include <Udp.h>
 #include "SNMPUDP.h"
 #include <utility>
@@ -24,6 +22,11 @@
 
 #include "BER.h"
 #include "VarBinds.h"
+
+// Retain the legacy fallback without overriding a platform or sketch definition.
+#ifndef MIN
+#define MIN(X, Y) ((X < Y) ? X : Y)
+#endif
 
 #ifndef SNMP_MAX_PENDING_REQUESTS
 #define SNMP_MAX_PENDING_REQUESTS 4

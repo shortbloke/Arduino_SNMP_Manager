@@ -49,7 +49,7 @@ wraparound, and Counter32 rate calculation boundaries.
 
 ## Markdown checks
 
-Run `npx --yes markdownlint-cli@0.45.0 $(git ls-files '*.md')` from the repository
+Run `npx --yes markdownlint-cli@0.49.1 $(git ls-files '*.md')` from the repository
 root. CI checks every tracked Markdown file using `.markdownlint.json`.
 The standard rules apply except the line-length rule: prose and URLs may remain
 on long source lines. Headings, lists, fenced code blocks, and whitespace are

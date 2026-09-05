@@ -1,6 +1,8 @@
 // This deliberately uses the public 1.1.13 signatures and sketch-local macros.
 #define SNMP_PACKET_LENGTH 768
 #define DEBUG
+// Simulate a core-provided macro; the library must preserve it unchanged.
+#define MIN(X, Y) ((X) <= (Y) ? (X) : (Y))
 #include <Arduino_SNMP_Manager.h>
 #include <type_traits>
 int compatibilityValue();
