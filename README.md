@@ -13,13 +13,22 @@ The library supports:
 - SNMP PDUs
   - GetRequest (sending query to a SNMP Agent for a specified OID)
   - GetResponse (Decoding the response to the SNMP GetRequest)
-- Value handlers:
-  - INTEGER: signed 32-bit value, stored in `int32_t` (or a compatible signed integer destination)
-  - OCTET STRING text: caller-owned `char` buffer, passed through `char**`
-  - Counter32, Gauge32, and TimeTicks: `uint32_t`
-  - Counter64: `uint64_t` (SNMPv2c only)
-  - OBJECT IDENTIFIER: caller-owned `char` buffer
-  - Binary OCTET STRING and Opaque: byte buffer and returned length
+
+Value handlers use the following SNMP types. The API method names are retained
+for 1.x compatibility; for example, `addTimestampHandler` handles `TimeTicks`.
+
+| SNMP type | Handler method | C++ destination |
+| --- | --- | --- |
+| INTEGER | `addIntegerHandler` | `int32_t` or a compatible signed integer type; signed 32-bit values |
+| INTEGER | `addFloatHandler` | `float`, using the legacy divide-by-ten conversion below |
+| OCTET STRING | `addStringHandler` | Caller-owned `char` buffer passed through `char**`, for text |
+| OCTET STRING | `addOctetHandler` | Byte buffer and `size_t` length, for binary data |
+| OBJECT IDENTIFIER | `addOIDHandler` | Caller-owned `char` buffer containing dotted OID text |
+| Counter32 | `addCounter32Handler` | `uint32_t` |
+| Gauge32 | `addGaugeHandler` | `uint32_t` |
+| TimeTicks | `addTimestampHandler` | `uint32_t`, measured in hundredths of a second |
+| Opaque | `addOpaqueHandler` | Byte buffer and `size_t` length |
+| Counter64 | `addCounter64Handler` | `uint64_t` (SNMPv2c only) |
 
 `addFloatHandler` retains the legacy convention of converting an INTEGER value to a
 `float` divided by ten. Use it only when that scale matches the queried object;
