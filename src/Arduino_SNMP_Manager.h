@@ -252,33 +252,39 @@ void SNMPManager::printPacket(int len)
     Serial.print("[DEBUG] packet: ");
     for (int i = 0; i < len; i++)
     {
-        Serial.printf("%02x ", _packetBuffer[i]);
+        if (_packetBuffer[i] < 16) Serial.print('0');
+        Serial.print(_packetBuffer[i], HEX);
+        Serial.print(' ');
     }
     Serial.println();
 }
 
 bool SNMPManager::testParsePacket(String testPacket)
 {
-    // Parse a sample packet written as hexadecimal bytes separated by spaces.
-    int len = testPacket.length() + 1;
-    memset(_packetBuffer, 0, SNMP_PACKET_LENGTH * 3);
-    char charArrayPacket[len];
-    testPacket.toCharArray(charArrayPacket, len);
-    // Split on spaces and convert each token from hexadecimal.
-    char *p = strtok(charArrayPacket, " ");
-    int i = 0;
-    while (p != NULL)
+    // Parse directly from the String storage; no input-sized stack allocation.
+    const char *cursor = testPacket.c_str();
+    size_t length = 0;
+    auto hexDigit = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    };
+    while (*cursor)
     {
-        if (i >= sizeof(_packetBuffer)) return false;
-        _packetBuffer[i++] = strtoul(p, NULL, 16);
-        p = strtok(NULL, " ");
+        while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r' || *cursor == '\n') ++cursor;
+        if (!*cursor) break;
+        int high = hexDigit(*cursor++);
+        if (high < 0 || !*cursor) return false;
+        int low = hexDigit(*cursor++);
+        if (low < 0 || length == sizeof(_packetBuffer)) return false;
+        if (*cursor && *cursor != ' ' && *cursor != '\t' && *cursor != '\r' && *cursor != '\n') return false;
+        _packetBuffer[length++] = static_cast<unsigned char>((high << 4) | low);
     }
-
 #ifdef DEBUG
-    printPacket(len);
+    printPacket(static_cast<int>(length));
 #endif
-
-    return parsePacket(i);
+    return parsePacket(length);
 }
 
 bool inline SNMPManager::receivePacket(int packetLength)

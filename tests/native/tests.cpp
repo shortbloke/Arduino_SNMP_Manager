@@ -209,6 +209,24 @@ int main(int argc,char** argv) {
         }
         CHECK(destroyed==1);
     });
+    add("hex parser rejects bad input and debug prints decoded byte count", [] {
+        Manager manager;
+        UDP udp; manager.setUDP(&udp);
+        std::string input;
+        for (int i=0;i<1000;++i) input+="00 ";
+        Serial.hexWrites=0;
+        CHECK(!manager.testParsePacket(String(input.c_str())));
+#ifdef DEBUG
+        CHECK(Serial.hexWrites==1000);
+#endif
+        for (const char* invalid : {"0", "gg", "000", "00z", "-1"})
+            CHECK(!manager.testParsePacket(String(invalid)));
+        int value=99; manager.addIntegerHandler(udp.peer,oid,&value);
+        auto packet=message(binding({2,1,42}));
+        input.clear();
+        for (auto byte:packet) { char token[4]; snprintf(token,sizeof(token),"%02X ",byte); input+=token; }
+        CHECK(manager.testParsePacket(String(input.c_str())) && value==42);
+    });
     add("default manager starts without transport", [] {
         SNMPManager manager;
         CHECK(manager._udp==nullptr);

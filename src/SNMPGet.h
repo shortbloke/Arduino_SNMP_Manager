@@ -117,7 +117,9 @@ public:
 		Serial.print("[DEBUG] composed packet: ");
     for (int i = 0; i < length; i++)
     {
-        Serial.printf("%02x ", _packetBuffer[i]);
+        if (_packetBuffer[i] < 16) Serial.print('0');
+        Serial.print(_packetBuffer[i], HEX);
+        Serial.print(' ');
     }
     Serial.println();
 #endif
