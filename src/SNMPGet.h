@@ -55,14 +55,14 @@ public:
 	const char *_community;
 	short _version;
 	IPAddress agentIP;
-	short port = 161;
-	short requestID = 0;
+	uint16_t port = 161;
+	int32_t requestID = 0;
 	short errorID = 0;
 	short errorIndex = 0;
 
 	// Configure the request ID, destination, port, and transport.
 
-	void setRequestID(short request)
+	void setRequestID(int32_t request)
 	{
 		requestID = request;
 	}
@@ -72,7 +72,7 @@ public:
 		agentIP = ip;
 	}
 
-	void setPort(short portnumber)
+	void setPort(uint16_t portnumber)
 	{
 		port = portnumber;
 	}
@@ -103,8 +103,8 @@ public:
 			packet = 0;
 			return false;
 		}
-		unsigned char _packetBuffer[SNMP_PACKET_LENGTH * 3];
-		memset(_packetBuffer, 0, SNMP_PACKET_LENGTH * 3);
+		unsigned char _packetBuffer[SNMP_PACKET_LENGTH];
+		memset(_packetBuffer, 0, SNMP_PACKET_LENGTH);
 		int length = packet->serialise(_packetBuffer, sizeof(_packetBuffer));
 		delete packet;
 		packet = 0;

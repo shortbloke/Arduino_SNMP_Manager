@@ -213,11 +213,11 @@ int main(int argc,char** argv) {
         Manager manager;
         UDP udp; manager.setUDP(&udp);
         std::string input;
-        for (int i=0;i<1000;++i) input+="00 ";
+        for (int i=0;i<SNMP_PACKET_LENGTH;++i) input+="00 ";
         Serial.hexWrites=0;
         CHECK(!manager.testParsePacket(String(input.c_str())));
 #ifdef DEBUG
-        CHECK(Serial.hexWrites==1000);
+        CHECK(Serial.hexWrites==SNMP_PACKET_LENGTH);
 #endif
         for (const char* invalid : {"0", "gg", "000", "00z", "-1"})
             CHECK(!manager.testParsePacket(String(invalid)));
@@ -226,6 +226,19 @@ int main(int argc,char** argv) {
         input.clear();
         for (auto byte:packet) { char token[4]; snprintf(token,sizeof(token),"%02X ",byte); input+=token; }
         CHECK(manager.testParsePacket(String(input.c_str())) && value==42);
+    });
+    add("full-width request ID and high UDP port are preserved", [] {
+        Manager manager; UDP udp;
+        int32_t value=0;
+        Request request; request.setUDP(&udp);
+        request.addOIDPointer(manager.addIntegerHandler(udp.peer,oid,&value));
+        request.setRequestID(INT32_MAX); request.setPort(65535);
+        CHECK(request.sendTo(udp.peer));
+        CHECK(udp.destinationPort==65535);
+        SNMPGetResponse decoded;
+        CHECK(decoded.parseFrom(udp.outgoing.data(),udp.outgoing.size()));
+        CHECK(decoded.requestID==static_cast<unsigned long>(INT32_MAX));
+        CHECK(sizeof(manager)<SNMP_PACKET_LENGTH+512);
     });
     add("default manager starts without transport", [] {
         SNMPManager manager;

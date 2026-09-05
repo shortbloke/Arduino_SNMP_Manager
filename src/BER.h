@@ -139,7 +139,7 @@ public:
     IntegerType() : BER_CONTAINER(true, INTEGER){};
     IntegerType(unsigned long value) : BER_CONTAINER(true, INTEGER), _value(value){};
     ~IntegerType(){};
-    unsigned long _value;
+    unsigned long _value = 0;
     int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override
     {
 #ifdef DEBUG_BER
@@ -444,7 +444,7 @@ public:
     Counter64() : BER_CONTAINER(true, COUNTER64){};
     Counter64(uint64_t value) : BER_CONTAINER(true, COUNTER64), _value(value){};
     ~Counter64(){};
-    uint64_t _value;
+    uint64_t _value = 0;
     int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override
     {
 #ifdef DEBUG_BER
@@ -507,7 +507,7 @@ public:
     {
         _type = COUNTER32;
     };
-    Counter32(unsigned int value) : IntegerType(value)
+    Counter32(uint32_t value) : IntegerType(value)
     {
         _type = COUNTER32;
     };
@@ -521,7 +521,7 @@ public:
     {
         _type = GAUGE32;
     };
-    Gauge(unsigned int value) : IntegerType(value)
+    Gauge(uint32_t value) : IntegerType(value)
     {
         _type = GAUGE32;
     };

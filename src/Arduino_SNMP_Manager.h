@@ -103,7 +103,8 @@ class IntegerCallback : public ValueCallback
 {
 public:
     IntegerCallback() : ValueCallback(INTEGER){};
-    int *value;
+    int32_t *value = nullptr;
+    float *floatValue = nullptr;
     bool isFloat = false;
 };
 
@@ -198,7 +199,7 @@ public:
     ValueCallback *addOctetHandler(IPAddress ip, const char *oid, unsigned char *value, size_t capacity, size_t *length);
     ValueCallback *addOpaqueHandler(IPAddress ip, const char *oid, unsigned char *value, size_t capacity, size_t *length);
     ValueCallback *addBinaryHandler(ASN_TYPE type, IPAddress ip, const char *oid, unsigned char *value, size_t capacity, size_t *length);
-    ValueCallback *addIntegerHandler(IPAddress ip, const char *oid, int *value);
+    ValueCallback *addIntegerHandler(IPAddress ip, const char *oid, int32_t *value);
     ValueCallback *addTimestampHandler(IPAddress ip, const char *oid, uint32_t *value);
     ValueCallback *addOIDHandler(IPAddress ip, const char *oid, char *value, size_t capacity = static_cast<size_t>(-1));
     ValueCallback *addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value);
@@ -214,7 +215,7 @@ public:
     void addHandler(ValueCallback *callback);
 
 private:
-    unsigned char _packetBuffer[SNMP_PACKET_LENGTH * 3];
+    unsigned char _packetBuffer[SNMP_PACKET_LENGTH];
     bool inline receivePacket(int length);
     bool parsePacket(size_t length);
     void printPacket(int len);
@@ -302,7 +303,7 @@ inline bool SNMPManager::receivePacket(int packetLength)
     Serial.println(_udp->remoteIP());
 #endif
 
-    memset(_packetBuffer, 0, SNMP_PACKET_LENGTH * 3);
+    memset(_packetBuffer, 0, SNMP_PACKET_LENGTH);
     int len = packetLength;
     const int received = _udp->read(_packetBuffer, len);
     _udp->flush();
@@ -444,8 +445,8 @@ inline bool SNMPManager::parsePacket(size_t length)
                     }
                     else
                     {
-                        // Restore the registered float pointer and convert integer tenths to units.
-                        *reinterpret_cast<float *>(callbackValue->value) = static_cast<float>(static_cast<int32_t>(raw)) / 10.0f;
+                        // Convert signed Integer32 tenths through the registered float destination.
+                        *callbackValue->floatValue = static_cast<float>(static_cast<int32_t>(raw)) / 10.0f;
                     }
                 }
                 break;
@@ -454,10 +455,7 @@ inline bool SNMPManager::parsePacket(size_t length)
 #ifdef DEBUG
                     Serial.println("[DEBUG] Type: Counter32");
 #endif
-                    Counter32 *value = new Counter32();
                     *(((Counter32Callback *)callback)->value) = ((Counter32 *)responseContainer)->_value;
-                    value->_value = *(((Counter32Callback *)callback)->value);
-                    delete value;
                 }
                 break;
                 case COUNTER64:
@@ -465,10 +463,7 @@ inline bool SNMPManager::parsePacket(size_t length)
 #ifdef DEBUG
                     Serial.println("[DEBUG] Type: Counter64");
 #endif
-                    Counter64 *value = new Counter64();
                     *(((Counter64Callback *)callback)->value) = ((Counter64 *)responseContainer)->_value;
-                    value->_value = *(((Counter64Callback *)callback)->value);
-                    delete value;
                 }
                 break;
                 case GAUGE32:
@@ -476,10 +471,7 @@ inline bool SNMPManager::parsePacket(size_t length)
 #ifdef DEBUG
                     Serial.println("[DEBUG] Type: Gauge32");
 #endif
-                    Gauge *value = new Gauge();
                     *(((Gauge32Callback *)callback)->value) = ((Gauge *)responseContainer)->_value;
-                    value->_value = *(((Gauge32Callback *)callback)->value);
-                    delete value;
                 }
                 break;
                 case TIMESTAMP:
@@ -487,10 +479,7 @@ inline bool SNMPManager::parsePacket(size_t length)
 #ifdef DEBUG
                     Serial.println("[DEBUG] Type: TimeStamp");
 #endif
-                    TimestampType *value = new TimestampType();
                     *(((TimestampCallback *)callback)->value) = ((TimestampType *)responseContainer)->_value;
-                    value->_value = *(((TimestampCallback *)callback)->value);
-                    delete value;
                 }
                 break;
                 default:
@@ -568,7 +557,7 @@ inline ValueCallback *SNMPManager::addStringHandler(IPAddress ip, const char *oi
     return callback;
 }
 
-inline ValueCallback *SNMPManager::addIntegerHandler(IPAddress ip, const char *oid, int *value)
+inline ValueCallback *SNMPManager::addIntegerHandler(IPAddress ip, const char *oid, int32_t *value)
 {
     ValueCallback *callback = new IntegerCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -585,7 +574,7 @@ inline ValueCallback *SNMPManager::addFloatHandler(IPAddress ip, const char *oid
     ValueCallback *callback = new IntegerCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
     strcpy(callback->OID, oid);
-    ((IntegerCallback *)callback)->value = (int *)value;
+    ((IntegerCallback *)callback)->floatValue = value;
     ((IntegerCallback *)callback)->isFloat = true;
     callback->ip = ip;
     addHandler(callback);
