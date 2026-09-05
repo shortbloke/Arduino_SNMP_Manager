@@ -35,7 +35,7 @@ const char *oidServiceCountInt = ".1.3.6.1.2.1.1.7.0";
 const char *oidSysName = ".1.3.6.1.2.1.1.5.0";
 // Use the same ifIndex as the Counter32 OID above; this requires SNMPv2c.
 const char *oid64Counter = ".1.3.6.1.2.1.31.1.1.1.6.4";
-int servicesResponse = 0;
+int32_t servicesResponse = 0;
 // Includes the terminating NUL; increase if your agent returns longer names.
 char sysName[50] = {};
 char *sysNameResponse = sysName;
