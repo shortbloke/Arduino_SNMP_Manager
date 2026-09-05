@@ -21,16 +21,16 @@ public:
 	VarBindList *varBindsCursor = 0;
 
 	ComplexType *SNMPPacket = 0;
-	bool parseFrom(unsigned char *buf);
+	bool parseFrom(unsigned char *buf, size_t available = static_cast<size_t>(-1));
 	bool serialise(char *buf);
 	enum SNMPExpect EXPECTING = SNMPVERSION;
 	bool isCorrupt = false;
 };
 
-bool SNMPGetResponse::parseFrom(unsigned char *buf)
+bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
 {
 	// confirm that the packet is a STRUCTURE
-	if (buf[0] != 0x30)
+	if (available < 2 || buf[0] != 0x30)
 	{
 #ifdef DEBUG
 		Serial.printf("[DEBUG] Packet is not an SNMPGetResponse, expected 0x30, received: 0x%02x\n", buf[0]);
@@ -39,7 +39,11 @@ bool SNMPGetResponse::parseFrom(unsigned char *buf)
 		return false;
 	}
 	SNMPPacket = new ComplexType(STRUCTURE); // ensure SNMPPacket is initialised to avoid crash in deconstructor
-	SNMPPacket->fromBuffer(buf);
+	if (!SNMPPacket->fromBuffer(buf, available))
+	{
+		isCorrupt = true;
+		return false;
+	}
 
 	if (SNMPPacket->getLength() <= 30)
 	{

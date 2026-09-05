@@ -49,6 +49,27 @@ typedef enum ASN_TYPE_WITH_VALUE
 // If complexType, first split up its children into separate BERs, then passes the child with it's data using the same process.
 // Complex types have a linked list of BER_CONTAINERS to hold its' children.
 
+// Read a definite-length TLV header without reading beyond the supplied buffer.
+// The legacy pointer-only entry points cannot validate the allocation size.
+inline bool readBERHeader(const unsigned char *buf, size_t available, size_t &header, size_t &length)
+{
+    if (available < 2) return false;
+    header = 2;
+    length = buf[1];
+    if (length & 0x80)
+    {
+        size_t octets = length & 0x7f;
+        if (octets == 0 || octets == 127 || octets > available - header) return false;
+        length = 0;
+        while (octets--)
+        {
+            if (length > 65535u / 256u) return false;
+            length = length * 256 + buf[header++];
+        }
+    }
+    return length <= 65535u && length <= available - header;
+}
+
 class BER_CONTAINER
 {
 public:
@@ -582,53 +603,26 @@ public:
     ValuesList *_values = 0;
     bool fromBuffer(unsigned char *buf)
     {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] ComplexType:fromBuffer");
-#endif
-        // the buffer we get passed in is the complete ASN Container, including the type header.
-        buf++; // Skip our own type
-        _length = *buf;
-        // length should be treated as: if first byte is 0x8x, the x is how many bytes follow
-        if (_length > 127)
+        return fromBuffer(buf, static_cast<size_t>(-1));
+    }
+    bool fromBuffer(unsigned char *buf, size_t available, unsigned int depth = 0)
+    {
+        delete _values;
+        _values = nullptr;
+        size_t header, length;
+        if (depth >= 32 || !readBERHeader(buf, available, header, length)) return false;
+        _length = length;
+        size_t offset = header;
+        const size_t end = header + length;
+        while (offset < end)
         {
-            int numBytes = _length &= 0x7F;
-            unsigned int special_length = 0;
-            for (int k = 0; k < numBytes; k++)
-            {
-                buf++;
-                special_length <<= 8;
-                special_length |= *buf;
-            }
-            _length = special_length;
-        }
-        buf++;
-        // now we are at the front of a list of one or many other types, lets do our loop
-        unsigned int i = 1;
-        while (i < _length)
-        {
-            ASN_TYPE valueType = (ASN_TYPE)*buf;
-            buf++;
-            i++;
-            unsigned int valueLength = *buf;
-
-            int doubleL = 0;
-            if (valueLength > 127)
-            {
-                int numBytes = valueLength &= 0x7F;
-                unsigned int special_length = 0;
-                for (int k = 0; k < numBytes; k++)
-                {
-                    buf++;
-                    i++;
-                    special_length <<= 8;
-                    special_length |= *buf;
-                }
-                valueLength = special_length;
-                doubleL = numBytes;
-            }
-            buf++;
-            i++;
-
+            size_t childHeader, valueLength;
+            if (!readBERHeader(buf + offset, end - offset, childHeader, valueLength)) return false;
+            ASN_TYPE valueType = static_cast<ASN_TYPE>(buf[offset]);
+            // Primitive fixed-width types must be checked before their legacy decoders.
+            if ((valueType == NULLTYPE || valueType == NOSUCHOBJECT ||
+                 valueType == NOSUCHINSTANCE || valueType == ENDOFMIBVIEW) && valueLength != 0) return false;
+            if (valueType == NETWORK_ADDRESS && (valueLength != 4 || childHeader != 2)) return false;
             BER_CONTAINER *newObj;
             switch (valueType)
             {
@@ -680,13 +674,18 @@ public:
                 newObj = new ComplexType(valueType);
                 break;
             }
-            newObj->fromBuffer(buf - (2 + doubleL));
-
-            buf += valueLength;
-            i += valueLength;
-            //newObj->fromBuffer(newValue);
-            //            free(newValue);
+            bool valid;
+            if (!newObj->_isPrimitive)
+                valid = static_cast<ComplexType *>(newObj)->fromBuffer(buf + offset, childHeader + valueLength, depth + 1);
+            else
+                valid = newObj->fromBuffer(buf + offset);
+            if (!valid)
+            {
+                delete newObj;
+                return false;
+            }
             addValueToList(newObj);
+            offset += childHeader + valueLength;
         }
         return true;
     }

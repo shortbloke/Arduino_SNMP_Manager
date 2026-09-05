@@ -127,7 +127,7 @@ public:
 private:
     unsigned char _packetBuffer[SNMP_PACKET_LENGTH * 3];
     bool inline receivePacket(int length);
-    bool parsePacket();
+    bool parsePacket(size_t length);
     void printPacket(int len);
 };
 
@@ -181,21 +181,24 @@ bool SNMPManager::testParsePacket(String testPacket)
     int i = 0;
     while (p != NULL)
     {
+        if (i >= sizeof(_packetBuffer)) return false;
         _packetBuffer[i++] = strtoul(p, NULL, 16);
         p = strtok(NULL, " ");
     }
-    _packetBuffer[i] = 0; // null terminate the buffer
+
 #ifdef DEBUG
     printPacket(len);
 #endif
 
-    return parsePacket();
+    return parsePacket(i);
 }
 
 bool inline SNMPManager::receivePacket(int packetLength)
 {
-    if (!packetLength)
+    if (packetLength == 0) return false;
+    if (packetLength < 0 || packetLength > SNMP_PACKET_LENGTH)
     {
+        _udp->flush();
         return false;
     }
 #ifdef DEBUG
@@ -207,21 +210,21 @@ bool inline SNMPManager::receivePacket(int packetLength)
 
     memset(_packetBuffer, 0, SNMP_PACKET_LENGTH * 3);
     int len = packetLength;
-    _udp->read(_packetBuffer, MIN(len, SNMP_PACKET_LENGTH));
+    const int received = _udp->read(_packetBuffer, len);
     _udp->flush();
-    _packetBuffer[len] = 0; // null terminate the buffer
+    if (received != len) return false;
 
 #ifdef DEBUG
     printPacket(len);
 #endif
 
-    return parsePacket();
+    return parsePacket(len);
 }
 
-bool SNMPManager::parsePacket()
+bool SNMPManager::parsePacket(size_t length)
 {
     SNMPGetResponse *snmpgetresponse = new SNMPGetResponse();
-    if (snmpgetresponse->parseFrom(_packetBuffer))
+    if (snmpgetresponse->parseFrom(_packetBuffer, length))
     {
         if (snmpgetresponse->requestType == GetResponsePDU)
         {

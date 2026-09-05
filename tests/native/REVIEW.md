@@ -155,3 +155,7 @@ Normal checks report 51 baseline passes and 20 remaining failures; the sanitizer
 IntegerType now sign-extends signed INTEGER contents while keeping application integer values unsigned. Definite-length headers are decoded before the contents; invalid lengths and unsigned values outside the 32-bit range are rejected. The unsigned-long storage API is preserved. Float dispatch interprets signed Integer32 values before scaling, including negative tenths.
 
 Two regressions are promoted; additional checks cover INT32_MIN/MAX, long-form lengths, invalid lengths, and negative float dispatch. Normal checks report 54 baseline passes and 18 remaining failures; the sanitizer baseline also passes all 54 cases. This supersedes the earlier signed decoding findings. Pointer-only input bounds and parent parser error propagation remain separate work.
+
+## Bounded BER parsing fix
+
+Added bounded sequence and response parsing, definite-length validation, child-bound checks, decoder error propagation, and a nesting limit. UDP parsing uses the actual read length and rejects oversized or short reads; hex input checks its buffer capacity. Legacy pointer-only overloads still require complete input. Four regressions are promoted, with new truncated-prefix and oversized-datagram checks. Validation: 59 baseline passes normally and under ASan/UBSan; 14 remaining failures.

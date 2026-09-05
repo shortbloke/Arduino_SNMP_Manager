@@ -234,7 +234,23 @@ int main(int argc,char** argv) {
     add("binary OCTET STRING re-encoding preserves length",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(encode(v)==b);},true);
     add("OID first arcs are decoded rather than assumed",[]{Bytes b{6,3,0x88,0x37,3}; OIDType v; CHECK(v.fromBuffer(b.data())); CHECK(std::string(v._value)==".2.999.3");},true);
     add("OID maximum subidentifier encodes five base128 octets",[]{char oid[]=".1.3.4294967295"; OIDType v(oid); CHECK(encode(v)==Bytes({6,6,43,0x8f,0xff,0xff,0xff,0x7f}));},true);
-    add("indefinite sequence length rejected",[]{Bytes b{0x30,0x80,2,1,42,0,0}; ComplexType v(STRUCTURE); CHECK(!v.fromBuffer(b.data()));},true);
+    add("bounded response parser rejects every truncated prefix", [] {
+        const auto packet=message(binding({2,1,42}));
+        for (size_t length=0; length<packet.size(); ++length) {
+            Bytes prefix(packet.begin(),packet.begin()+length);
+            SNMPGetResponse response;
+            CHECK(!response.parseFrom(prefix.data(),prefix.size()));
+        }
+        Manager manager;
+        UDP udp;
+        manager.setUDP(&udp);
+        int value=99;
+        manager.addIntegerHandler(udp.peer,oid,&value);
+        udp.incoming=Bytes(SNMP_PACKET_LENGTH*3+1,0);
+        manager.loop();
+        CHECK(value==99 && udp.reads==0);
+    });
+    add("indefinite sequence length rejected",[]{Bytes b{0x30,0x80,2,1,42,0,0}; ComplexType v(STRUCTURE); CHECK(!v.fromBuffer(b.data()));});
     // RFC 3416 section 4.2.1 requires an empty list in the alternate tooBig response.
     add("short tooBig response with empty bindings accepted",[]{auto b=message({},1,"public",0xa2,7,1,0); CHECK(b.size()<30); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.errorStatus==1 && r.errorIndex==0); CHECK(!r.varBinds || !r.varBinds->value);},true);
     add("empty bindings accepted with long community",[]{auto b=message({},1,"long-community-name",0xa2,7,1,0); CHECK(b.size()>30); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.errorStatus==1); CHECK(!r.varBinds || !r.varBinds->value);},true);
@@ -331,14 +347,14 @@ int main(int argc,char** argv) {
         Bytes bytes{0x30,3,4,5,'a','b','c','d','e'};
         ComplexType root(STRUCTURE);
         CHECK(!root.fromBuffer(bytes.data()));
-    }, true);
+    });
 
     add("dangling child tag must not be silently skipped", [] {
         // The final INTEGER tag is inside the parent; its length is missing.
         Bytes bytes{0x30,3,5,0,2,0};
         ComplexType root(STRUCTURE);
         CHECK(!root.fromBuffer(bytes.data()));
-    }, true);
+    });
 
     add("three-byte negative INTEGER reaches signed callback", [] {
         Manager manager;
@@ -413,7 +429,7 @@ int main(int argc,char** argv) {
         udp.incoming.pop_back(); // INTEGER content is missing, lengths unchanged.
         manager.loop();
         CHECK(value==99);
-    }, true);
+    });
 
     // The manager does not currently delete callbacks; check the public API
     // supports callers deleting them through the base type.
