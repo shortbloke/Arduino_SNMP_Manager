@@ -1,5 +1,6 @@
 #pragma once
 #include "Arduino.h"
+#include "IPAddress.h"
 #include <vector>
 #include <algorithm>
 // Only the UDP surface used by this library; no sockets or board dependencies.
@@ -8,7 +9,11 @@ class UDP
 public:
     std::vector<uint8_t> incoming, outgoing;
     IPAddress peer{192, 168, 1, 10}, destination;
-    uint16_t listenPort = 0, destinationPort = 0;
+    uint16_t listenPort = 0, destinationPort = 0, peerPort = 161;
+    uint16_t remotePort()
+    {
+        return peerPort;
+    }
     int stops = 0, flushes = 0, reads = 0, packets = 0;
     int transmissions = 0;
     size_t readLimit = static_cast<size_t>(-1);
@@ -40,6 +45,7 @@ public:
     void flush()
     {
         ++flushes;
+        // Model ESP8266: flush sends, rather than discarding received bytes.
         endPacket();
     }
     IPAddress remoteIP()

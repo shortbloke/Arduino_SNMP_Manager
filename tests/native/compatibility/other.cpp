@@ -1,5 +1,3 @@
-#define SNMP_PACKET_LENGTH 768
-#define DEBUG
 #include <Arduino_SNMP_Manager.h>
 int compatibilityValue()
 {

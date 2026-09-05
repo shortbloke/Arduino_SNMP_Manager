@@ -1,16 +1,14 @@
-# Example compilation
+# Example compile checks
 
-Run `pio run -d tests/examples`. Wrappers include the maintained 1.x sketches:
-the Wi-Fi examples on ESP8266/ESP32 and the Ethernet example on ESP8266 with the
-Ethernet library. Compile success does not certify network or application behavior.
+These environments compile the distributed examples directly, so API changes or platform-dependent destination types fail CI. No sketches are uploaded and no network connections are attempted.
 
-Configure credentials, agent addresses, and interface OIDs before uploading.
-Keep each sketch's `Polling.h` alongside its `.ino` when copying an example.
-Handlers are registered once and reused. A sample is printed only after every
-requested value has updated; missing or rejected values time out instead of
-reusing stale data. Remove optional OIDs that your agent does not support.
+From the repository root, run:
 
-Bandwidth examples use Counter32 and agent TimeTicks, with a new baseline after
-a timeout or backwards uptime. Poll often enough to avoid multiple counter wraps;
-fast links may require Counter64. Native tests exercise the actual local helpers
-for freshness, incomplete responses, timeouts, timer wrap, and rate boundaries.
+```sh
+pio run -d tests/examples
+```
+
+The Wi-Fi examples compile for ESP8266 and ESP32. The Ethernet example compiles with the ESP8266 Arduino core's bundled Ethernet library; it remains a compile check rather than a claim of hardware compatibility.
+
+The default builds also compile Simple_Read, Multiple_Devices, and Interface_Traffic
+on ESP8266 and ESP32, exercising the new device/query API with real Arduino cores.

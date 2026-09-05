@@ -1,4 +1,4 @@
-name: 1.x compatibility
+name: Library compatibility
 on: [push, pull_request, workflow_dispatch, workflow_call]
 permissions:
   contents: read
@@ -19,12 +19,33 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install platformio==6.1.19 clang-format==19.1.7
-      - run: clang-format --dry-run --Werror src/*.h tests/native/*.cpp tests/native/stubs/*.h tests/native/compatibility/*.cpp tests/platformio/test_snmp/*.cpp tests/embedded/src/*.cpp examples/*/*.h examples/*/*.ino
+      - run: clang-format --dry-run --Werror src/*.h src/*.cpp tests/native/*.cpp tests/native/cases/*.cpp tests/native/support/*.h tests/native/support/*.cpp tests/platformio/test_snmp/*.cpp tests/native/stubs/*.h tests/native/stubs/*.cpp tests/native/compatibility/*.cpp tests/native/lifecycle/*.cpp tests/embedded/src/*.cpp tests/hardware/src/*.cpp tests/interop/*.cpp examples/*/*.h examples/*/*.ino
+      - run: python3 scripts/release.py check --allow-unreleased
       - run: python3 -m unittest discover -s tests/release
       - run: make -C tests/native check
-      - run: make -C tests/native sanitize
+      - run: make -C tests/native BUILD=build-sanitize CXXFLAGS='-std=c++11 -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all' check
+      - run: make -C tests/native leaks
       - run: pio test -e native
+      - run: python3 tests/hardware/test_check_log.py
+      - run: python3 tests/hardware/test_burst_test.py
   embedded:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [esp8266, esp32, esp32c3, nano_esp32, esp32_custom]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+      - run: pip install platformio==6.1.19
+      - uses: actions/cache@v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('tests/embedded/platformio.ini') }}
+      - run: pio run -d tests/embedded -e ${{ matrix.target }}
+  examples:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -35,6 +56,16 @@ jobs:
       - uses: actions/cache@v6.1.0
         with:
           path: ~/.platformio
-          key: pio-1x-${{ runner.os }}-${{ hashFiles('tests/embedded/platformio.ini', 'tests/examples/platformio.ini') }}
-      - run: pio run -d tests/embedded
+          key: pio-${{ runner.os }}-examples-${{ hashFiles('tests/examples/platformio.ini') }}
       - run: pio run -d tests/examples
+      - run: pio run -d tests/hardware
+
+  wire_interoperability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y snmp snmpd
+      - run: python3 tests/interop/run.py

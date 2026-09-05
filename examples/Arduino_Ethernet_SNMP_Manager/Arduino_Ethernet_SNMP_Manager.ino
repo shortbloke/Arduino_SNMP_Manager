@@ -10,8 +10,8 @@ byte mac[] = {0xA8, 0x61, 0x0A, 0xAE, 0x64, 0x29}; // Use a unique MAC.
 IPAddress router(192, 168, 200, 1);
 // Match the read community configured on the agent; "public" is only an example.
 const char *community = "public";
-// Choose a version enabled on your agent: 0 = SNMPv1, 1 = SNMPv2c.
-const short snmpVersion = 1;
+// Choose a version enabled on your agent: SNMPVersion::Version1 or SNMPVersion::Version2c.
+const SNMPVersion snmpVersion = SNMPVersion::Version2c;
 // Replace the final .4 in ALL interface OIDs with your device's ifIndex.
 // Discover the index from its interface table; it need not equal the port number.
 // ifSpeed is interface capacity, which may differ from your Internet service speed.

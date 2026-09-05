@@ -12,8 +12,8 @@ const char *ssid = "SSID";         // Your Wi-Fi network name (case-sensitive).
 const char *password = "PASSWORD"; // Your Wi-Fi password.
 // Match the read community configured on the agent; "public" is only an example.
 const char *community = "public";
-// Choose a version enabled on your agent: 0 = SNMPv1, 1 = SNMPv2c.
-const short snmpVersion = 1;
+// Choose a version enabled on your agent: SNMPVersion::Version1 or SNMPVersion::Version2c.
+const SNMPVersion snmpVersion = SNMPVersion::Version2c;
 // sysName is a scalar string; retain its final .0.
 const char *oidSysName = ".1.3.6.1.2.1.1.5.0";
 // sysUpTime is a scalar: retain its final .0 (it is not an interface index).

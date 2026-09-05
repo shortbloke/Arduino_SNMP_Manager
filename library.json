@@ -1,7 +1,7 @@
 {
   "name": "SNMP Manager",
-  "version": "1.2.1",
-  "description": "An SNMP Manager library to make SNMP requests to other SNMP enabled devices. Supporting SNMPv1 and SNMPv2c, SNMP requests can be sent (GetRequest) and their responses received (GetResponse) for various SNMP data types.",
+  "version": "2.0.0-alpha.1",
+  "description": "A bounded SNMPv1/SNMPv2c manager for ESP8266 and ESP32 with typed queries, GETNEXT/GETBULK walks, tables, SET, and notification reception.",
   "repository": {
     "type": "git",
     "url": "https://github.com/shortbloke/Arduino_SNMP_Manager.git"
@@ -14,5 +14,8 @@
   },
   "license": "MIT",
   "frameworks": "arduino",
-  "platforms": "*"
+  "platforms": [
+    "espressif8266",
+    "espressif32"
+  ]
 }

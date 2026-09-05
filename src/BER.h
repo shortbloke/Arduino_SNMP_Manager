@@ -1,18 +1,11 @@
 #ifndef BER_h
 #define BER_h
 
-#ifndef SNMP_OCTETSTRING_MAX_LENGTH
-#define SNMP_OCTETSTRING_MAX_LENGTH 1024
-#endif
-
-#ifndef MAX_OID_LENGTH
-// Text storage capacity including the NUL, not the SNMP limit on OID arcs.
-#define MAX_OID_LENGTH 128
-#endif
+#include "SNMPConfig.h"
 
 #include <Arduino.h>
+#include <IPAddress.h>
 #include <new>
-#include <memory>
 
 typedef enum ASN_TYPE_WITH_VALUE
 {
@@ -45,6 +38,7 @@ typedef enum ASN_TYPE_WITH_VALUE
     SetRequestPDU = 0xA3,
     TrapPDU = 0xA4,
     GetBulkRequestPDU = 0xA5,
+    InformRequestPDU = 0xA6,
     Trapv2PDU = 0xA7
 } ASN_TYPE;
 
@@ -54,28 +48,7 @@ typedef enum ASN_TYPE_WITH_VALUE
 
 // Read a definite-length TLV header without reading beyond the supplied buffer.
 // The legacy pointer-only entry points cannot validate the allocation size.
-inline bool readBERHeader(const unsigned char *buf, size_t available, size_t &header,
-                          size_t &length)
-{
-    if (!buf || available < 2)
-        return false;
-    header = 2;
-    length = buf[1];
-    if (length & 0x80)
-    {
-        size_t octets = length & 0x7f;
-        if (octets == 0 || octets == 127 || octets > available - header)
-            return false;
-        length = 0;
-        while (octets--)
-        {
-            if (length > 65535u / 256u)
-                return false;
-            length = length * 256 + buf[header++];
-        }
-    }
-    return length <= 65535u && length <= available - header;
-}
+bool readBERHeader(const unsigned char *buf, size_t available, size_t &header, size_t &length);
 
 class BER_CONTAINER
 {
@@ -85,85 +58,20 @@ public:
     bool _isPrimitive;
     ASN_TYPE _type;
     unsigned short _length = 0;
-    virtual int serialise(unsigned char *buf) = 0;
-    virtual int serialise(unsigned char *buf, size_t capacity)
-    {
-        // Legacy custom types have no bounded implementation. Their original
-        // pointer-only entry point remains available to existing callers.
-        return buf && capacity == static_cast<size_t>(-1) ? serialise(buf) : -1;
-    }
-    virtual bool fromBuffer(unsigned char *buf) = 0;
-    virtual bool fromBuffer(unsigned char *buf, size_t available)
-    {
-        return available == static_cast<size_t>(-1) && fromBuffer(buf);
-    }
+    virtual int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) = 0;
+    virtual bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) = 0;
     virtual int getLength() = 0;
-    // Custom owning types may opt in to safe copying.
-    virtual BER_CONTAINER *clone() const
-    {
-        return nullptr;
-    }
 };
 
 class NetworkAddress : public BER_CONTAINER
 {
 public:
-    BER_CONTAINER *clone() const override
-    {
-        return new (std::nothrow) NetworkAddress(*this);
-    }
     NetworkAddress() : BER_CONTAINER(true, NETWORK_ADDRESS) {};
     NetworkAddress(IPAddress ip) : BER_CONTAINER(true, NETWORK_ADDRESS), _value(ip) {};
     ~NetworkAddress() {};
     IPAddress _value;
-    int serialise(unsigned char *buf) override
-    {
-        return serialise(buf, static_cast<size_t>(-1));
-    }
-    int serialise(unsigned char *buf, size_t capacity) override
-    {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] NetworkAddress:serialise");
-#endif
-        if (capacity < 6)
-            return -1;
-        if (!buf)
-            return 6;
-        unsigned char *ptr = buf;
-        *ptr++ = _type;
-
-        _length = 4;
-
-        *ptr++ = _length;
-        *ptr++ = _value[0];
-        *ptr++ = _value[1];
-        *ptr++ = _value[2];
-        *ptr++ = _value[3];
-        return _length + 2;
-    }
-    bool fromBuffer(unsigned char *buf) override
-    {
-        return fromBuffer(buf, static_cast<size_t>(-1));
-    }
-    bool fromBuffer(unsigned char *buf, size_t available) override
-    {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] NetworkAddress:fromBuffer");
-#endif
-        size_t header, length;
-        if (!readBERHeader(buf, available, header, length) || buf[0] != NETWORK_ADDRESS ||
-            length != 4)
-            return false;
-        _length = length;
-        buf += header;
-        byte tempAddress[4];
-        tempAddress[0] = *buf++;
-        tempAddress[1] = *buf++;
-        tempAddress[2] = *buf++;
-        tempAddress[3] = *buf++;
-        _value = IPAddress(tempAddress);
-        return true;
-    }
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override;
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override;
     int getLength() override
     {
         return _length;
@@ -173,77 +81,12 @@ public:
 class IntegerType : public BER_CONTAINER
 {
 public:
-    BER_CONTAINER *clone() const override
-    {
-        return new (std::nothrow) IntegerType(*this);
-    }
     IntegerType() : BER_CONTAINER(true, INTEGER) {};
     IntegerType(unsigned long value) : BER_CONTAINER(true, INTEGER), _value(value) {};
     ~IntegerType() {};
     unsigned long _value = 0;
-    int serialise(unsigned char *buf) override
-    {
-        return serialise(buf, static_cast<size_t>(-1));
-    }
-    int serialise(unsigned char *buf, size_t capacity) override
-    {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] IntegerType:serialise");
-#endif
-        // INTEGER carries signed Integer32 bits; application types are unsigned.
-        // Work on a copy so repeated serialization preserves the stored value.
-        const uint32_t value = static_cast<uint32_t>(_value);
-        unsigned char contents[5] = {
-            0, static_cast<unsigned char>(value >> 24), static_cast<unsigned char>(value >> 16),
-            static_cast<unsigned char>(value >> 8), static_cast<unsigned char>(value)};
-        size_t start = _type == INTEGER ? 1 : 0;
-        while (start < 4)
-        {
-            const bool redundantZero = contents[start] == 0 && !(contents[start + 1] & 0x80);
-            const bool redundantSign =
-                _type == INTEGER && contents[start] == 0xff && (contents[start + 1] & 0x80);
-            if (!redundantZero && !redundantSign)
-                break;
-            ++start;
-        }
-        _length = sizeof(contents) - start;
-        if (capacity < static_cast<size_t>(_length) + 2)
-            return -1;
-        if (!buf)
-            return _length + 2;
-        buf[0] = _type;
-        buf[1] = _length;
-        memcpy(buf + 2, contents + start, _length);
-        return _length + 2;
-    }
-    bool fromBuffer(unsigned char *buf) override
-    {
-        return fromBuffer(buf, static_cast<size_t>(-1));
-    }
-    bool fromBuffer(unsigned char *buf, size_t available) override
-    {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] Integer:fromBuffer");
-#endif
-        size_t header, length;
-        if (!readBERHeader(buf, available, header, length) || buf[0] != _type)
-            return false;
-        buf += header;
-        const bool isSigned = _type == INTEGER;
-        if (length == 0 || length > (isSigned ? 4u : 5u))
-            return false;
-        if (!isSigned && ((buf[0] & 0x80) || (length == 5 && buf[0] != 0)))
-            return false;
-        // Extend the sign through unsigned long, including on 64-bit hosts.
-        unsigned long value = isSigned && (buf[0] & 0x80) ? ~0UL : 0;
-        for (unsigned int i = 0; i < length; ++i)
-        {
-            value = (value << 8) | *buf++;
-        }
-        _value = value;
-        _length = length;
-        return true;
-    }
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override;
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override;
     int getLength() override
     {
         return _length;
@@ -267,84 +110,14 @@ public:
 class OctetType : public BER_CONTAINER
 {
 public:
-    BER_CONTAINER *clone() const override
-    {
-        return new (std::nothrow) OctetType(*this);
-    }
     OctetType() : BER_CONTAINER(true, STRING)
     {
         _length = 0;
     }
-    OctetType(char *value) : BER_CONTAINER(true, STRING)
-    {
-        const size_t length = strlen(value);
-        valid = length < sizeof(_value);
-        _length = valid ? length : 0;
-        if (valid)
-            memcpy(_value, value, length + 1);
-    }
+    OctetType(char *value);
     char _value[SNMP_OCTETSTRING_MAX_LENGTH] = {};
-    int serialise(unsigned char *buf) override
-    {
-        return serialise(buf, static_cast<size_t>(-1));
-    }
-    int serialise(unsigned char *buf, size_t capacity) override
-    {
-        if (!valid)
-            return -1;
-        // Decoded strings retain their binary length. Directly populated legacy
-        // C-string values use their terminator to determine the length.
-        size_t length = _length;
-        if (!decoded)
-        {
-            length = 0;
-            while (length < sizeof(_value) && _value[length])
-                ++length;
-            if (length == sizeof(_value))
-                return -1;
-        }
-        size_t header = length < 128 ? 2 : (length < 256 ? 3 : 4);
-        if (header + length > capacity)
-            return -1;
-        if (!buf)
-            return header + length;
-        buf[0] = _type;
-        if (length < 128)
-            buf[1] = length;
-        else if (length < 256)
-        {
-            buf[1] = 0x81;
-            buf[2] = length;
-            header = 3;
-        }
-        else
-        {
-            buf[1] = 0x82;
-            buf[2] = length >> 8;
-            buf[3] = length;
-            header = 4;
-        }
-        memcpy(buf + header, _value, length);
-        _length = length;
-        return header + length;
-    }
-    bool fromBuffer(unsigned char *buf) override
-    {
-        return fromBuffer(buf, static_cast<size_t>(-1));
-    }
-    bool fromBuffer(unsigned char *buf, size_t available) override
-    {
-        size_t header, length;
-        if (!readBERHeader(buf, available, header, length) || buf[0] != STRING ||
-            length >= sizeof(_value))
-            return false;
-        memcpy(_value, buf + header, length);
-        _value[length] = 0;
-        _length = length;
-        decoded = true;
-        valid = true;
-        return true;
-    }
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override;
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override;
     int getLength() override
     {
         return _length;
@@ -359,56 +132,10 @@ private:
 class RawType : public BER_CONTAINER
 {
 public:
-    BER_CONTAINER *clone() const override
-    {
-        return new (std::nothrow) RawType(*this);
-    }
     explicit RawType(ASN_TYPE type = OPAQUE) : BER_CONTAINER(true, type) {}
     unsigned char _value[SNMP_OCTETSTRING_MAX_LENGTH] = {};
-    bool fromBuffer(unsigned char *buf) override
-    {
-        return fromBuffer(buf, static_cast<size_t>(-1));
-    }
-    bool fromBuffer(unsigned char *buf, size_t available) override
-    {
-        size_t header, length;
-        if (!readBERHeader(buf, available, header, length) || buf[0] != _type ||
-            length > sizeof(_value))
-            return false;
-        if (_type != OPAQUE && length != 0)
-            return false;
-        memcpy(_value, buf + header, length);
-        _length = length;
-        return true;
-    }
-    int serialise(unsigned char *buf) override
-    {
-        return serialise(buf, static_cast<size_t>(-1));
-    }
-    int serialise(unsigned char *buf, size_t capacity) override
-    {
-        size_t header = _length < 128 ? 2 : (_length < 256 ? 3 : 4);
-        if (header + _length > capacity)
-            return -1;
-        if (!buf)
-            return header + _length;
-        buf[0] = _type;
-        if (header == 2)
-            buf[1] = _length;
-        else if (header == 3)
-        {
-            buf[1] = 0x81;
-            buf[2] = _length;
-        }
-        else
-        {
-            buf[1] = 0x82;
-            buf[2] = _length >> 8;
-            buf[3] = _length;
-        }
-        memcpy(buf + header, _value, _length);
-        return header + _length;
-    }
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override;
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override;
     int getLength() override
     {
         return _length;
@@ -418,155 +145,14 @@ public:
 class OIDType : public BER_CONTAINER
 {
 public:
-    BER_CONTAINER *clone() const override
-    {
-        return new (std::nothrow) OIDType(*this);
-    }
     OIDType() : BER_CONTAINER(true, OID)
     {
         _length = 0;
     }
-    OIDType(char *value) : BER_CONTAINER(true, OID)
-    {
-        _length = 0;
-        if (strlen(value) < sizeof(_value))
-            strcpy(_value, value);
-    }
+    OIDType(char *value);
     char _value[MAX_OID_LENGTH] = {};
-    int serialise(unsigned char *buf) override
-    {
-        return serialise(buf, static_cast<size_t>(-1));
-    }
-    int serialise(unsigned char *buf, size_t capacity) override
-    {
-        size_t textLength = 0;
-        while (textLength < sizeof(_value) && _value[textLength])
-            ++textLength;
-        if (textLength == sizeof(_value))
-            return -1;
-        const char *cursor = _value;
-        const char *end = _value + textLength;
-        unsigned char contents[MAX_OID_LENGTH];
-        size_t length = 0, arcs = 0;
-        uint64_t first = 0;
-        while (cursor < end)
-        {
-            if (*cursor++ != '.' || cursor == end)
-                return -1;
-            uint64_t arc = 0;
-            const char *digits = cursor;
-            while (cursor < end && *cursor != '.')
-            {
-                if (*cursor < '0' || *cursor > '9')
-                    return -1;
-                arc = arc * 10 + (*cursor++ - '0');
-                if (arc > UINT32_MAX)
-                    return -1;
-            }
-            if (cursor == digits)
-                return -1;
-            if (arcs++ == 0)
-            {
-                if (arc > 2)
-                    return -1;
-                first = arc;
-                continue;
-            }
-            if (arcs == 2)
-            {
-                if (first < 2 && arc > 39)
-                    return -1;
-                arc += first * 40;
-            }
-            unsigned char encoded[5];
-            size_t start = sizeof(encoded);
-            do
-            {
-                encoded[--start] = arc & 0x7f;
-                arc >>= 7;
-            } while (arc);
-            if (length + sizeof(encoded) - start > sizeof(contents))
-                return -1;
-            while (start < sizeof(encoded))
-            {
-                contents[length++] = encoded[start] | (start + 1 < sizeof(encoded) ? 0x80 : 0);
-                ++start;
-            }
-        }
-        if (arcs < 2)
-            return -1;
-        size_t header = length < 128 ? 2 : (length < 256 ? 3 : 4);
-        if (header + length > capacity)
-            return -1;
-        if (!buf)
-            return header + length;
-        buf[0] = OID;
-        if (length < 128)
-            buf[1] = length;
-        else if (length < 256)
-        {
-            buf[1] = 0x81;
-            buf[2] = length;
-            header = 3;
-        }
-        else
-        {
-            buf[1] = 0x82;
-            buf[2] = length >> 8;
-            buf[3] = length;
-            header = 4;
-        }
-        memcpy(buf + header, contents, length);
-        _length = length;
-        return header + length;
-    }
-    bool fromBuffer(unsigned char *buf) override
-    {
-        return fromBuffer(buf, static_cast<size_t>(-1));
-    }
-    bool fromBuffer(unsigned char *buf, size_t available) override
-    {
-        size_t header, length;
-        if (!readBERHeader(buf, available, header, length) || buf[0] != OID || length == 0)
-            return false;
-        char text[MAX_OID_LENGTH] = {};
-        size_t used = 0, offset = 0;
-        bool first = true;
-        while (offset < length)
-        {
-            uint64_t arc = 0;
-            unsigned char byte;
-            unsigned int octets = 0;
-            do
-            {
-                if (offset == length || ++octets > 5)
-                    return false;
-                byte = buf[header + offset++];
-                if (octets == 1 && byte == 0x80)
-                    return false;
-                arc = (arc << 7) | (byte & 0x7f);
-            } while (byte & 0x80);
-            if (arc > static_cast<uint64_t>(UINT32_MAX) + (first ? 80 : 0))
-                return false;
-            int written;
-            if (first)
-            {
-                unsigned long root = arc < 40 ? 0 : (arc < 80 ? 1 : 2);
-                written = snprintf(text + used, sizeof(text) - used, ".%lu.%lu", root,
-                                   static_cast<unsigned long>(arc - root * 40));
-                first = false;
-            }
-            else
-                written = snprintf(text + used, sizeof(text) - used, ".%lu",
-                                   static_cast<unsigned long>(arc));
-            if (written < 0 || static_cast<size_t>(written) >= sizeof(text) - used)
-                return false;
-            used += written;
-        }
-        memcpy(_value, text, used + 1);
-        _length = length;
-        return true;
-    }
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override;
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override;
     int getLength() override
     {
         return _length;
@@ -576,48 +162,11 @@ public:
 class NullType : public BER_CONTAINER
 {
 public:
-    BER_CONTAINER *clone() const override
-    {
-        return new (std::nothrow) NullType(*this);
-    }
     NullType() : BER_CONTAINER(true, NULLTYPE) {};
     ~NullType() {};
     char _value = 0;
-    int serialise(unsigned char *buf) override
-    {
-        return serialise(buf, static_cast<size_t>(-1));
-    }
-    int serialise(unsigned char *buf, size_t capacity) override
-    {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] NullType:serialise");
-#endif
-        if (capacity < 2)
-            return -1;
-        if (!buf)
-            return 2;
-        // NULL has a zero-length value, so its TLV contains only the tag and length.
-        char *ptr = (char *)buf;
-        *ptr = _type;
-        ptr++;
-        *ptr = 0;
-        return 2;
-    }
-    bool fromBuffer(unsigned char *buf) override
-    {
-        return fromBuffer(buf, static_cast<size_t>(-1));
-    }
-    bool fromBuffer(unsigned char *buf, size_t available) override
-    {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] NullType:fromBuffer");
-#endif
-        size_t header, length;
-        if (!readBERHeader(buf, available, header, length) || buf[0] != NULLTYPE || length != 0)
-            return false;
-        _length = 0;
-        return true;
-    }
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override;
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override;
 
     int getLength() override
     {
@@ -628,73 +177,13 @@ public:
 class Counter64 : public BER_CONTAINER
 {
 public:
-    BER_CONTAINER *clone() const override
-    {
-        return new (std::nothrow) Counter64(*this);
-    }
     Counter64() : BER_CONTAINER(true, COUNTER64) {};
     Counter64(uint64_t value) : BER_CONTAINER(true, COUNTER64), _value(value) {};
     ~Counter64() {};
     uint64_t _value = 0;
-    int serialise(unsigned char *buf) override
-    {
-        return serialise(buf, static_cast<size_t>(-1));
-    }
-    int serialise(unsigned char *buf, size_t capacity) override
-    {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] Counter64:serialise");
-#endif
-        // Up to eight value octets plus a leading zero to preserve the positive sign.
-        unsigned char contents[9];
-        size_t start = sizeof(contents);
-        uint64_t remaining = _value;
-        do
-        {
-            contents[--start] = static_cast<unsigned char>(remaining & 0xff);
-            remaining >>= 8;
-        } while (remaining != 0);
-        if (contents[start] & 0x80)
-        {
-            contents[--start] = 0;
-        }
-        _length = sizeof(contents) - start;
-        if (capacity < static_cast<size_t>(_length) + 2)
-            return -1;
-        if (!buf)
-            return _length + 2;
-        buf[0] = _type;
-        buf[1] = _length;
-        memcpy(buf + 2, contents + start, _length);
-        return _length + 2;
-    }
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override;
 
-    bool fromBuffer(unsigned char *buf) override
-    {
-        return fromBuffer(buf, static_cast<size_t>(-1));
-    }
-    bool fromBuffer(unsigned char *buf, size_t available) override
-    {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] Counter64:fromBuffer");
-#endif
-        size_t header, length;
-        if (!readBERHeader(buf, available, header, length) || buf[0] != _type)
-            return false;
-        buf += header;
-        if (length == 0 || length > 9 || (buf[0] & 0x80))
-            return false;
-        if (length == 9 && buf[0] != 0)
-            return false;
-        uint64_t value = 0;
-        for (unsigned int i = 0; i < length; ++i)
-        {
-            value = (value << 8) | *buf++;
-        }
-        _length = length;
-        _value = value;
-        return true;
-    }
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override;
 
     int getLength() override
     {
@@ -732,18 +221,7 @@ public:
 
 typedef struct BER_LINKED_LIST
 {
-    ~BER_LINKED_LIST()
-    {
-        while (next)
-        {
-            auto *node = next;
-            next = node->next;
-            node->next = nullptr;
-            delete node;
-        }
-        delete value;
-        value = 0;
-    }
+    ~BER_LINKED_LIST();
     BER_CONTAINER *value = 0;
     struct BER_LINKED_LIST *next = 0;
 } ValuesList;
@@ -752,223 +230,20 @@ class ComplexType : public BER_CONTAINER
 {
 public:
     ComplexType(ASN_TYPE type) : BER_CONTAINER(false, type) {};
-    ComplexType(const ComplexType &other) : BER_CONTAINER(false, other._type)
-    {
-        copyValid = copyFrom(other);
-    }
-    ComplexType &operator=(const ComplexType &other)
-    {
-        if (this != &other)
-            copyFrom(other);
-        return *this;
-    }
-    BER_CONTAINER *clone() const override
-    {
-        ComplexType *copy = new (std::nothrow) ComplexType(*this);
-        if (copy && !copy->copyValid)
-        {
-            delete copy;
-            return nullptr;
-        }
-        return copy;
-    }
-
-private:
-    bool copyValid = true;
-    bool copyFrom(const ComplexType &other)
-    {
-        ComplexType copy(other._type);
-        for (const ValuesList *entry = other._values; entry; entry = entry->next)
-            if (!entry->value || !copy.tryAddValueToList(entry->value->clone()))
-                return false;
-        std::swap(_values, copy._values);
-        _type = other._type;
-        _length = other._length;
-        return true;
-    }
-
-public:
+    ComplexType(const ComplexType &) = delete;
+    ComplexType &operator=(const ComplexType &) = delete;
     ~ComplexType()
     {
         delete _values;
     }
     ValuesList *_values = 0;
-    bool fromBuffer(unsigned char *buf) override
-    {
-        return fromBuffer(buf, static_cast<size_t>(-1));
-    }
-    bool fromBuffer(unsigned char *buf, size_t available) override
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override
     {
         return decode(buf, available, 0);
     }
-    bool decode(unsigned char *buf, size_t available, unsigned int depth)
-    {
-        delete _values;
-        _values = nullptr;
-        size_t header, length;
-        if (depth >= 32 || !readBERHeader(buf, available, header, length))
-            return false;
-        _length = length;
-        size_t offset = header;
-        const size_t end = header + length;
-        while (offset < end)
-        {
-            size_t childHeader, valueLength;
-            if (!readBERHeader(buf + offset, end - offset, childHeader, valueLength))
-                return false;
-            ASN_TYPE valueType = static_cast<ASN_TYPE>(buf[offset]);
-            // Enforce the payload lengths of NULL, exceptions, and IPv4 addresses.
-            if ((valueType == NULLTYPE || valueType == NOSUCHOBJECT ||
-                 valueType == NOSUCHINSTANCE || valueType == ENDOFMIBVIEW) &&
-                valueLength != 0)
-                return false;
-            if (valueType == NETWORK_ADDRESS && valueLength != 4)
-                return false;
-            BER_CONTAINER *newObj;
-            switch (valueType)
-            {
-            case STRUCTURE:
-            case GetRequestPDU:
-            case GetNextRequestPDU:
-            case GetResponsePDU:
-            case SetRequestPDU:
-            case GetBulkRequestPDU:
-            case TrapPDU: // Recognized here; the response parser rejects trap PDUs.
-            case Trapv2PDU:
-                newObj = new (std::nothrow) ComplexType(valueType);
-                break;
-                // primitive
-            case INTEGER:
-                newObj = new (std::nothrow) IntegerType();
-                break;
-            case STRING:
-                newObj = new (std::nothrow) OctetType();
-                break;
-            case OID:
-                newObj = new (std::nothrow) OIDType();
-                break;
-            case NULLTYPE:
-                newObj = new (std::nothrow) NullType();
-                break;
-                // derived
-            case NETWORK_ADDRESS:
-                newObj = new (std::nothrow) NetworkAddress();
-                break;
-            case TIMESTAMP:
-                newObj = new (std::nothrow) TimestampType();
-                break;
-            case COUNTER32:
-                newObj = new (std::nothrow) Counter32();
-                break;
-            case GAUGE32:
-                newObj = new (std::nothrow) Gauge();
-                break;
-            case COUNTER64:
-                newObj = new (std::nothrow) Counter64();
-                break;
-            case OPAQUE:
-            case NOSUCHOBJECT:
-            case NOSUCHINSTANCE:
-            case ENDOFMIBVIEW:
-                newObj = new (std::nothrow) RawType(valueType);
-                break;
-            default:
-                return false;
-            }
-            if (!newObj)
-                return false;
-            bool valid;
-            if (!newObj->_isPrimitive)
-                valid = static_cast<ComplexType *>(newObj)->decode(
-                    buf + offset, childHeader + valueLength, depth + 1);
-            else
-                valid = newObj->fromBuffer(buf + offset, childHeader + valueLength);
-            if (!valid)
-            {
-                delete newObj;
-                return false;
-            }
-            if (!tryAddValueToList(newObj))
-                return false;
-            offset += childHeader + valueLength;
-        }
-        return true;
-    }
+    bool decode(unsigned char *buf, size_t available, unsigned int depth);
 
-    int serialise(unsigned char *buf) override
-    {
-        if (!buf)
-            return serialise(nullptr, static_cast<size_t>(-1));
-        // Preserve legacy custom children that cannot measure into a null buffer.
-        // The pointer-only API still requires caller-provided sufficient storage.
-        size_t length = 0;
-        for (ValuesList *entry = _values; entry; entry = entry->next)
-        {
-            const int child = entry->value->serialise(buf + 2 + length);
-            if (child < 0 || static_cast<size_t>(child) > 65535u - length)
-                return -1;
-            length += child;
-        }
-        const size_t header = length < 128 ? 2 : (length < 256 ? 3 : 4);
-        memmove(buf + header, buf + 2, length);
-        buf[0] = _type;
-        if (header == 2)
-            buf[1] = length;
-        else if (header == 3)
-        {
-            buf[1] = 0x81;
-            buf[2] = length;
-        }
-        else
-        {
-            buf[1] = 0x82;
-            buf[2] = length >> 8;
-            buf[3] = length;
-        }
-        _length = length;
-        return header + length;
-    }
-    int serialise(unsigned char *buf, size_t capacity) override
-    {
-        // Measure before writing, so insufficient capacity leaves the buffer unchanged.
-        size_t length = 0;
-        for (ValuesList *entry = _values; entry; entry = entry->next)
-        {
-            int child = entry->value->serialise(nullptr, static_cast<size_t>(-1));
-            if (child < 0 || static_cast<size_t>(child) > 65535u - length)
-                return -1;
-            length += child;
-        }
-        size_t header = length < 128 ? 2 : (length < 256 ? 3 : 4);
-        if (header + length > capacity)
-            return -1;
-        if (!buf)
-            return header + length;
-        buf[0] = _type;
-        if (header == 2)
-            buf[1] = length;
-        else if (header == 3)
-        {
-            buf[1] = 0x81;
-            buf[2] = length;
-        }
-        else
-        {
-            buf[1] = 0x82;
-            buf[2] = length >> 8;
-            buf[3] = length;
-        }
-        size_t offset = header;
-        for (ValuesList *entry = _values; entry; entry = entry->next)
-        {
-            int child = entry->value->serialise(buf + offset, capacity - offset);
-            if (child < 0)
-                return -1;
-            offset += child;
-        }
-        _length = length;
-        return offset;
-    }
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override;
 
     int getLength() override
     {
@@ -976,27 +251,7 @@ public:
     }
 
     // Takes ownership of the child on both success and failure.
-    void addValueToList(BER_CONTAINER *child)
-    {
-        tryAddValueToList(child);
-    }
-    bool tryAddValueToList(BER_CONTAINER *child)
-    {
-        if (!child)
-            return false;
-        ValuesList *node = new (std::nothrow) ValuesList();
-        if (!node)
-        {
-            delete child;
-            return false;
-        }
-        node->value = child;
-        ValuesList **tail = &_values;
-        while (*tail)
-            tail = &(*tail)->next;
-        *tail = node;
-        return true;
-    }
+    bool addValueToList(BER_CONTAINER *child);
 };
 
 #endif

@@ -1,0 +1,3 @@
+src/hardware_config.h
+*.log
+__pycache__/

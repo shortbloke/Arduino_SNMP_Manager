@@ -8,7 +8,7 @@ template <size_t Capacity> class PollState
 public:
     bool add(ValueCallback *callback, SNMPGet &request)
     {
-        if (!callback || count == Capacity || !request.tryAddOIDPointer(callback))
+        if (!callback || count == Capacity || !request.addOIDPointer(callback))
             return false;
         callbacks[count++] = callback;
         return true;

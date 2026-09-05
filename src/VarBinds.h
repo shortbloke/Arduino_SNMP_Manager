@@ -1,6 +1,8 @@
 #ifndef VarBinds_h
 #define VarBinds_h
 
+#include "BER.h"
+
 typedef struct VarBindStruct
 {
     ~VarBindStruct() {
@@ -13,18 +15,7 @@ typedef struct VarBindStruct
 
 typedef struct VarBindListStruct
 {
-    ~VarBindListStruct()
-    {
-        while (next)
-        {
-            auto *node = next;
-            next = node->next;
-            node->next = nullptr;
-            delete node;
-        }
-        delete value;
-        value = 0;
-    };
+    ~VarBindListStruct();
     struct VarBindStruct *value = 0;
     struct VarBindListStruct *next = 0;
 } VarBindList;

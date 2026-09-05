@@ -1,5 +1,41 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## Unreleased
+
+- Avoid receive-side UDP flush calls that transmit empty datagrams on ESP8266; drain rejected packets with bounded reads in both manager APIs.
+
+- Extend MIB boundary and owned SET-value regressions; add D1 Mini hardware-run validation and record live read/walk memory measurements.
+
+- Enforce SNMP version/PDU/value combinations and the 128-subidentifier OID limit; recover from empty successful GETBULK replies with GETNEXT.
+- Add RFC-derived request-ID and full-size OID checks, and document the bounded v1/v2c standards scope.
+
+- Add low-heap allocation sweeps covering query/walk/table recovery, INFORM acknowledgement, payload preservation, and SET timeout behavior, including sanitizer and leak checks.
+
+- Release invalidated walk/table payloads on restart and add optional compact table index storage with checked bounds.
+- Add an independent Net-SNMP wire test and a physical-board read/walk harness with heap sampling.
+
+- Add compiling examples for typed walks, host storage, printer supplies, explicit SET/read-back, and trap/INFORM reception, with an operation and value-type guide.
+
+- Separate owned query payload capacity from OID capacity, retain shared payloads across polls, and increase default dotted OID storage to accommodate longer compound indices.
+- Add checked common MIB value conversions and regression fixtures for long interface descriptions, IPv6 TCP indices, payload ownership, and allocation failures.
+
+- Add a device/query API with checked IPv4 strings, owned results, automatic request IDs, bounded scheduling, batching, retries, and completion status.
+- Add SNMPv1/v2c walks, selected-column tables, and interface traffic reads with Counter64-to-Counter32 fallback.
+- Add single-packet SET requests, v1/v2c trap reception, and v2c INFORM acknowledgement while retaining the existing handler API.
+- Add compiling single-device, multiple-device, and interface-table examples and query regression coverage.
+
+- Split declarations and implementations into independently includable headers and compiled source files.
+- Added bounded BER parsing/serialization and bounded text, binary OCTET STRING, Opaque, and OID callbacks.
+- Use fixed-width callback types for SNMP Integer32, Counter32, Gauge32, TimeTicks, and Counter64 values.
+- Select request versions with `SNMPVersion::Version1` or `SNMPVersion::Version2c` and use signed 32-bit request IDs consistently.
+- Correlate responses with outstanding request IDs, peers, and transports, with explicit cancellation for timed-out requests.
+- Correct BER integer, Counter64, OID, sequence-length, response validation, exception, and ownership behavior.
+- Remove the ineffective `SNMPGet::setIP()` API and require capacities for string and OID callback destinations.
+- Stop defining the transport-owned `UDP_TX_PACKET_MAX_SIZE` macro.
+- Add native, sanitizer, leak, configuration, example, and ESP-family compile checks.
+
+See [MIGRATION.md](MIGRATION.md) for required application changes.
+
 ## 1.2.1
 
 A backward-compatible patch release correcting 1.x guidance and a public parser edge case.

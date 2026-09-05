@@ -1,0 +1,5 @@
+#define TEST_SSID "YOUR_SSID"
+#define TEST_PASSWORD "YOUR_PASSWORD"
+#define TEST_AGENT "192.168.1.10"
+#define TEST_COMMUNITY "public"
+#define TEST_PORT 161

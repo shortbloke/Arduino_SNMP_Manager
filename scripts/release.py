@@ -4,7 +4,6 @@ import argparse
 import json
 from pathlib import Path
 import re
-import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-((?:alpha|beta|rc)\.[1-9][0-9]*))?")
@@ -79,6 +78,7 @@ def main():
     parser.add_argument("command", choices=["check", "prepare", "notes"])
     parser.add_argument("--version")
     parser.add_argument("--branch")
+    parser.add_argument("--allow-unreleased", action="store_true")
     args = parser.parse_args()
     version = args.version or current(ROOT)
     if args.command == "prepare":
@@ -92,7 +92,8 @@ def main():
             raise ValueError("Requested version differs from manifests")
         if args.branch:
             check_branch(args.branch, version)
-        notes(ROOT, version)
+        notes(ROOT, "Unreleased" if args.allow_unreleased and
+              "## Unreleased" in (ROOT / "CHANGELOG.md").read_text() else version)
         print("Release metadata verified: " + version)
 
 

@@ -14,8 +14,8 @@ const char *password = "PASSWORD"; // Your Wi-Fi password.
 IPAddress router(192, 168, 200, 1);
 // Match the read community configured on the agent; "public" is only an example.
 const char *community = "public";
-// Choose a version enabled on your agent: 0 = SNMPv1, 1 = SNMPv2c.
-const short snmpVersion = 1;
+// Choose a version enabled on your agent: SNMPVersion::Version1 or SNMPVersion::Version2c.
+const SNMPVersion snmpVersion = SNMPVersion::Version2c;
 // Replace the final .4 in ALL interface OIDs with your device's ifIndex.
 // Discover the index from its interface table; it need not equal the port number.
 // ifSpeed is interface capacity, which may differ from your Internet service speed.
@@ -70,7 +70,7 @@ void printSample()
     Serial.println(servicesResponse);
     Serial.print(F("Name: "));
     Serial.println(sysNameResponse);
-    if (snmpVersion == 1)
+    if (snmpVersion == SNMPVersion::Version2c)
         Serial.printf("HC counter: %llu\n", static_cast<unsigned long long>(hcCounter));
     Serial.println(F("----------------------"));
 }
@@ -111,7 +111,7 @@ void setup()
     // Counter64 is a v2c type. If unsupported, remove this registration and
     // its printSample() output. Every registered OID must reply successfully.
     // Apply the same rule to any other optional OID your agent does not support.
-    if (snmpVersion == 1)
+    if (snmpVersion == SNMPVersion::Version2c)
         registered =
             registered &&
             sample.add(snmp.addCounter64Handler(router, oid64Counter, &hcCounter), snmpRequest);
