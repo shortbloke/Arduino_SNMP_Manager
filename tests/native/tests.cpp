@@ -1,0 +1,426 @@
+#include <Arduino_SNMP_Manager.h>
+#include <functional>
+#include <iostream>
+#include <stdexcept>
+#include <vector>
+#include <limits>
+#include <type_traits>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <csignal>
+using Bytes = std::vector<unsigned char>;
+#define CHECK(x) do { if (!(x)) throw std::runtime_error(#x); } while(0)
+Bytes encode(BER_CONTAINER& value) { unsigned char b[8192]{}; int n=value.serialise(b); CHECK(n>=0 && n<=8192); return Bytes(b,b+n); }
+// Independent fixture builder: never uses the library's serializer.
+Bytes tlv(unsigned char tag, Bytes value) {
+    Bytes out{tag};
+    if(value.size()<128) out.push_back(value.size());
+    else if(value.size()<256) { out.push_back(0x81); out.push_back(value.size()); }
+    else { out.push_back(0x82); out.push_back(value.size()>>8); out.push_back(value.size()); }
+    out.insert(out.end(),value.begin(),value.end()); return out;
+}
+Bytes join(std::initializer_list<Bytes> items) { Bytes b; for(auto& i:items) b.insert(b.end(),i.begin(),i.end()); return b; }
+const char* oid=".1.3.6.1.2.1.1.1.0";
+Bytes oidWire{6,8,43,6,1,2,1,1,1,0};
+Bytes binding(Bytes value) { return tlv(0x30,join({oidWire,value})); }
+Bytes message(Bytes bindings, int version=1, const char* community="public", int pdu=0xa2, int requestId=7, int errorStatus=0, int errorIndex=0) {
+    Bytes c(community,community+strlen(community));
+    return tlv(0x30,join({tlv(2,{static_cast<unsigned char>(version)}),tlv(4,c),tlv(pdu,join({tlv(2,{static_cast<unsigned char>(requestId)}),tlv(2,{static_cast<unsigned char>(errorStatus)}),tlv(2,{static_cast<unsigned char>(errorIndex)}),tlv(0x30,bindings)}))}));
+}
+// Production has no manager/request destructors. Release test-owned registrations explicitly.
+struct Manager : SNMPManager {
+    Manager() : SNMPManager("public") { _udp=nullptr; }
+    ~Manager() {
+        for(auto* p=callbacks;p;p=p->next) if(p->value) {
+            auto* v=p->value; free(v->OID);
+            switch(v->type) {
+            case INTEGER: delete static_cast<IntegerCallback*>(v); break;
+            case STRING: delete static_cast<StringCallback*>(v); break;
+            case OID: delete static_cast<OIDCallback*>(v); break;
+            case COUNTER32: delete static_cast<Counter32Callback*>(v); break;
+            case COUNTER64: delete static_cast<Counter64Callback*>(v); break;
+            case GAUGE32: delete static_cast<Gauge32Callback*>(v); break;
+            case TIMESTAMP: delete static_cast<TimestampCallback*>(v); break;
+            default: break;
+            }
+        }
+        delete callbacks;
+    }
+};
+struct Request : SNMPGet { Request(int v=1): SNMPGet("public",v) {setRequestID(7);} ~Request(){delete callbacks; delete packet;} };
+struct Test { const char* name; bool regression; std::function<void()> run; };
+#ifdef SNMP_GOOGLETEST
+#include <gtest/gtest.h>
+#include <cctype>
+
+// GoogleTest owns reporting in the parent. Each case still executes in a child
+// so memory errors/timeouts become failures without ending the entire suite.
+class IsolatedCase : public testing::Test {
+    std::function<void()> run;
+public:
+    explicit IsolatedCase(std::function<void()> body) : run(body) {}
+    void TestBody() override {
+        FILE* diagnostics=tmpfile();
+        ASSERT_NE(diagnostics, nullptr);
+        std::cout.flush(); std::cerr.flush();
+        pid_t child=fork();
+        if (child==0) {
+            if (dup2(fileno(diagnostics), STDERR_FILENO)<0) _exit(2);
+            alarm(5);
+            try { run(); _exit(0); }
+            catch (const std::exception& error) {
+                std::cerr << error.what() << std::endl;
+                _exit(1);
+            }
+        }
+        int status=0;
+        bool reaped=child>0 && waitpid(child, &status, 0)==child;
+        rewind(diagnostics);
+        std::string output;
+        char buffer[1024];
+        while (fgets(buffer, sizeof(buffer), diagnostics)) output+=buffer;
+        fclose(diagnostics);
+        ASSERT_TRUE(reaped) << "Could not execute isolated test";
+        ASSERT_TRUE(WIFEXITED(status) && WEXITSTATUS(status)==0)
+            << "Isolated case failed (wait status " << status << ")\n" << output;
+    }
+};
+#endif
+
+int main(int argc,char** argv) {
+    bool regressions=argc>1 && std::string(argv[1])=="--regressions";
+    std::vector<Test> tests;
+    auto add=[&](const char* name,std::function<void()> f,bool regression=false){tests.push_back({name,regression,f});};
+    add("integer small wire values",[]{for(unsigned long n: {0UL,1UL,127UL}){IntegerType v(n); CHECK(encode(v)==Bytes({2,1,static_cast<unsigned char>(n)}));}});
+    add("integer big endian decode",[]{Bytes b{2,4,0x12,0x34,0x56,0x78}; IntegerType v; CHECK(v.fromBuffer(b.data())); CHECK(v._value==0x12345678UL);});
+    add("unsigned application type decoding",[]{Bytes b{0x41,5,0,255,255,255,255}; Counter32 c; Gauge g; TimestampType t; c.fromBuffer(b.data()); b[0]=0x42; g.fromBuffer(b.data()); b[0]=0x43; t.fromBuffer(b.data()); CHECK(c._value==UINT32_MAX); CHECK(g._value==UINT32_MAX); CHECK(t._value==UINT32_MAX);});
+    add("counter64 full range decode",[]{Bytes b{0x46,9,0,255,255,255,255,255,255,255,255}; Counter64 c; c.fromBuffer(b.data()); CHECK(c._value==UINT64_MAX); Counter64 zero(0); CHECK(encode(zero)==Bytes({0x46,1,0}));});
+    add("null and network address",[]{NullType n; CHECK(encode(n)==Bytes({5,0})); NetworkAddress ip(IPAddress(192,0,2,1)); auto b=encode(ip); CHECK(b==Bytes({0x40,4,192,0,2,1})); NetworkAddress decoded; decoded.fromBuffer(b.data()); CHECK(decoded._value==IPAddress(192,0,2,1));});
+    add("OID wire bytes and enterprise arc",[]{char s[]=".1.3.6.1.4.1.12345.0"; OIDType o(s); auto b=encode(o); CHECK(b==Bytes({6,8,43,6,1,4,1,0xe0,0x39,0})); OIDType d; d.fromBuffer(b.data()); CHECK(std::string(d._value)==s);});
+    add("octet decode length boundaries",[]{for(size_t n: {0,1,127,128,255,256,257,1023}){auto b=tlv(4,Bytes(n,'x')); OctetType o; CHECK(o.fromBuffer(b.data())); CHECK(o.getLength()==n); CHECK(std::string(o._value)==std::string(n,'x'));}});
+    add("octet encode length boundaries",[]{for(size_t n: {0,1,127,128,255,257}){OctetType o; memset(o._value,0,sizeof(o._value)); memset(o._value,'x',n); CHECK(encode(o)==tlv(4,Bytes(n,'x')));}});
+    add("nested BER structure",[]{auto b=tlv(0x30,join({{2,1,42},tlv(0x30,{5,0})})); ComplexType c(STRUCTURE); CHECK(c.fromBuffer(b.data())); CHECK(c._values->value->_type==INTEGER); CHECK(c._values->next->value->_type==STRUCTURE); CHECK(encode(c)==b);});
+    add("response metadata and multiple bindings",[]{for(int version: {0,1}){auto b=message(join({binding({2,1,42}),binding({0x43,2,1,0})}),version); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.version==version+1); CHECK(r.requestID==7); CHECK(r.errorStatus==0 && r.errorIndex==0); CHECK(std::string(r.communityString)=="public"); CHECK(r.requestType==GetResponsePDU); CHECK(r.varBinds->value->type==INTEGER); CHECK(r.varBinds->next->value->type==TIMESTAMP); CHECK(r.varBinds->next->next->value==nullptr);}});
+    add("response rejects wrong top-level tag",[]{Bytes b{4,0}; SNMPGetResponse r; CHECK(!r.parseFrom(b.data())); CHECK(r.isCorrupt);});
+    add("response rejects wrong version field type",[]{auto b=message(binding({2,1,42})); b[2]=4; SNMPGetResponse r; CHECK(!r.parseFrom(b.data())); CHECK(r.isCorrupt);});
+    add("request missing transport",[]{Request r; CHECK(!r.sendTo(IPAddress()));});
+    add("request golden wire and ports",[]{for(int version:{0,1}){Manager m; int value=0; UDP udp; Request r(version); r.setUDP(&udp); r.addOIDPointer(m.addIntegerHandler(udp.peer,oid,&value)); CHECK(r.sendTo(udp.peer)); CHECK(udp.outgoing==message(binding({5,0}),version,"public",0xa0)); CHECK(udp.destination==udp.peer); CHECK(udp.destinationPort==161); r.setPort(1161); udp.endResult=0; CHECK(!r.sendTo(udp.peer)); CHECK(udp.destinationPort==1161);}});
+    add("request list ordering and clearing",[]{Manager m; int v=0; auto* a=m.addIntegerHandler(IPAddress(),oid,&v); auto* b=m.addIntegerHandler(IPAddress(),".1.3.6.1.2.1.1.3.0",&v); Request r; r.addOIDPointer(a); r.addOIDPointer(b); CHECK(r.callbacks->value==a && r.callbacks->next->value==b); r.clearOIDList(); CHECK(r.callbacks->value==nullptr); CHECK(std::string(a->OID)==oid); r.addOIDPointer(b); CHECK(r.callbacks->value==b);});
+    add("callback identity requires IP and OID",[]{Manager m; int v=0; IPAddress ip(1,2,3,4); CHECK(!m.findCallback(ip,oid)); auto* a=m.addIntegerHandler(ip,oid,&v); CHECK(m.findCallback(ip,oid)==a); CHECK(!m.findCallback(IPAddress(),oid)); CHECK(!m.findCallback(ip,".1.3.6.1.2.1.1.2.0"));});
+    add("library convention: UDP lifecycle and integer dispatch",[]{Manager m; UDP a,b; int v=0; CHECK(!m.begin()); CHECK(!m.loop()); m.setUDP(&a); CHECK(a.listenPort==162); m.setUDP(&b); CHECK(a.stops==1); m.addIntegerHandler(b.peer,oid,&v); CHECK(m.loop()); CHECK(b.reads==0); b.incoming=message(binding({2,1,42})); CHECK(m.loop()); CHECK(v==42); CHECK(b.reads==1 && b.flushes==1);});
+    add("manager unsigned typed dispatch",[]{for(int tag:{0x41,0x42,0x43,0x46}){Manager m; UDP u; m.setUDP(&u); uint32_t n=0; uint64_t big=0; if(tag==0x41)m.addCounter32Handler(u.peer,oid,&n); if(tag==0x42)m.addGaugeHandler(u.peer,oid,&n); if(tag==0x43)m.addTimestampHandler(u.peer,oid,&n); if(tag==0x46)m.addCounter64Handler(u.peer,oid,&big); u.incoming=message(binding(tlv(tag,{0,255,255,255,255}))); m.loop(); CHECK(tag==0x46 ? big==UINT32_MAX : n==UINT32_MAX);}});
+    add("community, peer and callback type rejection",[]{for(int scenario=0;scenario<3;++scenario){Manager m; UDP u; m.setUDP(&u); int value=99; m.addIntegerHandler(u.peer,oid,&value); Bytes val=scenario==2 ? Bytes{4,1,'x'} : Bytes{2,1,42}; u.incoming=message(binding(val),1,scenario==0?"private":"public"); if(scenario==1)u.peer=IPAddress(); m.loop(); CHECK(value==99);}});
+    // RFC 3416 section 4.2.1: exceptions are values, not malformed packets.
+    add("v2c Get exceptions parse as individual bindings",[]{for(int tag:{0x80,0x81}){auto b=message(binding(tlv(tag,{}))); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.errorStatus==0); CHECK(r.varBinds->value->type==tag);}});
+    add("traversal endOfMibView parses as an exception",[]{auto b=message(binding({0x82,0})); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.varBinds->value->type==ENDOFMIBVIEW);});
+    add("integer 128 minimal signed BER encoding",[]{IntegerType v(128); CHECK(encode(v)==Bytes({2,2,0,128}));},true);
+    add("integer serialization preserves value",[]{IntegerType v(256); encode(v); CHECK(v._value==256);},true);
+    add("octet 256 length encoding",[]{OctetType v; memset(v._value,0,sizeof(v._value)); memset(v._value,'x',256); CHECK(encode(v)==tlv(4,Bytes(256,'x')));},true);
+    add("OID base128 boundary 16384",[]{char s[]=".1.3.16384"; OIDType v(s); CHECK(encode(v)==Bytes({6,4,43,0x81,0x80,0}));},true);
+    add("manager rejects unsupported version",[]{Manager m; UDP u; m.setUDP(&u); int n=99; m.addIntegerHandler(u.peer,oid,&n); u.incoming=message(binding({2,1,42}),2); m.loop(); CHECK(n==99);},true);
+    add("library convention: float callback preserves fractional tenths",[]{Manager m; UDP u; m.setUDP(&u); float n=0; m.addFloatHandler(u.peer,oid,&n); u.incoming=message(binding({2,1,123})); m.loop(); CHECK(std::abs(n-12.3f)<0.001f);},true);
+    add("library convention: shorter string response terminates old value",[]{Manager m; UDP u; m.setUDP(&u); char storage[32]="previous value"; char* p=storage; m.addStringHandler(u.peer,oid,&p); u.incoming=message(binding({4,3,'n','e','w'})); m.loop(); CHECK(std::string(p)=="new");},true);
+    // RFC 3417 section 8 permits nonminimal definite-length fields.
+    add("octet nonminimal definite length accepted",[]{Bytes b{4,0x82,0,3,'a','b','c'}; OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(v.getLength()==3); CHECK(std::string(v._value)=="abc");});
+    add("response nonminimal outer length accepted",[]{auto b=message(binding({2,1,42})); b.insert(b.begin()+1,{0x82,0}); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.requestID==7); CHECK(r.varBinds->value->type==INTEGER);});
+    add("v1 noSuchName metadata retains one-based error index",[]{auto b=message(binding({5,0}),0,"public",0xa2,7,2,1); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.version==1); CHECK(r.errorStatus==2 && r.errorIndex==1);});
+    add("successful Get preserves OID order on wire",[]{Manager m; UDP u; int n=0; Request r; r.setUDP(&u); r.addOIDPointer(m.addIntegerHandler(u.peer,oid,&n)); r.addOIDPointer(m.addIntegerHandler(u.peer,".1.3.6.1.2.1.1.3.0",&n)); Bytes second=oidWire; second[8]=3; CHECK(r.sendTo(u.peer)); CHECK(u.outgoing==message(join({binding({5,0}),tlv(0x30,join({second,{5,0}}))}),1,"public",0xa0));});
+    add("manager receives 484-byte response",[]{Manager m; UDP u; m.setUDP(&u); char storage[512]{}; char* ptr=storage; m.addStringHandler(u.peer,oid,&ptr); u.incoming=message(binding(tlv(4,Bytes(434,'x')))); CHECK(u.incoming.size()==484); m.loop(); CHECK(std::string(ptr)==std::string(434,'x'));});
+    // X.690 section 8.3: signed values require sign extension on decode.
+    add("negative INTEGER sign extension",[]{for(auto b:{Bytes{2,1,0xff},Bytes{2,1,0x80},Bytes{2,2,0xff,0x7f}}){IntegerType v; CHECK(v.fromBuffer(b.data())); long expected=b.size()==4 ? -129 : (b[2]==0xff ? -1 : -128); CHECK(v._value==static_cast<unsigned long>(expected));}},true);
+    add("Integer32 signed boundary encoding",[]{IntegerType v(static_cast<unsigned long>(INT32_MIN)); CHECK(encode(v)==Bytes({2,4,0x80,0,0,0}));},true);
+    add("Counter64 small value uses minimal contents",[]{Counter64 v(1); CHECK(encode(v)==Bytes({0x46,1,1}));},true);
+    add("Counter64 maximum has positive sign octet",[]{Counter64 v(UINT64_MAX); CHECK(encode(v)==Bytes({0x46,9,0,255,255,255,255,255,255,255,255}));},true);
+    add("unsigned application encoding preserves positive sign",[]{Counter32 v(UINT32_MAX); CHECK(encode(v)==Bytes({0x41,5,0,255,255,255,255}));},true);
+    add("binary OCTET STRING preserves embedded zero",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(v.getLength()==3); CHECK(memcmp(v._value,"a\0b",3)==0);},true);
+    add("binary OCTET STRING re-encoding preserves length",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(encode(v)==b);},true);
+    add("OID first arcs are decoded rather than assumed",[]{Bytes b{6,3,0x88,0x37,3}; OIDType v; CHECK(v.fromBuffer(b.data())); CHECK(std::string(v._value)==".2.999.3");},true);
+    add("OID maximum subidentifier encodes five base128 octets",[]{char oid[]=".1.3.4294967295"; OIDType v(oid); CHECK(encode(v)==Bytes({6,6,43,0x8f,0xff,0xff,0xff,0x7f}));},true);
+    add("indefinite sequence length rejected",[]{Bytes b{0x30,0x80,2,1,42,0,0}; ComplexType v(STRUCTURE); CHECK(!v.fromBuffer(b.data()));},true);
+    // RFC 3416 section 4.2.1 requires an empty list in the alternate tooBig response.
+    add("short tooBig response with empty bindings accepted",[]{auto b=message({},1,"public",0xa2,7,1,0); CHECK(b.size()<30); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.errorStatus==1 && r.errorIndex==0); CHECK(!r.varBinds || !r.varBinds->value);},true);
+    add("empty bindings accepted with long community",[]{auto b=message({},1,"long-community-name",0xa2,7,1,0); CHECK(b.size()>30); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.errorStatus==1); CHECK(!r.varBinds || !r.varBinds->value);},true);
+    add("PDU-level errors must not update values",[]{for(int version:{0,1}){Manager m; UDP u; m.setUDP(&u); int n=99; m.addIntegerHandler(u.peer,oid,&n); u.incoming=message(binding({2,1,42}),version,"public",0xa2,7,5,1); m.loop(); CHECK(n==99);}},true);
+    add("exception binding does not discard following success",[]{for(int tag:{0x80,0x81}){Manager m; UDP u; m.setUDP(&u); int missing=99,success=0; m.addIntegerHandler(u.peer,oid,&missing); m.addIntegerHandler(u.peer,".1.3.6.1.2.1.1.3.0",&success); Bytes second=oidWire; second[8]=3; u.incoming=message(join({binding(tlv(tag,{})),tlv(0x30,join({second,{2,1,42}}))})); m.loop(); CHECK(missing==99); CHECK(success==42);}},true);
+    add("response with matching outstanding request ID updates value",[]{Manager m; UDP u; m.setUDP(&u); int n=99; Request r; r.setUDP(&u); r.addOIDPointer(m.addIntegerHandler(u.peer,oid,&n)); CHECK(r.sendTo(u.peer)); u.incoming=message(binding({2,1,42}),1,"public",0xa2,7); m.loop(); CHECK(n==42);});
+    add("response must match outstanding request ID",[]{Manager m; UDP u; m.setUDP(&u); int n=99; Request r; r.setUDP(&u); r.addOIDPointer(m.addIntegerHandler(u.peer,oid,&n)); CHECK(r.sendTo(u.peer)); u.incoming=message(binding({2,1,42}),1,"public",0xa2,8); m.loop(); CHECK(n==99);},true);
+    add("sequence content exactly 256 has a two-octet length", [] {
+        ComplexType sequence(STRUCTURE);
+        Bytes content;
+        for (int i=0; i<128; ++i) {
+            sequence.addValueToList(new NullType());
+            content.insert(content.end(), {5,0});
+        }
+        CHECK(content.size()==256);
+        CHECK(encode(sequence)==tlv(0x30,content));
+    }, true);
+
+    add("sequence lengths either side of 256", [] {
+        for (size_t contentLength : {127,128,255,257}) {
+            const size_t payloadLength=contentLength-(contentLength<130 ? 2 : 3);
+            auto* value=new OctetType();
+            memset(value->_value,0,sizeof(value->_value));
+            memset(value->_value,'x',payloadLength);
+            ComplexType sequence(STRUCTURE);
+            sequence.addValueToList(value);
+            auto content=tlv(4,Bytes(payloadLength,'x'));
+            CHECK(content.size()==contentLength);
+            CHECK(encode(sequence)==tlv(0x30,content));
+        }
+    });
+
+    // Verify consumed-byte accounting keeps siblings aligned.
+    add("long-form nested child leaves sibling aligned", [] {
+        for (size_t size : {128,256,300}) {
+            auto bytes=tlv(0x30,join({tlv(0x30,tlv(4,Bytes(size,'x'))),{2,1,42}}));
+            ComplexType root(STRUCTURE);
+            CHECK(root.fromBuffer(bytes.data()));
+            CHECK(root._values && root._values->next);
+            CHECK(root._values->next->value->_type==INTEGER);
+            CHECK(static_cast<IntegerType*>(root._values->next->value)->_value==42);
+            CHECK(root._values->next->next==nullptr);
+            auto* child=static_cast<ComplexType*>(root._values->value);
+            CHECK(child->_values->value->_type==STRING);
+            CHECK(static_cast<OctetType*>(child->_values->value)->getLength()==size);
+        }
+    });
+
+    add("Counter64 handles a long-form length header", [] {
+        // Padding keeps the legacy unbounded decoder within allocated memory;
+        // it is outside the TLV and must not be treated as integer contents.
+        Bytes bytes(132,0);
+        bytes[0]=0x46; bytes[1]=0x81; bytes[2]=1; bytes[3]=42;
+        Counter64 value;
+        CHECK(value.fromBuffer(bytes.data()));
+        CHECK(value._value==42);
+        CHECK(value.getLength()==1);
+    }, true);
+
+    add("child length cannot exceed enclosing sequence", [] {
+        // Backing bytes exist, but the parent declares only three content bytes.
+        Bytes bytes{0x30,3,4,5,'a','b','c','d','e'};
+        ComplexType root(STRUCTURE);
+        CHECK(!root.fromBuffer(bytes.data()));
+    }, true);
+
+    add("dangling child tag must not be silently skipped", [] {
+        // The final INTEGER tag is inside the parent; its length is missing.
+        Bytes bytes{0x30,3,5,0,2,0};
+        ComplexType root(STRUCTURE);
+        CHECK(!root.fromBuffer(bytes.data()));
+    }, true);
+
+    add("three-byte negative INTEGER reaches signed callback", [] {
+        Manager manager;
+        UDP udp;
+        manager.setUDP(&udp);
+        int value=99;
+        manager.addIntegerHandler(udp.peer,oid,&value);
+        udp.incoming=message(binding({2,3,0xff,0xff,0x7f}));
+        manager.loop();
+        CHECK(value==-129);
+    }, true);
+
+    add("UDP bind failure is reported", [] {
+        Manager manager;
+        UDP udp;
+        udp.beginResult=0;
+        manager.setUDP(&udp);
+        CHECK(!manager.begin());
+    }, true);
+
+    add("embedded NUL community cannot match public prefix", [] {
+        Manager manager;
+        UDP udp;
+        manager.setUDP(&udp);
+        int value=99;
+        manager.addIntegerHandler(udp.peer,oid,&value);
+        auto valid=message(binding({2,1,42}));
+        // Replace the independently generated community field, then rewrap.
+        Bytes body(valid.begin()+2,valid.end());
+        body.erase(body.begin()+3,body.begin()+11);
+        auto community=tlv(4,{'p','u','b','l','i','c',0,'x'});
+        body.insert(body.begin()+3,community.begin(),community.end());
+        udp.incoming=tlv(0x30,body);
+        manager.loop();
+        CHECK(value==99);
+    }, true);
+
+    add("over-cap community must not match truncated prefix", [] {
+        Manager manager;
+        UDP udp;
+        manager.setUDP(&udp);
+        int value=99;
+        manager.addIntegerHandler(udp.peer,oid,&value);
+        std::string configured(253,'a');
+        manager._community=configured.c_str();
+        std::string incoming(SNMP_OCTETSTRING_MAX_LENGTH,'a');
+        incoming.back()='b';
+        auto bytes=message(binding({2,1,42}),1,incoming.c_str());
+        CHECK(bytes.size()<SNMP_PACKET_LENGTH*3);
+        // Exercise the public parser helper to isolate community handling from
+        // the separate 512-byte UDP read cap. Every byte of the TLV is present.
+        std::string hex;
+        for (auto byte : bytes) {
+            char token[4];
+            snprintf(token,sizeof(token),"%02x ",byte);
+            hex+=token;
+        }
+        manager.testParsePacket(String(hex.c_str()));
+        CHECK(value==99);
+    }, true);
+
+    add("incomplete UDP response cannot update a callback", [] {
+        Manager manager;
+        UDP udp;
+        manager.setUDP(&udp);
+        int value=99;
+        manager.addIntegerHandler(udp.peer,oid,&value);
+        udp.incoming=message(binding({2,1,42}));
+        udp.incoming.pop_back(); // INTEGER content is missing, lengths unchanged.
+        manager.loop();
+        CHECK(value==99);
+    }, true);
+
+    // The manager does not currently delete callbacks; check the public API
+    // supports callers deleting them through the base type.
+    add("callback base supports safe polymorphic destruction", [] {
+        CHECK(std::has_virtual_destructor<ValueCallback>::value);
+    }, true);
+
+    add("nested BER ownership destroys each child once", [] {
+        struct TrackedInteger : IntegerType {
+            int& destroyed;
+            explicit TrackedInteger(int& count) : IntegerType(42), destroyed(count) {}
+            ~TrackedInteger() { ++destroyed; }
+        };
+        int destroyed=0;
+        {
+            ComplexType root(STRUCTURE);
+            auto* nested=new ComplexType(STRUCTURE);
+            nested->addValueToList(new TrackedInteger(destroyed));
+            root.addValueToList(nested);
+            root.addValueToList(new TrackedInteger(destroyed));
+        }
+        CHECK(destroyed==2);
+    });
+    add("long OID request and response preserve callback identity", [] {
+        for (size_t arcs : {24, 60}) {
+            std::string name=".1.3";
+            Bytes contents{43};
+            for (size_t i=0; i<arcs; ++i) { name+=".1"; contents.push_back(1); }
+            CHECK(name.size()>50 && name.size()<MAX_OID_LENGTH);
+            Manager manager;
+            UDP udp;
+            int value=99;
+            manager.setUDP(&udp);
+            auto* callback=manager.addIntegerHandler(udp.peer,name.c_str(),&value);
+            CHECK(manager.findCallback(udp.peer,name.c_str())==callback);
+            Request request;
+            request.setUDP(&udp);
+            request.addOIDPointer(callback);
+            CHECK(request.sendTo(udp.peer));
+            auto wireOID=tlv(6,contents);
+            CHECK(udp.outgoing==message(tlv(0x30,join({wireOID,{5,0}})),1,"public",0xa0));
+            udp.incoming=message(tlv(0x30,join({wireOID,{2,1,42}})));
+            manager.loop();
+            CHECK(value==42);
+        }
+    });
+    add("same OID responses update only the matching device", [] {
+        Manager manager;
+        UDP udp;
+        manager.setUDP(&udp);
+        IPAddress first(192,0,2,1), second(192,0,2,2);
+        int a=99,b=99;
+        manager.addIntegerHandler(first,oid,&a);
+        manager.addIntegerHandler(second,oid,&b);
+        udp.peer=second;
+        udp.incoming=message(binding({2,1,42}));
+        manager.loop();
+        CHECK(a==99 && b==42);
+        udp.peer=first;
+        udp.incoming=message(binding({2,1,7}));
+        manager.loop();
+        CHECK(a==7 && b==42);
+    });
+    add("unregistered OID response leaves callbacks intact", [] {
+        Manager manager;
+        UDP udp;
+        manager.setUDP(&udp);
+        int value=99;
+        manager.addIntegerHandler(udp.peer,oid,&value);
+        Bytes other=oidWire;
+        other[8]=2;
+        udp.incoming=message(tlv(0x30,join({other,{2,1,42}})));
+        manager.loop();
+        CHECK(value==99);
+        udp.incoming=message(binding({2,1,7}));
+        manager.loop();
+        CHECK(value==7);
+    });
+    add("OID four-octet subidentifier encoding", [] {
+        char name[]=".1.3.268435455.0";
+        OIDType value(name);
+        CHECK(encode(value)==Bytes({6,6,43,0xff,0xff,0xff,0x7f,0}));
+    });
+    add("OID four-octet boundary encoding", [] {
+        char name[]=".1.3.2097152.0";
+        OIDType value(name);
+        CHECK(encode(value)==Bytes({6,6,43,0x81,0x80,0x80,0,0}));
+    }, true);
+    add("OID ten-digit segment encoding preserves following arc", [] {
+        // A nonterminal segment also exercises copying the trailing dot.
+        char name[]=".1.3.1000000000.0";
+        OIDType value(name);
+        CHECK(encode(value)==Bytes({6,7,43,0x83,0xdc,0xeb,0x94,0,0}));
+    }, true);
+    add("OID unsigned ten-digit segment decoding", [] {
+        Bytes bytes{6,7,43,0x8f,0xff,0xff,0xff,0x7f,0};
+        OIDType value;
+        CHECK(value.fromBuffer(bytes.data()));
+        CHECK(std::string(value._value)==".1.3.4294967295.0");
+    }, true);
+
+#ifdef SNMP_GOOGLETEST
+    testing::InitGoogleTest(&argc, argv);
+    for (const auto& test : tests) {
+        std::string name=test.name;
+        for (char& c : name) {
+            if (!std::isalnum(static_cast<unsigned char>(c))) c='_';
+        }
+        testing::RegisterTest(test.regression ? "Regression" : "Baseline",
+            name.c_str(), nullptr, nullptr, __FILE__, __LINE__,
+            [test]() -> IsolatedCase* { return new IsolatedCase(test.run); });
+    }
+    // PlatformIO derives failure status from GoogleTest output. A nonzero
+    // executable exit adds a spurious infrastructure error to its case count.
+    const int result=RUN_ALL_TESTS();
+    (void)result;
+    std::cout.flush();
+    std::cerr.flush();
+    return 0;
+#else
+    int failed=0, count=0;
+    // Isolate every case so malformed inputs cannot stop the rest of the suite.
+    // A crash, sanitizer abort, timeout, or assertion always counts as failure.
+    for(auto& t:tests) if(t.regression==regressions) {
+        ++count;
+        std::cout.flush(); std::cerr.flush();
+        pid_t child=fork();
+        if(child==0) {
+            alarm(5);
+            try { t.run(); std::cout.flush(); _exit(0); }
+            catch(const std::exception& e) { std::cerr<<"  "<<e.what()<<std::endl; _exit(1); }
+        }
+        int status=0;
+        bool ok=child>0 && waitpid(child,&status,0)==child && WIFEXITED(status) && WEXITSTATUS(status)==0;
+        if(!ok) ++failed;
+        std::cout<<(ok ? "PASS " : "FAIL ")<<t.name;
+        if(child>0 && WIFSIGNALED(status)) std::cout<<" (signal "<<WTERMSIG(status)<<")";
+        std::cout<<std::endl;
+    }
+    std::cout<<count<<" tests, "<<failed<<" failures"<<std::endl;
+    return failed?1:0;
+#endif
+}
