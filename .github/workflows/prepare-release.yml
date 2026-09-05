@@ -1,0 +1,54 @@
+name: Prepare release PR
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to prepare (for example 1.2.2 or 2.0.0-rc.1)'
+        required: true
+        type: string
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+concurrency:
+  group: prepare-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Prepare version and notes
+        env:
+          VERSION: ${{ inputs.version }}
+          RELEASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          python3 scripts/release.py prepare --version "$VERSION" --branch "$RELEASE_BRANCH"
+          if git rev-parse --verify "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo 'This release tag already exists.' >&2
+            exit 1
+          fi
+          python3 scripts/release.py check --version "$VERSION" --branch "$RELEASE_BRANCH"
+          python3 -m unittest discover -s tests/release
+      - name: Open release PR and request CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          RELEASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          PREPARE_BRANCH="prepare/v$VERSION"
+          git switch -c "$PREPARE_BRANCH"
+          git add library.json library.properties README.md CHANGELOG.md
+          git commit -m "Prepare release $VERSION"
+          git push origin "$PREPARE_BRANCH"
+          python3 scripts/release.py notes --version "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+          gh pr create --base "$RELEASE_BRANCH" --head "$PREPARE_BRANCH" --title "Release $VERSION" --body-file "$RUNNER_TEMP/release-notes.md"
+          # GITHUB_TOKEN-created PRs do not trigger ordinary push/PR workflows.
+          gh workflow run compatibility.yml --ref "$PREPARE_BRANCH"

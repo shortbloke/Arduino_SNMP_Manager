@@ -1,0 +1,50 @@
+name: Publish release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Prepared version already merged into the selected release line'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: publish-release-${{ inputs.version }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    uses: ./.github/workflows/compatibility.yml
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Check and publish the validated commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          RELEASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          python3 scripts/release.py check --version "$VERSION" --branch "$RELEASE_BRANCH"
+          if git rev-parse --verify "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo 'Refusing to move or republish an existing tag.' >&2
+            exit 1
+          fi
+          python3 scripts/release.py notes --version "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "v$VERSION" "$GITHUB_SHA" -m "SNMP Manager $VERSION"
+          git push origin "refs/tags/v$VERSION"
+          # Maintenance releases must not replace the latest stable 2.x release.
+          case "$VERSION" in
+            *-*) gh release create "v$VERSION" --verify-tag --title "v$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" --prerelease --latest=false ;;
+            1.*) gh release create "v$VERSION" --verify-tag --title "v$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" --latest=false ;;
+            2.*) gh release create "v$VERSION" --verify-tag --title "v$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" --latest ;;
+          esac

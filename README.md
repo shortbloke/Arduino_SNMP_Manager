@@ -343,3 +343,8 @@ I'd love to hear about projects that find this library useful.
 ## Acknowledgements
 
 This project is derived from an [SNMP Agent project](https://github.com/fusionps/Arduino_SNMP). With Manager functionality adapted from work by [Niich's fork](https://github.com/Niich/Arduino_SNMP).
+
+## Maintenance and releases
+
+See [release automation](docs/RELEASING.md) for the 1.x maintenance and 2.x
+development branches, release PRs, and validated publication.
