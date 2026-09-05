@@ -173,12 +173,19 @@ void getSNMP()
 
 void printVariableValues()
 {
-    Serial.printf("Bandwidth In Utilisation %%: %.1f\n", bandwidthInUtilPct);
-    Serial.printf("ifSpeedResponse: %d\n", ifSpeedResponse);
-    Serial.printf("inOctetsResponse: %d\n", inOctetsResponse);
-    Serial.printf("servicesResponse: %d\n", servicesResponse);
-    Serial.printf("sysNameResponse: %s\n", sysNameResponse);
-    Serial.printf("Uptime: %d\n", uptime);
-    Serial.printf("HCCounter: %llu\n", hcCounter);
+    Serial.print("Bandwidth In Utilisation %: ");
+    Serial.println(bandwidthInUtilPct, 1);
+    Serial.print("ifSpeedResponse: ");
+    Serial.println(ifSpeedResponse);
+    Serial.print("inOctetsResponse: ");
+    Serial.println(inOctetsResponse);
+    Serial.print("servicesResponse: ");
+    Serial.println(servicesResponse);
+    Serial.print("sysNameResponse: ");
+    Serial.println(sysNameResponse);
+    Serial.print("Uptime: ");
+    Serial.println(uptime);
+    Serial.print("HCCounter: ");
+    Serial.println(hcCounter);
     Serial.println("----------------------");
 }
