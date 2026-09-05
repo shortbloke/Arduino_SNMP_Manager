@@ -238,6 +238,12 @@ bool SNMPManager::parsePacket()
             Serial.print(F("[DEBUG] SNMP Version: "));
             Serial.println(snmpgetresponse->version);
 #endif
+            // An error response does not provide successful result values.
+            if (snmpgetresponse->errorStatus != 0)
+            {
+                delete snmpgetresponse;
+                return false;
+            }
             int varBindIndex = 1;
             snmpgetresponse->varBindsCursor = snmpgetresponse->varBinds;
             while (true)

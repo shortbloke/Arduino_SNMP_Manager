@@ -29,7 +29,7 @@ The RFC extension added 15 failing cases, bringing the regression group to 22 be
 | OIDs | Decoding assumes .1.3 even for .2.999.3; encoding UINT32_MAX loses the required fifth base-128 octet. |
 | BER lengths | An indefinite sequence is accepted even though SNMP forbids it. |
 | Empty lists | A short tooBig response is rejected by the size heuristic; a valid long-community variant reaches a null dereference. Two separate cases. |
-| PDU errors | genErr responses update destination values despite nonzero error-status (both v1 and v2c fixtures). |
+| PDU errors | **Fixed:** nonzero error-status prevents all callback updates. Baseline coverage checks both v1 and v2c responses and subsequent successful dispatch. |
 | Per-binding exceptions | A missing object/instance prevents a subsequent successful binding from updating. |
 | Request correlation | After sending request 7, response 8 updates its destination. The public API currently has no outstanding-request integration. |
 
@@ -46,7 +46,7 @@ These are not counted as executed regression cases.
 - **Medium — OID handler:** `addOIDHandler` allocates but never copies the requested OID; response dispatch has no OID update case.
 - **Medium — ownership:** manager/request classes have no destructors for their allocations. `SNMPGet::build` drops an existing packet without deleting it, and repeated `SNMPGetResponse::parseFrom` neither resets parsing state nor releases the preceding packet.
 - **Medium — portability:** OID decoding formats a `long` with `%d`, confirmed by a compiler warning. Integer storage uses platform-dependent `unsigned long`; negative INTEGER decoding lacks sign extension. OID handling assumes a `.1.3` root.
-- **Medium — transport results:** send ignores beginPacket/write failures; loop returns true even when response parsing fails. Error-status and request-ID correlation are not used to guard callback updates.
+- **Medium — transport results:** send ignores beginPacket/write failures; loop returns true even when response parsing fails. Request-ID correlation is not used to guard callback updates.
 
 ## Issue #66 comparison
 
@@ -115,3 +115,9 @@ Validation: `make -C tests/native check` reports 37 baseline passes and 32 remai
 `parsePacket()` now rejects a response when its decoded version is neither v1 nor v2c. Previously the version rejection expression was always false. The existing regression is promoted to baseline and expanded to reject wire values 2, 3, and 127, then accept valid v1/v2c responses after each rejection.
 
 Validation: `make -C tests/native check` reports 38 baseline passes and 31 remaining regression failures. `make -C tests/native sanitize` reports 38 baseline passes with ASan/UBSan. The complete check still returns nonzero for the remaining defects.
+
+## PDU error-status fix
+
+`parsePacket()` now stops before callback dispatch when a parsed response has nonzero error-status. The promoted baseline check exercises error statuses 1–5 for v1 and v2c, verifies both destinations remain unchanged, and confirms a subsequent successful response updates both.
+
+Validation: `make -C tests/native check` reports 39 baseline passes and 30 remaining regression failures. `make -C tests/native sanitize` reports 39 baseline passes with ASan/UBSan. Empty-varbind parsing defects remain separate regressions; this guard applies after successful parsing.

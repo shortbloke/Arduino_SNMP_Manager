@@ -158,7 +158,27 @@ int main(int argc,char** argv) {
     // RFC 3416 section 4.2.1 requires an empty list in the alternate tooBig response.
     add("short tooBig response with empty bindings accepted",[]{auto b=message({},1,"public",0xa2,7,1,0); CHECK(b.size()<30); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.errorStatus==1 && r.errorIndex==0); CHECK(!r.varBinds || !r.varBinds->value);},true);
     add("empty bindings accepted with long community",[]{auto b=message({},1,"long-community-name",0xa2,7,1,0); CHECK(b.size()>30); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.errorStatus==1); CHECK(!r.varBinds || !r.varBinds->value);},true);
-    add("PDU-level errors must not update values",[]{for(int version:{0,1}){Manager m; UDP u; m.setUDP(&u); int n=99; m.addIntegerHandler(u.peer,oid,&n); u.incoming=message(binding({2,1,42}),version,"public",0xa2,7,5,1); m.loop(); CHECK(n==99);}},true);
+    add("PDU-level errors must not update values", [] {
+        for (int version : {0, 1}) {
+            Manager manager;
+            UDP udp;
+            manager.setUDP(&udp);
+            int first=99,second=99;
+            manager.addIntegerHandler(udp.peer,oid,&first);
+            manager.addIntegerHandler(udp.peer,".1.3.6.1.2.1.1.3.0",&second);
+            Bytes other=oidWire;
+            other[8]=3;
+            auto bindings=join({binding({2,1,42}),tlv(0x30,join({other,{2,1,7}}))});
+            for (int error : {1, 2, 3, 4, 5}) {
+                udp.incoming=message(bindings,version,"public",0xa2,7,error,error==1 ? 0 : 2);
+                manager.loop();
+                CHECK(first==99 && second==99);
+            }
+            udp.incoming=message(bindings,version);
+            manager.loop();
+            CHECK(first==42 && second==7);
+        }
+    });
     add("exception binding does not discard following success",[]{for(int tag:{0x80,0x81}){Manager m; UDP u; m.setUDP(&u); int missing=99,success=0; m.addIntegerHandler(u.peer,oid,&missing); m.addIntegerHandler(u.peer,".1.3.6.1.2.1.1.3.0",&success); Bytes second=oidWire; second[8]=3; u.incoming=message(join({binding(tlv(tag,{})),tlv(0x30,join({second,{2,1,42}}))})); m.loop(); CHECK(missing==99); CHECK(success==42);}},true);
     add("response with matching outstanding request ID updates value",[]{Manager m; UDP u; m.setUDP(&u); int n=99; Request r; r.setUDP(&u); r.addOIDPointer(m.addIntegerHandler(u.peer,oid,&n)); CHECK(r.sendTo(u.peer)); u.incoming=message(binding({2,1,42}),1,"public",0xa2,7); m.loop(); CHECK(n==42);});
     add("response must match outstanding request ID",[]{Manager m; UDP u; m.setUDP(&u); int n=99; Request r; r.setUDP(&u); r.addOIDPointer(m.addIntegerHandler(u.peer,oid,&n)); CHECK(r.sendTo(u.peer)); u.incoming=message(binding({2,1,42}),1,"public",0xa2,8); m.loop(); CHECK(n==99);},true);
