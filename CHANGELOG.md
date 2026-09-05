@@ -1,5 +1,19 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## 2.0.0
+
+- Split declarations and implementations into independently includable headers and compiled source files.
+- Added bounded BER parsing/serialization and bounded text, binary OCTET STRING, Opaque, and OID callbacks.
+- Use fixed-width callback types for SNMP Integer32, Counter32, Gauge32, TimeTicks, and Counter64 values.
+- Select request versions with `SNMPVersion::Version1` or `SNMPVersion::Version2c` and use signed 32-bit request IDs consistently.
+- Correlate responses with outstanding request IDs, peers, and transports, with explicit cancellation for timed-out requests.
+- Correct BER integer, Counter64, OID, sequence-length, response validation, exception, and ownership behavior.
+- Remove the ineffective `SNMPGet::setIP()` API and require capacities for string and OID callback destinations.
+- Stop defining the transport-owned `UDP_TX_PACKET_MAX_SIZE` macro.
+- Add native, sanitizer, leak, configuration, example, and ESP-family compile checks.
+
+See [MIGRATION.md](MIGRATION.md) for required application changes.
+
 ## 1.1.13
 - Fix crash when using OIDs with 10 digits. Contributor: [AlphaArslan](https://github.com/AlphaArslan)
 

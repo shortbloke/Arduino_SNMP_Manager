@@ -1,5 +1,7 @@
 # SNMP Manager For ESP8266/ESP32/Arduino (and more)
 
+Version 2.0 contains breaking API and build changes. Existing users should read the [migration guide](MIGRATION.md).
+
 An SNMP Manager for network-capable ESP8266 and ESP32 Arduino platforms, providing SNMP GetRequest support for specified OIDs.
 
 Validated build targets include NodeMCU ESP8266, ESP32, ESP32-C3, and Arduino Nano ESP32. Other modern 32-bit Arduino platforms can be added as tested targets; older AVR platforms are not supported. See [embedded compatibility builds](tests/embedded/README.md).
@@ -30,7 +32,7 @@ If you find this useful, consider providing some support:
 
 Run `pio test -e native` to execute all native tests through PlatformIO, or `pio test -e native -a "--gtest_filter=Ber.*"` for BER tests. The suite includes checks for previously reported defects. No Arduino board is required. The standalone Make runner is also retained. See [native test documentation](tests/native/README.md) for coverage, sanitizer checks, and behavior groups.
 
-When a callback is included in a successful `SNMPGet::sendTo`, its responses must match a pending request ID, peer, and UDP transport. Each callback supports `SNMP_MAX_PENDING_REQUESTS` outstanding requests (default 4). A send that needs another slot fails before transmission when the slots are full. Retransmission with the same ID reuses its slot; matching replies consume it. Call `callback->clearPendingRequests()` to abandon timed-out requests. Use distinct IDs while earlier replies may still arrive. Callbacks never included in a successful send retain legacy direct-response handling.
+When a callback is included in a successful `SNMPGet::sendTo`, its responses must match a pending request ID, peer, and UDP transport. Each callback supports `SNMP_MAX_PENDING_REQUESTS` outstanding requests (default 4). A send that needs another slot fails before transmission when the slots are full. Retransmission with the same ID reuses its slot; matching replies consume it. Call `request.cancelPendingRequests()` while its callbacks are attached to abandon timed-out requests, or clear one callback directly. Use distinct IDs while earlier replies may still arrive. Callbacks never included in a successful send retain direct-response handling.
 
 ## Buffer safety and ownership
 
@@ -62,10 +64,11 @@ SNMPManager snmpManager = SNMPManager("public");
 
 ### SNMPGet
 
-An SNMPGet object is created to make SNMP GetRequest calls (from UDP port 161 (by default)). This is initialised with the SNMP community string and an SNMP version. Note SNMPv1 = 0, SNMPv2 = 1. The port scan be changed if required using `setPort(<port number>)`
+An SNMPGet object is created to make SNMP GetRequest calls (to UDP port 161 by default). It is initialized with the SNMP community string and `SNMPVersion::Version1` or `SNMPVersion::Version2c`. The destination port can be changed using `setPort(<port number>)`.
 
 ```cpp
-SNMPGet snmpRequest = SNMPGet("public", 1);
+SNMPGet snmpRequest = SNMPGet("public", SNMPVersion::Version2c);
+int32_t nextRequestId = 1;
 ```
 
 ### Handlers and Callbacks
@@ -96,10 +99,11 @@ void getSNMP()
   {
     // Send SNMP Get request
     snmpRequest.addOIDPointer(callbackSysName);
-    snmpRequest.setIP(WiFi.localIP()); //IP of the arduino
     snmpRequest.setUDP(&udp);
-    snmpRequest.setRequestID(rand() % 5555);
-    snmpRequest.sendTo(router);
+    snmpRequest.cancelPendingRequests(); // Previous poll has timed out.
+    snmpRequest.setRequestID(nextRequestId++);
+    if (!snmpRequest.sendTo(router))
+      Serial.println("SNMP request could not be sent");
     snmpRequest.clearOIDList();
     // Display response (first call might be empty)
     Serial.print("sysNameResponse: ");
@@ -223,7 +227,7 @@ This project a derived from an [SNMP Agent project](https://github.com/fusionps/
 
 Use `make -C tests/native check` for normal/debug regressions and strict C++11 multi-file compatibility. The compatibility executable builds with exceptions and RTTI disabled. `pio run -d tests/embedded` builds the real board toolchains; CI runs the same checks.
 
-Source formatting uses clang-format 19.1.7 and the checked-in `.clang-format`. Public names are retained for source compatibility. Internal pending-request state is private; legacy request summary fields are informational.
+Source formatting uses clang-format 19.1.7 and the checked-in `.clang-format`. Version 2.0 API changes are documented in the migration guide. Internal pending-request state is private; request summary fields are informational.
 
 Packet buffers use `SNMP_PACKET_LENGTH` directly (512 bytes by default, 1500 on ESP32). Configure this limit as described below if the application requires another value. Registration APIs return null on allocation failure; `addOIDPointer`, `addHandler`, and request building return false on failure. `addHandler` adopts a supplied callback only on success; `addValueToList` consumes a supplied BER child even on failure. Pending sends are not registered until transmission succeeds. Constructors can remain empty after allocation failure, and subsequent operations report failure or retry allocation safely.
 
