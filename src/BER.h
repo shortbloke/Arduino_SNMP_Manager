@@ -266,6 +266,36 @@ private:
     bool valid = true;
 };
 
+// Opaque and exception values are primitive payloads, never nested TLVs.
+class RawType : public BER_CONTAINER
+{
+public:
+    explicit RawType(ASN_TYPE type = OPAQUE) : BER_CONTAINER(true,type) {}
+    unsigned char _value[SNMP_OCTETSTRING_MAX_LENGTH] = {};
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
+    {
+        size_t header,length;
+        if (!readBERHeader(buf,available,header,length) || buf[0] != _type || length > sizeof(_value)) return false;
+        if (_type != OPAQUE && length != 0) return false;
+        memcpy(_value,buf+header,length);
+        _length=length;
+        return true;
+    }
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
+    {
+        size_t header=_length<128 ? 2 : (_length<256 ? 3 : 4);
+        if (header+_length>capacity) return -1;
+        if (!buf) return header+_length;
+        buf[0]=_type;
+        if (header==2) buf[1]=_length;
+        else if (header==3) { buf[1]=0x81;buf[2]=_length; }
+        else { buf[1]=0x82;buf[2]=_length>>8;buf[3]=_length; }
+        memcpy(buf+header,_value,_length);
+        return header+_length;
+    }
+    int getLength() { return _length; }
+};
+
 class OIDType : public BER_CONTAINER
 {
 public:
@@ -584,14 +614,14 @@ public:
             case COUNTER64:
                 newObj = new Counter64();
                 break;
-                // Unhandled tags currently fall back to constructed decoding.
-
-            default:
-#ifdef DEBUG
-                Serial.println("[DEBUG_BER] default new ComplexType");
-#endif
-                newObj = new ComplexType(valueType);
+            case OPAQUE:
+            case NOSUCHOBJECT:
+            case NOSUCHINSTANCE:
+            case ENDOFMIBVIEW:
+                newObj = new RawType(valueType);
                 break;
+            default:
+                return false;
             }
             bool valid;
             if (!newObj->_isPrimitive)

@@ -128,6 +128,16 @@ int main(int argc,char** argv) {
         CHECK(!request.sendTo(udp.peer));
         CHECK(udp.packets==0);
     });
+    add("Opaque payload is preserved without nested decoding", [] {
+        auto bytes=message(binding(tlv(0x44,{0xff,0,0x30,0x80,42})));
+        SNMPGetResponse response;
+        CHECK(response.parseFrom(bytes.data(),bytes.size()));
+        CHECK(response.varBinds->value->type==OPAQUE);
+        CHECK(response.varBinds->value->value->_isPrimitive);
+        CHECK(encode(*response.varBinds->value->value)==Bytes({0x44,5,0xff,0,0x30,0x80,42}));
+        auto unknown=message(binding({0x47,0}));
+        CHECK(!response.parseFrom(unknown.data(),unknown.size()));
+    });
     add("default manager starts without transport", [] {
         SNMPManager manager;
         CHECK(manager._udp==nullptr);
