@@ -46,7 +46,7 @@ These are not counted as executed regression cases.
 - **Medium — OID handler:** `addOIDHandler` allocates but never copies the requested OID; response dispatch has no OID update case.
 - **Medium — ownership:** manager/request classes have no destructors for their allocations. `SNMPGet::build` drops an existing packet without deleting it, and repeated `SNMPGetResponse::parseFrom` neither resets parsing state nor releases the preceding packet.
 - **Medium — portability:** OID decoding formats a `long` with `%d`, confirmed by a compiler warning. Integer storage uses platform-dependent `unsigned long`; negative INTEGER decoding lacks sign extension. OID handling assumes a `.1.3` root.
-- **Medium — transport results:** send ignores beginPacket/write failures; begin ignores the UDP begin result; loop returns true even when response parsing fails. Error-status and request-ID correlation are not used to guard callback updates.
+- **Medium — transport results:** send ignores beginPacket/write failures; loop returns true even when response parsing fails. Error-status and request-ID correlation are not used to guard callback updates.
 
 ## Issue #66 comparison
 
@@ -58,7 +58,7 @@ Inspected [issue #66](https://github.com/0neblock/Arduino_SNMP/issues/66) and [f
 | Long-form header accounting | Nested sequence/sibling alignment passes. Counter64 long-form length decoding fails here. Local parsers return bool, so the fork's incorrect consumed-byte return is not literally present. |
 | Defensive parser bounds | Child overrun of its enclosing sequence, a dangling child tag, and a truncated UDP response are accepted. Added three failures. |
 | Three-byte negative integer | Callback gets an incorrect positive number. Related sign-extension defect; the fork's specific compound-assignment expression is absent. |
-| UDP initialization | Failed bind is reported as success. Fake UDP now supports begin failure injection. |
+| UDP initialization | **Fixed:** `begin()` returns the UDP bind result. The baseline checks failure and a successful retry on port 162. Fake UDP supports begin failure injection. |
 | Community truncation | A 1024-byte incoming community matches its 253-byte prefix after lossy decoding. The test uses the public parser helper to isolate this from UDP packet-size truncation. |
 | Embedded-zero community | A distinct community beginning with `public` followed by NUL and another byte is accepted. Related comparison weakness, not claimed to be the exact fork fix. |
 | Callback destruction | A type-trait regression confirms no virtual base destructor. This is a latent public-API hazard, not evidence of an existing manager deletion path: callbacks currently leak rather than being polymorphically deleted. |
@@ -103,3 +103,9 @@ No hardware or real SNMP agent was used. See [README.md](README.md) for commands
 String and sequence serialization now select a two-octet length at 256 bytes (`82 01 00`). Both existing exact-wire regressions are promoted to baseline; neighboring length checks remain passing.
 
 Validation: `make -C tests/native check` reports 36 baseline passes and 33 remaining regression failures. `make -C tests/native sanitize` reports 36 baseline passes with ASan/UBSan. The complete check still returns nonzero for the remaining defects.
+
+## UDP bind-result fix
+
+`SNMPManager::begin()` now returns false when the transport fails to bind, instead of unconditionally reporting success. Its regression check is promoted to baseline and also verifies a successful retry on port 162.
+
+Validation: `make -C tests/native check` reports 37 baseline passes and 32 remaining regression failures. `make -C tests/native sanitize` reports 37 baseline passes with ASan/UBSan. The complete check still returns nonzero for the remaining defects.

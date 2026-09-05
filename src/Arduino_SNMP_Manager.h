@@ -143,8 +143,7 @@ bool SNMPManager::begin()
 {
     if (!_udp)
         return false;
-    _udp->begin(162);
-    return true;
+    return _udp->begin(162) != 0;
 }
 
 bool SNMPManager::loop()

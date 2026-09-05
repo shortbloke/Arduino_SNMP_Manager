@@ -227,7 +227,10 @@ int main(int argc,char** argv) {
         udp.beginResult=0;
         manager.setUDP(&udp);
         CHECK(!manager.begin());
-    }, true);
+        udp.beginResult=1;
+        CHECK(manager.begin());
+        CHECK(udp.listenPort==162);
+    });
 
     add("embedded NUL community cannot match public prefix", [] {
         Manager manager;
