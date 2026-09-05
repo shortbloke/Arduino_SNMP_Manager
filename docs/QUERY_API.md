@@ -12,8 +12,14 @@ traps/informs are outside this implementation.
   reads over one client.
 - [Interface traffic](../examples/Interface_Traffic/Interface_Traffic.ino): discover
   interface indices and read names plus incoming/outgoing counters.
+- [Typed walk](../examples/Walk_Values/Walk_Values.ino): GETNEXT/GETBULK and value primitives.
+- [Host storage](../examples/Host_Storage/Host_Storage.ino): server/NAS storage sizes.
+- [Printer supplies](../examples/Printer_Supplies/Printer_Supplies.ino): compound indices and supply states.
+- [Write and read back](../examples/Set_Location/Set_Location.ino): explicit SET with timeout handling.
+- [Notifications](../examples/Receive_Notifications/Receive_Notifications.ino): v1/v2c traps and v2c INFORM acceptance.
 
-All three compile on ESP8266 and ESP32. Configure Wi-Fi credentials, device
+See the [example guide](../examples/README.md) for operation and value-type coverage.
+These query API examples compile on ESP8266 and ESP32. Configure Wi-Fi credentials, device
 addresses, and communities before uploading. Network setup belongs to the sketch.
 
 ```cpp

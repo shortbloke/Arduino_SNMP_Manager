@@ -145,3 +145,8 @@ It runs with the default and custom configurations; smaller configured limits ar
 checked for explicit rejection. These are synthetic fixtures based on MIB definitions,
 not interoperability checks against physical agents. MIB payload lifetimes also run
 in the lifecycle/leak executable.
+
+The [example guide](../../examples/README.md) maps protocol operations and value types
+to compiling sketches, including server storage, printer supplies, SET read-back,
+and notification reception. The examples build matrix checks each new sketch on
+ESP8266 and ESP32 through `pio run -d tests/examples`.

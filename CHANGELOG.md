@@ -2,6 +2,8 @@
 
 ## 2.0.0
 
+- Add compiling examples for typed walks, host storage, printer supplies, explicit SET/read-back, and trap/INFORM reception, with an operation and value-type guide.
+
 - Separate owned query payload capacity from OID capacity, retain shared payloads across polls, and increase default dotted OID storage to accommodate longer compound indices.
 - Add checked common MIB value conversions and regression fixtures for long interface descriptions, IPv6 TCP indices, payload ownership, and allocation failures.
 

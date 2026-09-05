@@ -2,7 +2,7 @@
 
 Version 2.0 contains breaking API and build changes. Existing users should read the [migration guide](MIGRATION.md).
 
-The new [device and query API](docs/QUERY_API.md) provides checked IPv4 strings, owned results, batched reads, table discovery, writes, and notification reception. Start with the [simple read](examples/Simple_Read/Simple_Read.ino) or [interface traffic](examples/Interface_Traffic/Interface_Traffic.ino) example. The existing handler API remains available.
+The new [device and query API](docs/QUERY_API.md) provides checked IPv4 strings, owned results, batched reads, table discovery, writes, and notification reception. Start with the [simple read](examples/Simple_Read/Simple_Read.ino) or [interface traffic](examples/Interface_Traffic/Interface_Traffic.ino) example. See the [example guide](examples/README.md) for every supported operation, value types, and server/NAS and printer examples. The existing handler API remains available.
 
 An SNMP Manager for network-capable ESP8266 and ESP32 Arduino platforms, providing SNMPv1 and SNMPv2c manager operations.
 
