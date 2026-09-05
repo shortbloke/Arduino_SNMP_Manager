@@ -38,15 +38,11 @@ def current(root):
 
 
 def check_branch(branch, version):
-    # master may advance to 2.x; maintenance lines never change major version.
-    expected = {"main": 2, "release/1.x": 1, "release/2.x": 2, "feature/friendly-query-api": 2}
-    if branch not in {"master", *expected}:
-        raise ValueError(
-            "Release only from main, master, release/1.x, release/2.x or feature/friendly-query-api"
-        )
-    if parts(version)[0] not in (1, 2) or (
-        branch in expected and parts(version)[0] != expected[branch]
-    ):
+    # Only the active development and maintenance lines can produce releases.
+    expected = {"main": 2, "release/1.x": 1}
+    if branch not in expected:
+        raise ValueError("Release only from main or release/1.x")
+    if parts(version)[0] != expected[branch]:
         raise ValueError("Version does not match the release line")
 
 
