@@ -6,7 +6,7 @@ LIB_SOURCES := $(wildcard ../../src/*.cpp)
 LIB_OBJECTS := $(patsubst ../../src/%.cpp,$(BUILD)/lib/%.o,$(LIB_SOURCES))
 SHARED_SOURCES := $(wildcard cases/*.cpp support/*.cpp) stubs/Arduino.cpp
 TEST_OBJECTS := $(patsubst %.cpp,$(BUILD)/native/%.o,$(SHARED_SOURCES) runner.cpp)
-LIFECYCLE_SOURCES := lifecycle/main.cpp cases/ownership_tests.cpp cases/responses_tests.cpp cases/mib_tests.cpp support/mock_agent.cpp support/fixtures.cpp support/allocations.cpp stubs/Arduino.cpp
+LIFECYCLE_SOURCES := lifecycle/main.cpp cases/ownership_tests.cpp cases/responses_tests.cpp cases/mib_tests.cpp cases/heap_tests.cpp support/mock_agent.cpp support/fixtures.cpp support/allocations.cpp stubs/Arduino.cpp
 LIFECYCLE_OBJECTS := $(patsubst %.cpp,$(BUILD)/native/%.o,$(LIFECYCLE_SOURCES))
 COMPAT_OBJECTS := $(patsubst %.cpp,$(BUILD)/native/%.o,compatibility/main.cpp compatibility/other.cpp stubs/Arduino.cpp)
 
@@ -51,6 +51,7 @@ configuration-run: $(BUILD)/tests
 	./$(BUILD)/tests --group Client
 	./$(BUILD)/tests --group Agent
 	./$(BUILD)/tests --group MIB
+	./$(BUILD)/tests --group Heap
 
 .PHONY: lifecycle leaks
 $(BUILD)/lifecycle: $(LIFECYCLE_OBJECTS) $(BUILD)/libsnmp.a

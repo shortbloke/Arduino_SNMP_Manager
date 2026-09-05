@@ -22,3 +22,5 @@ void registerClientTests(std::vector<Test> &tests);
 void registerAgentTests(std::vector<Test> &tests);
 
 void registerMIBTests(std::vector<Test> &tests);
+
+void registerHeapTests(std::vector<Test> &tests);

@@ -2,6 +2,8 @@
 
 ## 2.0.0
 
+- Add low-heap allocation sweeps covering query/walk/table recovery, INFORM acknowledgement, payload preservation, and SET timeout behavior, including sanitizer and leak checks.
+
 - Release invalidated walk/table payloads on restart and add optional compact table index storage with checked bounds.
 - Add an independent Net-SNMP wire test and a physical-board read/walk harness with heap sampling.
 

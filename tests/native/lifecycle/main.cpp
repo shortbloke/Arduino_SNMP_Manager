@@ -3,8 +3,8 @@
 #include <stdexcept>
 #include <unistd.h>
 
-// Execute ownership, MIB payload, and parser-reuse cases in this process. Returning from main
-// allows local/global destruction and the host's exit-time leak checker to run.
+// Execute ownership, heap-failure, MIB, and parser-reuse cases in this process.
+// Returning from main allows destruction and the host's exit-time leak checker to run.
 int main()
 {
     alarm(30);
@@ -12,6 +12,7 @@ int main()
     registerOwnershipTests(tests);
     registerResponsesTests(tests);
     registerMIBTests(tests);
+    registerHeapTests(tests);
     for (const auto &test : tests)
     {
         try

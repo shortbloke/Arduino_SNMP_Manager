@@ -155,3 +155,35 @@ Memory regressions cover payload release on accepted walk/table restarts, retent
 on rejected starts, and compact index bounds without truncation. See the
 [independent Net-SNMP test](../interop/README.md) and
 [physical-board procedure and memory measurements](../hardware/README.md).
+
+
+### Low-heap failure and recovery
+
+The `Heap` group exhausts the library's nonthrowing C++ allocations after each
+successive allocation in representative response and notification paths, stopping
+only when the complete path runs without an injected failure. A bounded sweep that
+never reaches that point fails the test. It checks:
+
+- Query decoder failures never publish successful incomplete values; result-storage
+  failure reports `AllocationFailure`, and the same operation can be restarted.
+- Walk/table cells either contain the complete value or an explicit failure status;
+  recovery does not require reconstructing the client.
+- INFORM binding-read failures are not acknowledged. A sender retry succeeds when
+  allocations recover, including after acknowledgement encoding could not finish.
+- A simulated maximum contiguous block rejects large payloads while allowing small
+  allocations; failed replacement preserves existing values and shared snapshots.
+- Sending a prepared SET needs no library heap allocation. If its reply cannot be
+  decoded under sustained exhaustion, it times out without an automatic duplicate
+  write. An explicit subsequent start remains possible.
+
+Run `make -C tests/native test`, or select `tests/native/build/tests --group Heap`
+after building. The group also runs with custom capacities, sanitizer builds, the
+PlatformIO runner, and the in-process lifecycle/leak target. This checks cleanup of
+partially built objects as well as visible status and recovery.
+
+Injection affects `new (std::nothrow)` and the library's matching direct allocation
+calls, not the test runner's containers. It does not exhaust the host heap, inject
+legacy C `malloc` failures, or reproduce Wi-Fi/RTOS allocation failures. The maximum
+block model exercises a fragmentation-related failure condition rather than a real
+fragmented ESP heap. Physical heap sampling and soak testing remain complementary;
+these tests cannot establish that every possible low-memory condition is crash-free.

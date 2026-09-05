@@ -9,7 +9,8 @@
 #include <utility>
 struct FailAllocations
 {
-    explicit FailAllocations(int count);
+    explicit FailAllocations(int count, size_t largestBlock = static_cast<size_t>(-1));
+    unsigned failures() const;
     ~FailAllocations();
     FailAllocations(const FailAllocations &) = delete;
     FailAllocations &operator=(const FailAllocations &) = delete;

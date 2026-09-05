@@ -6,6 +6,7 @@ std::vector<Test> allTests()
     registerClientTests(tests);
     registerAgentTests(tests);
     registerMIBTests(tests);
+    registerHeapTests(tests);
     registerBerTests(tests);
     registerRequestsTests(tests);
     registerResponsesTests(tests);
