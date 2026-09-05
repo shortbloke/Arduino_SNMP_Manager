@@ -7,15 +7,24 @@
 #include <Arduino_SNMP_Manager.h>
 #include "Polling.h"
 
-const char *ssid = "SSID";
-const char *password = "PASSWORD";
+// USER CONFIGURATION: replace these placeholders before uploading.
+const char *ssid = "SSID";         // Your Wi-Fi network name (case-sensitive).
+const char *password = "PASSWORD"; // Your Wi-Fi password.
+// Match the read community configured on the agent; "public" is only an example.
 const char *community = "public";
-const short snmpVersion = 1; // 0 = SNMPv1, 1 = SNMPv2c.
+// Choose a version enabled on your agent: 0 = SNMPv1, 1 = SNMPv2c.
+const short snmpVersion = 1;
+// sysName is a scalar string; retain its final .0.
 const char *oidSysName = ".1.3.6.1.2.1.1.5.0";
+// sysUpTime is a scalar: retain its final .0 (it is not an interface index).
 const char *oidUptime = ".1.3.6.1.2.1.1.3.0";
+// All timing values are milliseconds. Increase the timeout for slower agents.
 const uint32_t devicePollInterval = 100;
 const uint32_t lastDeviceWaitPeriod = 5000;
 const uint32_t responseTimeout = 2000;
+// Poll this inclusive last-octet range. Also change 192, 168, 200 in
+// device.address inside setup() to your agents' network prefix.
+// Every device in this example must use the community and version above.
 #define LOWEROCTETLIMIT 1
 #define UPPEROCTETLIMIT 6
 static_assert(LOWEROCTETLIMIT >= 1 && UPPEROCTETLIMIT <= 254 && LOWEROCTETLIMIT <= UPPEROCTETLIMIT,
@@ -26,6 +35,7 @@ SNMPManager snmp(community);
 struct Device
 {
     IPAddress address;
+    // Includes the terminating NUL; increase for longer device names.
     char name[50] = {};
     char *namePointer = name;
     uint32_t uptime = 0;

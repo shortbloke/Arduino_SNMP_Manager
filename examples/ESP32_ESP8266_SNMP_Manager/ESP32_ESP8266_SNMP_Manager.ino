@@ -7,23 +7,36 @@
 #include <Arduino_SNMP_Manager.h>
 #include "Polling.h"
 
-const char *ssid = "SSID";
-const char *password = "PASSWORD";
-// Configure the agent and interface index for your device.
+// USER CONFIGURATION: replace these placeholders before uploading.
+const char *ssid = "SSID";         // Your Wi-Fi network name (case-sensitive).
+const char *password = "PASSWORD"; // Your Wi-Fi password.
+// Set the address of the SNMP device to query, not this board's address.
 IPAddress router(192, 168, 200, 1);
+// Match the read community configured on the agent; "public" is only an example.
 const char *community = "public";
-const short snmpVersion = 1; // 0 = SNMPv1, 1 = SNMPv2c.
+// Choose a version enabled on your agent: 0 = SNMPv1, 1 = SNMPv2c.
+const short snmpVersion = 1;
+// Replace the final .4 in ALL interface OIDs with your device's ifIndex.
+// Discover the index from its interface table; it need not equal the port number.
+// ifSpeed is interface capacity, which may differ from your Internet service speed.
 const char *oidIfSpeedGauge = ".1.3.6.1.2.1.2.2.1.5.4";
 const char *oidInOctetsCount32 = ".1.3.6.1.2.1.2.2.1.10.4";
+// sysUpTime is a scalar: retain its final .0 (it is not an interface index).
 const char *oidUptime = ".1.3.6.1.2.1.1.3.0";
+// Timing values are milliseconds; allow enough time for your agent to reply.
 const uint32_t pollInterval = 10000;
 const uint32_t responseTimeout = 2000;
 
 uint32_t ifSpeedResponse = 0, inOctetsResponse = 0, uptime = 0;
+// System scalars retain .0. When changing an OID, match its ASN.1 type
+// to the add*Handler used in setup() and the destination variable type.
 const char *oidServiceCountInt = ".1.3.6.1.2.1.1.7.0";
+// sysName is a scalar string; retain its final .0.
 const char *oidSysName = ".1.3.6.1.2.1.1.5.0";
+// Use the same ifIndex as the Counter32 OID above; this requires SNMPv2c.
 const char *oid64Counter = ".1.3.6.1.2.1.31.1.1.1.6.4";
 int servicesResponse = 0;
+// Includes the terminating NUL; increase if your agent returns longer names.
 char sysName[50] = {};
 char *sysNameResponse = sysName;
 uint64_t hcCounter = 0;
@@ -95,7 +108,9 @@ void setup()
                    snmpRequest) &&
         sample.add(snmp.addStringHandler(router, oidSysName, &sysNameResponse, sizeof(sysName)),
                    snmpRequest);
-    // Counter64 is a v2c type. Remove this optional binding if your agent lacks it.
+    // Counter64 is a v2c type. If unsupported, remove this registration and
+    // its printSample() output. Every registered OID must reply successfully.
+    // Apply the same rule to any other optional OID your agent does not support.
     if (snmpVersion == 1)
         registered =
             registered &&

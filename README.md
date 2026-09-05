@@ -24,6 +24,25 @@ If you find this useful, consider providing some support:
 
 **Changelog**: [CHANGELOG.md](CHANGELOG.md)
 
+## Configure the examples
+
+Before uploading, edit the configuration near the top of your sketch:
+
+- Replace `SSID` and `PASSWORD` with your Wi-Fi credentials, or configure the
+  Ethernet MAC and module wiring for the Ethernet example (which uses DHCP).
+- Set the SNMP agent address, read community, and supported version. The board's
+  own IP address is different from the agent address being queried.
+- For multi-device polling, set the last-octet range and the network prefix in
+  `device.address` inside `setup()`. These devices share the configured community
+  and version.
+- Replace `.4` in each interface OID with the target interface's `ifIndex`.
+  Keep `.0` on system scalars such as `sysName` and `sysUpTime`.
+- Match changed OIDs to the handler and destination type. Remove unsupported
+  optional registrations and their output; every requested value must update
+  before the examples report a complete sample.
+- Adjust polling/timeout values (milliseconds) and name buffer capacities for
+  your devices. Keep `Polling.h` beside the sketch when copying it.
+
 ## 1.x compatibility and tests
 
 Run `pio test -e native` to execute all native tests through PlatformIO, or `pio test -e native -a "--gtest_filter=Baseline.*"` for the passing baseline. The suite includes checks for previously reported defects. No Arduino board is required. The standalone Make runner is also retained. See [native test documentation](tests/native/README.md) for coverage, sanitizer checks, and the regression group. The suite also checks the 1.x API, including maintained examples and sketch-local configuration.
