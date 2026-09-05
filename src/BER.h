@@ -43,7 +43,7 @@ typedef enum ASN_TYPE_WITH_VALUE
 } ASN_TYPE;
 
 // Primitive types inherits straight off the container, complex come off complexType.
-// All primitives have to serialise themselves (type, length, data), to be put straight into the packet.
+// All primitives serialise themselves as type, length, and value (TLV) for inclusion in the packet.
 // For deserialising from the parent container we check the type, then create an object of that type and call deSerialise,
 // passing in the data, which pulls it out and saves it.
 // If complexType, first split up its children into separate BERs, then passes the child with it's data using the same process.
