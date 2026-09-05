@@ -84,4 +84,16 @@ void registerRequestsTests(std::vector<Test> &tests)
             CHECK(decoded.requestID == INT32_MAX);
             CHECK(sizeof(manager) < SNMP_PACKET_LENGTH + 512);
         });
+    add("signed request IDs round trip through request parsing",
+        []
+        {
+            UDP udp;
+            Request request;
+            request.setUDP(&udp);
+            request.setRequestID(-1);
+            CHECK(request.sendTo(udp.peer));
+            SNMPGetResponse decoded;
+            CHECK(decoded.parseFrom(udp.outgoing.data(), udp.outgoing.size()));
+            CHECK(decoded.requestID == -1);
+        });
 }
