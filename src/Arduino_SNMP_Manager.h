@@ -32,6 +32,13 @@ public:
     char *OID;
     ASN_TYPE type;
     bool overwritePrefix = false;
+    // One outstanding request per callback; only successful sends replace it.
+    bool requestTracked = false;
+    bool requestPending = false;
+    unsigned long expectedRequestID = 0;
+    UDP *requestUDP = nullptr;
+    IPAddress requestPeer;
+
 };
 
 class IntegerCallback : public ValueCallback
@@ -248,6 +255,14 @@ bool SNMPManager::parsePacket(size_t length)
             // A PDU-level error prevents all updates; per-binding exceptions are handled below.
             if (snmpgetresponse->errorStatus != 0)
             {
+                for (ValueCallbacks *entry = callbacks; entry && entry->value; entry = entry->next)
+                {
+                    ValueCallback *callback = entry->value;
+                    if (callback->requestPending && callback->requestUDP == _udp &&
+                        callback->requestPeer == _udp->remoteIP() &&
+                        callback->expectedRequestID == snmpgetresponse->requestID)
+                        callback->requestPending = false;
+                }
                 delete snmpgetresponse;
                 return false;
             }
@@ -274,6 +289,18 @@ bool SNMPManager::parsePacket(size_t length)
                     Serial.println(responseIP);
                     delete snmpgetresponse;
                     return false;
+                }
+                if (callback->requestTracked)
+                {
+                    if (!callback->requestPending || callback->requestUDP != _udp ||
+                        !(callback->requestPeer == responseIP) ||
+                        callback->expectedRequestID != snmpgetresponse->requestID)
+                    {
+                        snmpgetresponse->varBindsCursor = snmpgetresponse->varBindsCursor->next;
+                        ++varBindIndex;
+                        continue;
+                    }
+                    callback->requestPending = false;
                 }
                 // An exception belongs to this binding, not the whole response.
                 if (responseType == NOSUCHOBJECT || responseType == NOSUCHINSTANCE || responseType == ENDOFMIBVIEW)

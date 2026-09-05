@@ -175,3 +175,7 @@ Replaced fixed-width OID arithmetic with integer base-128 loops, including five-
 ## Per-binding exception fix
 
 noSuchObject, noSuchInstance, and endOfMibView skip only their binding, preserving its destination while allowing later successful bindings to update. Removed the obsolete whole-response exception error branches. Validation: 75 baseline passes normally and under ASan/UBSan; request-ID correlation remains the final regression.
+
+## Request correlation fix
+
+Successful SNMPGet sends record the request ID, peer, and transport per callback. Matching replies consume that pending request; mismatches, duplicates, and superseded replies cannot update it. Failed beginPacket/write/endPacket calls do not replace pending state. Matching PDU errors retire pending callbacks. Callbacks never sent by SNMPGet retain legacy direct-response behavior. One outstanding request per callback is supported; distinct callbacks remain independent. IDs must not be reused while an older reply could still arrive. Validation: 78 baseline passes normally and under ASan/UBSan; no failing regression cases remain.

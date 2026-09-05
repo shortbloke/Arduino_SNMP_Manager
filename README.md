@@ -26,7 +26,9 @@ If you find this useful, consider providing some support:
 
 ## Native tests
 
-Run `pio test -e native` to execute all native tests through PlatformIO, or `pio test -e native -a "--gtest_filter=Baseline.*"` for the passing baseline. The full suite includes regression checks for known defects. No Arduino board is required. The standalone Make runner is also retained. See [native test documentation](tests/native/README.md) for coverage, sanitizer checks, and the separate failing regression suite. The [project review](tests/native/REVIEW.md) records the defects found while adding tests.
+Run `pio test -e native` to execute all native tests through PlatformIO, or `pio test -e native -a "--gtest_filter=Baseline.*"` for the passing baseline. The suite includes checks for previously reported defects. No Arduino board is required. The standalone Make runner is also retained. See [native test documentation](tests/native/README.md) for coverage, sanitizer checks, and the regression group. The [project review](tests/native/REVIEW.md) records the defects found while adding tests.
+
+When a callback is included in a successful `SNMPGet::sendTo`, its responses must match that request ID, peer, and UDP transport. Each callback tracks one outstanding request; a newer successful send supersedes the previous one. Matching replies are consumed so duplicate replies do not update values. Use distinct request IDs while earlier replies may still arrive. Callbacks never included in a successful send retain legacy direct-response handling.
 
 ## Usage
 

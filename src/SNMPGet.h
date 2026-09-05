@@ -33,7 +33,7 @@ public:
 	short _version;
 	IPAddress agentIP;
 	short port = 161;
-	short requestID;
+	short requestID = 0;
 	short errorID = 0;
 	short errorIndex = 0;
 
@@ -95,9 +95,19 @@ public:
     }
     Serial.println();
 #endif
-		_udp->beginPacket(ip, port);
-		_udp->write(_packetBuffer, length);
-		return _udp->endPacket();
+        if (!_udp->beginPacket(ip, port)) return false;
+        if (_udp->write(_packetBuffer, length) != static_cast<size_t>(length)) return false;
+        if (!_udp->endPacket()) return false;
+        for (ValueCallbacks *entry = callbacks; entry && entry->value; entry = entry->next)
+        {
+            ValueCallback *callback = entry->value;
+            callback->requestTracked = true;
+            callback->requestPending = true;
+            callback->expectedRequestID = static_cast<unsigned long>(requestID);
+            callback->requestUDP = _udp;
+            callback->requestPeer = ip;
+        }
+        return true;
 	}
 
 	ComplexType *packet = 0;
