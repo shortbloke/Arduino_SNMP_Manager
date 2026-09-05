@@ -169,6 +169,9 @@ int main(int argc,char** argv) {
             manager.loop();
             CHECK(std::abs(value-static_cast<float>(raw)/10.0f)<0.001f);
         }
+        udp.incoming=message(binding({2,1,0x85})); // -123 integer tenths
+        manager.loop();
+        CHECK(std::abs(value+12.3f)<0.001f);
     });
     add("library convention: shorter string response terminates old value", [] {
         Manager manager;
@@ -190,7 +193,26 @@ int main(int argc,char** argv) {
     add("successful Get preserves OID order on wire",[]{Manager m; UDP u; int n=0; Request r; r.setUDP(&u); r.addOIDPointer(m.addIntegerHandler(u.peer,oid,&n)); r.addOIDPointer(m.addIntegerHandler(u.peer,".1.3.6.1.2.1.1.3.0",&n)); Bytes second=oidWire; second[8]=3; CHECK(r.sendTo(u.peer)); CHECK(u.outgoing==message(join({binding({5,0}),tlv(0x30,join({second,{5,0}}))}),1,"public",0xa0));});
     add("manager receives 484-byte response",[]{Manager m; UDP u; m.setUDP(&u); char storage[512]{}; char* ptr=storage; m.addStringHandler(u.peer,oid,&ptr); u.incoming=message(binding(tlv(4,Bytes(434,'x')))); CHECK(u.incoming.size()==484); m.loop(); CHECK(std::string(ptr)==std::string(434,'x'));});
     // X.690 section 8.3: signed values require sign extension on decode.
-    add("negative INTEGER sign extension",[]{for(auto b:{Bytes{2,1,0xff},Bytes{2,1,0x80},Bytes{2,2,0xff,0x7f}}){IntegerType v; CHECK(v.fromBuffer(b.data())); long expected=b.size()==4 ? -129 : (b[2]==0xff ? -1 : -128); CHECK(v._value==static_cast<unsigned long>(expected));}},true);
+    add("Integer32 decoding boundaries and definite lengths", [] {
+        for (Bytes bytes : {Bytes{2,4,0x80,0,0,0}, Bytes{2,0x81,4,0x80,0,0,0},
+                            Bytes{2,0x82,0,4,0x80,0,0,0}}) {
+            IntegerType value;
+            CHECK(value.fromBuffer(bytes.data()));
+            CHECK(value._value==static_cast<unsigned long>(INT32_MIN));
+            CHECK(value.getLength()==4);
+        }
+        Bytes positive{2,4,0x7f,255,255,255};
+        IntegerType value;
+        CHECK(value.fromBuffer(positive.data()));
+        CHECK(value._value==INT32_MAX);
+        for (Bytes bytes : {Bytes{2,0}, Bytes{2,0x80}, Bytes{2,0xff}, Bytes{2,5},
+                            Bytes{2,0x82,1,0}}) {
+            IntegerType invalid(42);
+            CHECK(!invalid.fromBuffer(bytes.data()));
+            CHECK(invalid._value==42);
+        }
+    });
+    add("negative INTEGER sign extension",[]{for(auto b:{Bytes{2,1,0xff},Bytes{2,1,0x80},Bytes{2,2,0xff,0x7f}}){IntegerType v; CHECK(v.fromBuffer(b.data())); long expected=b.size()==4 ? -129 : (b[2]==0xff ? -1 : -128); CHECK(v._value==static_cast<unsigned long>(expected));}});
     add("Integer32 signed boundary encoding",[]{IntegerType v(static_cast<unsigned long>(INT32_MIN)); CHECK(encode(v)==Bytes({2,4,0x80,0,0,0}));});
     add("Counter64 small value uses minimal contents", [] {
         const std::vector<std::pair<uint64_t,Bytes>> fixtures{
@@ -327,7 +349,7 @@ int main(int argc,char** argv) {
         udp.incoming=message(binding({2,3,0xff,0xff,0x7f}));
         manager.loop();
         CHECK(value==-129);
-    }, true);
+    });
 
     add("UDP bind failure is reported", [] {
         Manager manager;

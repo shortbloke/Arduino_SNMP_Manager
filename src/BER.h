@@ -148,18 +148,36 @@ public:
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Integer:fromBuffer");
 #endif
-        buf++; // skip Type
-        _length = *buf;
-        buf++;
-        unsigned short tempLength = _length;
-        //        _value = *buf; // TODO: make work for integers more than 255
-        _value = 0;
-        while (tempLength > 0)
+        // The caller must provide the complete TLV to this pointer-only API.
+        if (*buf++ != _type)
+            return false;
+        unsigned int length = *buf++;
+        if (length & 0x80)
         {
-            _value = _value << 8;
-            _value = _value | *buf++;
-            tempLength--;
+            const unsigned int octets = length & 0x7f;
+            if (octets == 0 || octets == 127)
+                return false;
+            length = 0;
+            for (unsigned int i = 0; i < octets; ++i)
+            {
+                length = (length << 8) | *buf++;
+                if (length > 5)
+                    return false;
+            }
         }
+        const bool isSigned = _type == INTEGER;
+        if (length == 0 || length > (isSigned ? 4u : 5u))
+            return false;
+        if (!isSigned && ((buf[0] & 0x80) || (length == 5 && buf[0] != 0)))
+            return false;
+        // Extend the sign through unsigned long, including on 64-bit hosts.
+        unsigned long value = isSigned && (buf[0] & 0x80) ? ~0UL : 0;
+        for (unsigned int i = 0; i < length; ++i)
+        {
+            value = (value << 8) | *buf++;
+        }
+        _value = value;
+        _length = length;
         return true;
     }
     int getLength()

@@ -332,7 +332,7 @@ bool SNMPManager::parsePacket()
                     else
                     {
                         // Restore the registered float pointer and convert integer tenths to units.
-                        *reinterpret_cast<float *>(callbackValue->value) = static_cast<float>(raw) / 10.0f;
+                        *reinterpret_cast<float *>(callbackValue->value) = static_cast<float>(static_cast<int32_t>(raw)) / 10.0f;
                     }
                 }
                 break;
