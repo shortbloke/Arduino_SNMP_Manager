@@ -22,8 +22,8 @@ debug:
 	$(MAKE) BUILD=$(BUILD)-debug CPPFLAGS='-Istubs -I../../src -DDEBUG -DDEBUG_BER' test
 
 .PHONY: compatibility
-$(BUILD)/compatibility: compatibility/main.cpp compatibility/other.cpp $(wildcard ../../src/*.h) stubs/Arduino.h stubs/Udp.h
+$(BUILD)/compatibility: Makefile compatibility/main.cpp compatibility/other.cpp $(wildcard ../../src/*.h) stubs/Arduino.h stubs/Udp.h
 	@mkdir -p $(BUILD)
-	$(CXX) $(CPPFLAGS) -std=c++11 -pedantic-errors -Wall -Wextra -Werror compatibility/main.cpp compatibility/other.cpp -o $@
+	$(CXX) $(CPPFLAGS) -std=c++11 -pedantic-errors -Wall -Wextra -Werror -fno-exceptions -fno-rtti compatibility/main.cpp compatibility/other.cpp -o $@
 compatibility: $(BUILD)/compatibility
 	./$(BUILD)/compatibility
