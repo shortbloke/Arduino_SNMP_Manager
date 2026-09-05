@@ -139,3 +139,9 @@ when you can process individual values without retaining a complete table.
 
 You do not need to run the repository's tests, understand BER encoding, or use the
 release workflows to use the library. Those are maintainer tasks, not application setup steps.
+
+## Where do these rules come from?
+
+The optional [RFC reference guide](TERMS.md#protocol-references-optional) links
+to the original specifications for operations, value types, and common readings.
+You can use the examples without studying these documents.

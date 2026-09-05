@@ -49,6 +49,9 @@ for demonstration; keep production handlers short.
 | Server or NAS | [Host_Storage](Host_Storage/Host_Storage.ino) | Storage descriptions, allocation units, total and used bytes using 64-bit multiplication |
 | Printer | [Printer_Supplies](Printer_Supplies/Printer_Supplies.ino) | Compound device/supply indices, known percentages and unknown/some-remaining states |
 
+Interface counters follow [IF-MIB (RFC 2863)](https://www.rfc-editor.org/rfc/rfc2863.html).
+The basic uptime and location examples use the
+[system objects in RFC 3418](https://www.rfc-editor.org/rfc/rfc3418.html).
 Storage columns follow [HOST-RESOURCES-MIB](https://www.rfc-editor.org/rfc/rfc2790.html).
 Printer levels follow [Printer-MIB](https://www.rfc-editor.org/rfc/rfc3805.html);
 for waste receptacles, the level means remaining space. Device support and access

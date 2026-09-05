@@ -139,3 +139,11 @@ before deciding whether to repeat it; do not blindly retry writes.
 If `Host_Storage` prints `size unavailable`, check cell statuses and allocation
 units. A row with zero allocation units has no valid byte-size conversion. Increasing
 capacity cannot fix that value; skip that row and continue with valid ones.
+
+## Protocol background
+
+For the rules behind message size limits and read retries, see
+[RFC 3416, sections 2.2–2.3](https://www.rfc-editor.org/rfc/rfc3416.html#section-2.2).
+The capacities and recovery steps above describe this library's implementation.
+The [RFC reference guide](TERMS.md#protocol-references-optional) also links
+value definitions and device-specific groups of readings.

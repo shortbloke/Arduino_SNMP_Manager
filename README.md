@@ -20,6 +20,8 @@ It explains how to check device support, install this 2.x preview, configure acc
 and run a complete sketch. Then choose an example by the data you want to read.
 
 Unfamiliar word? See the [plain-language terms guide](docs/TERMS.md).
+For the underlying specifications, see the optional
+[RFC reference guide](docs/TERMS.md#protocol-references-optional).
 
 ## Start with a device and a query
 

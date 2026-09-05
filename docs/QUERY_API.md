@@ -80,6 +80,10 @@ Access results by index only within `size()`.
 
 ## Values and errors
 
+Value definitions come from [RFC 2578, section 7.1](https://www.rfc-editor.org/rfc/rfc2578.html#section-7.1);
+missing-object and end-of-view responses are defined in
+[RFC 3416, section 4.2](https://www.rfc-editor.org/rfc/rfc3416.html#section-4.2).
+
 `SNMPValue` exposes signed `integer()`, `unsigned32()`, and `unsigned64()` accessors.
 Check status and type before conversion. OCTET STRING and Opaque values use
 `bytes` and `length`, preserving embedded zeros. For display, check `isText()`
@@ -109,6 +113,10 @@ A handler may schedule another operation but must not destroy the active operati
 or reenter `loop()`. Destruction of an operation unregisters it silently.
 
 ## Walks and tables
+
+The underlying next-value and bulk operations are defined in
+[RFC 3416, sections 4.2.2–4.2.3](https://www.rfc-editor.org/rfc/rfc3416.html#section-4.2.2).
+Batch sizes, subtree stopping, and automatic fallback below are library policies.
 
 `SNMPWalk<N>` collects up to N results beneath a configured root. Call
 `configure(root)`, then `start()`. For larger trees, `stream(handler, context)`
@@ -150,6 +158,10 @@ byte counts; rate calculation and discontinuity detection remain application wor
 
 ## Writes
 
+The device-side write rules are defined in
+[RFC 3416, section 4.2.5](https://www.rfc-editor.org/rfc/rfc3416.html#section-4.2.5).
+This library chooses not to retry writes automatically.
+
 ```cpp
 SNMPSet<1> write(router);
 SNMPValue location;
@@ -167,6 +179,11 @@ read back the value before deciding whether to repeat a write. Agent errors are
 available through the operation's status and error fields.
 
 ## Notifications
+
+For the message definitions, see
+[RFC 1157, section 4.1.6 (v1 traps)](https://www.rfc-editor.org/rfc/rfc1157.html#section-4.1.6),
+[RFC 3416, section 4.2.6 (v2c traps)](https://www.rfc-editor.org/rfc/rfc3416.html#section-4.2.6),
+and [section 4.2.7 (INFORMs)](https://www.rfc-editor.org/rfc/rfc3416.html#section-4.2.7).
 
 Call `client.begin(162)` to listen on the usual notification port, then register
 `client.notifications(community, handler, context)`. This client can also send

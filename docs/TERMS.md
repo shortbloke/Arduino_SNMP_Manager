@@ -98,3 +98,30 @@ or error message uses an unfamiliar word.
 | PDU — Protocol Data Unit | The operation-specific portion of an SNMP message, such as a read request or response. |
 | RTTI — Runtime Type Information | A C++ feature for identifying object types while running. The library does not require it. |
 | Sanitizer / lint | Tools that detect certain runtime programming errors / source or documentation problems. These are contributor tools, not device requirements. |
+
+## Protocol references (optional)
+
+RFCs are the technical source documents behind these explanations. You do not
+need to read them to use the library. Follow a link when you need the exact rule
+or the definition of a reading; a device may expose only some of the listed objects.
+
+| Topic | Source and what to look for |
+| --- | --- |
+| SNMPv1 | [RFC 1157](https://www.rfc-editor.org/rfc/rfc1157.html): the original messages, reads, writes, and traps. |
+| SNMPv2c community messages | [RFC 1901](https://www.rfc-editor.org/rfc/rfc1901.html): the community-based message wrapper. The operations it carries are described separately below. |
+| Reads, walks, writes, and events | [RFC 3416, section 4.2](https://www.rfc-editor.org/rfc/rfc3416.html#section-4.2): GET, GETNEXT, GETBULK, responses, SET, traps, and INFORMs. |
+| UDP and service ports | [RFC 768](https://www.rfc-editor.org/rfc/rfc768.html) defines UDP; [RFC 3417, section 3](https://www.rfc-editor.org/rfc/rfc3417.html#section-3) describes SNMP over UDP/IPv4 and ports 161/162. |
+| Encoding messages as bytes | [RFC 3417, section 8](https://www.rfc-editor.org/rfc/rfc3417.html#section-8): SNMP's use of Basic Encoding Rules (BER). |
+| Value types and units | [RFC 2578, section 7.1](https://www.rfc-editor.org/rfc/rfc2578.html#section-7.1): INTEGER, OCTET STRING, OBJECT IDENTIFIER, counters, Gauge32, TimeTicks, and other types. |
+| Table indices | [RFC 2578, section 7.7](https://www.rfc-editor.org/rfc/rfc2578.html#section-7.7): how an index identifies a table row, including indices containing several values. |
+| Conventions for interpreting values | [RFC 2579](https://www.rfc-editor.org/rfc/rfc2579.html): named conventions such as TruthValue, MacAddress, and DateAndTime. |
+| Device name, location, and uptime | [RFC 3418](https://www.rfc-editor.org/rfc/rfc3418.html): the system objects used by the basic examples. |
+| Network interface counters | [RFC 2863](https://www.rfc-editor.org/rfc/rfc2863.html): IF-MIB, including larger counters and counter discontinuities. |
+| Storage readings | [RFC 2790](https://www.rfc-editor.org/rfc/rfc2790.html): HOST-RESOURCES-MIB, including storage allocation units and block counts. |
+| Printer supplies | [RFC 3805](https://www.rfc-editor.org/rfc/rfc3805.html): Printer-MIB, including supply units and special level values. |
+| Sensor scaling | [RFC 3433](https://www.rfc-editor.org/rfc/rfc3433.html): ENTITY-SENSOR-MIB scale, precision, and status. |
+| Address values | [RFC 4001](https://www.rfc-editor.org/rfc/rfc4001.html): InetAddressType and InetAddress, including IPv6 values stored as bytes. This does not imply IPv6 transport support in this library. |
+
+These references describe protocol and object definitions. Library settings such
+as result capacity, retry counts, and automatic fallback are documented in the
+[query guide](QUERY_API.md); they are not all requirements imposed by an RFC.
