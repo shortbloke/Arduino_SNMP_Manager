@@ -170,8 +170,21 @@ int main(int argc,char** argv) {
     // X.690 section 8.3: signed values require sign extension on decode.
     add("negative INTEGER sign extension",[]{for(auto b:{Bytes{2,1,0xff},Bytes{2,1,0x80},Bytes{2,2,0xff,0x7f}}){IntegerType v; CHECK(v.fromBuffer(b.data())); long expected=b.size()==4 ? -129 : (b[2]==0xff ? -1 : -128); CHECK(v._value==static_cast<unsigned long>(expected));}},true);
     add("Integer32 signed boundary encoding",[]{IntegerType v(static_cast<unsigned long>(INT32_MIN)); CHECK(encode(v)==Bytes({2,4,0x80,0,0,0}));},true);
-    add("Counter64 small value uses minimal contents",[]{Counter64 v(1); CHECK(encode(v)==Bytes({0x46,1,1}));},true);
-    add("Counter64 maximum has positive sign octet",[]{Counter64 v(UINT64_MAX); CHECK(encode(v)==Bytes({0x46,9,0,255,255,255,255,255,255,255,255}));},true);
+    add("Counter64 small value uses minimal contents", [] {
+        const std::vector<std::pair<uint64_t,Bytes>> fixtures{
+            {0,{0}}, {1,{1}}, {127,{127}}, {128,{0,128}},
+            {255,{0,255}}, {256,{1,0}},
+            {UINT64_C(0x7fffffffffffffff),{0x7f,255,255,255,255,255,255,255}},
+            {UINT64_C(0x8000000000000000),{0,0x80,0,0,0,0,0,0,0}}
+        };
+        for (const auto& fixture : fixtures) {
+            Counter64 value(fixture.first);
+            CHECK(encode(value)==tlv(0x46,fixture.second));
+            CHECK(value._value==fixture.first);
+            CHECK(encode(value)==tlv(0x46,fixture.second));
+        }
+    });
+    add("Counter64 maximum has positive sign octet",[]{Counter64 v(UINT64_MAX); CHECK(encode(v)==Bytes({0x46,9,0,255,255,255,255,255,255,255,255}));});
     add("unsigned application encoding preserves positive sign",[]{Counter32 v(UINT32_MAX); CHECK(encode(v)==Bytes({0x41,5,0,255,255,255,255}));},true);
     add("binary OCTET STRING preserves embedded zero",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(v.getLength()==3); CHECK(memcmp(v._value,"a\0b",3)==0);},true);
     add("binary OCTET STRING re-encoding preserves length",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(encode(v)==b);},true);

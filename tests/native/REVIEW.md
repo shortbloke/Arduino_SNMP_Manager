@@ -24,7 +24,7 @@ The RFC extension added 15 failing cases, bringing the regression group to 22 be
 | Area | Executed finding |
 | --- | --- |
 | Signed INTEGER | Negative short encodings are not sign-extended; INT32_MIN serialization is incorrect. |
-| Unsigned application integers | Counter32 maximum is encoded incorrectly; Counter64 always emits eight bytes for nonzero values, violating minimal encoding for 1 and omitting the positive sign octet for UINT64_MAX. |
+| Unsigned application integers | Counter32 maximum is encoded incorrectly. **Counter64 serialization fixed:** minimal contents and positive sign padding now pass, including UINT64_MAX. |
 | Binary OCTET STRING | Embedded-zero decoding loses subsequent bytes; re-encoding uses C-string length. Two separate cases. |
 | OIDs | Decoding assumes .1.3 even for .2.999.3; encoding UINT32_MAX loses the required fifth base-128 octet. |
 | BER lengths | An indefinite sequence is accepted even though SNMP forbids it. |
@@ -133,3 +133,7 @@ Float callback dispatch restores the registered float pointer before writing and
 ## Polymorphic callback destruction fix
 
 Added a virtual ValueCallback destructor without changing registration ownership or freeing caller-owned destinations. The baseline verifies derived destruction through a base pointer. This adds a vtable pointer to callback objects, increasing their memory footprint. Normal checks report 42 baseline passes and 27 remaining failures; the sanitizer baseline also passes all 42 cases.
+
+## Counter64 serialization fix
+
+Counter64 serialization now emits minimal big-endian contents with a leading zero when needed to preserve the positive sign. Tests cover zero, byte/sign boundaries, the 64-bit sign boundary, UINT64_MAX, value preservation, and repeat serialization. Normal checks report 44 baseline passes and 25 remaining failures; the sanitizer baseline also passes all 44 cases. Long-form Counter64 decoding remains a separate regression.

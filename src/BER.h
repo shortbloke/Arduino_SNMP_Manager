@@ -464,31 +464,25 @@ public:
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Counter64:serialise");
 #endif
-        // here we print out the BER encoded ASN.1 bytes, which includes type, length and value. we return the length of the entire block (TL&V) ni bytes;
-        unsigned char *ptr = buf;
-        *ptr = _type;
-        ptr++;
-        unsigned char *lengthPtr = ptr++;
-        if (_value != 0)
+        unsigned char contents[9];
+        size_t start = sizeof(contents);
+        uint64_t remaining = _value;
+        do
         {
-            _length = 8;
-            *ptr++ = _value >> 56 & 0xFF;
-            *ptr++ = _value >> 48 & 0xFF;
-            *ptr++ = _value >> 40 & 0xFF;
-            *ptr++ = _value >> 32 & 0xFF;
-            *ptr++ = _value >> 24 & 0xFF;
-            *ptr++ = _value >> 16 & 0xFF;
-            *ptr++ = _value >> 8 & 0xFF;
-            *ptr++ = _value & 0xFF;
-        }
-        else
+            contents[--start] = static_cast<unsigned char>(remaining & 0xff);
+            remaining >>= 8;
+        } while (remaining != 0);
+        if (contents[start] & 0x80)
         {
-            _length = 1;
-            *ptr = 0;
+            contents[--start] = 0;
         }
-        *lengthPtr = _length;
+        _length = sizeof(contents) - start;
+        buf[0] = _type;
+        buf[1] = _length;
+        memcpy(buf + 2, contents + start, _length);
         return _length + 2;
     }
+
     bool fromBuffer(unsigned char *buf)
     {
 #ifdef DEBUG_BER
