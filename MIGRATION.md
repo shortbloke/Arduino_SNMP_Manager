@@ -1,5 +1,7 @@
 # Migrating to SNMP Manager 2.0
 
+> **PUBLIC** — Tracked in Git and shared in the repository.
+
 This guide is for existing 1.x sketches. If you are starting a new project, use
 [getting started](docs/GETTING_STARTED.md); you do not need to migrate anything.
 

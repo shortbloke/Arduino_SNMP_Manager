@@ -1,5 +1,7 @@
 # Maintaining and releasing SNMP Manager
 
+> **PUBLIC** — Tracked in Git and shared in the repository.
+
 Maintainer reference: these workflows publish the library. Users do not need them
 to read device data; follow [getting started](GETTING_STARTED.md) instead.
 

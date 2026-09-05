@@ -1,5 +1,7 @@
 # Embedded compatibility builds
 
+> **PUBLIC** — Tracked in Git and shared in the repository.
+
 Contributor reference: this document covers library validation, not application
 setup. To read data from your device, start with [getting started](../../docs/GETTING_STARTED.md).
 

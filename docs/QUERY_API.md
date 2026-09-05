@@ -1,5 +1,7 @@
 # Reading device data: API reference
 
+> **PUBLIC** — Tracked in Git and shared in the repository.
+
 Start with [your first device reading](GETTING_STARTED.md) if SNMP is new to you.
 This reference explains how to adapt a working sketch; you do not need to learn
 all the operations below to read one value. An API is the set of C++ classes and

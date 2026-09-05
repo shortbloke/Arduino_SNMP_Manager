@@ -1,5 +1,7 @@
 # SNMP Manager 2.x changelog
 
+> **PUBLIC** — Tracked in Git and shared in the repository.
+
 This file records the 2.x release line. The maintained
 [1.x changelog](https://github.com/shortbloke/Arduino_SNMP_Manager/blob/release/1.x/CHANGELOG.md)
 contains the earlier releases and ongoing backward-compatible fixes.

@@ -1,5 +1,7 @@
 # Setup, memory limits, and error recovery
 
+> **PUBLIC** — Tracked in Git and shared in the repository.
+
 ## Before uploading an example
 
 1. Install the 2.x library source and select your ESP8266 or ESP32 board. A sketch
