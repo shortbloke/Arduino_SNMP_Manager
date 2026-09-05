@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <cstring>
 
-// Fixed-size result storage; larger text/binary values report CapacityExceeded.
+// Status for configuration, scheduling, and checked operation results.
 class SNMPStatus
 {
 public:
@@ -116,7 +116,7 @@ public:
     {
         return status_;
     }
-    // Configuration is immutable while operations are pending.
+    // The application must not change these settings while operations are pending.
     uint16_t port = 161;
     uint32_t timeoutMs = 1000;
     uint8_t retries = 1;

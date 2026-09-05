@@ -18,7 +18,7 @@ Short messages and empty binding lists are not inherently malformed. Tests cover
 
 UDP 161 is the suggested command-responder port; 162 is for notification receivers. The UDP mapping requires reception through 484 bytes and recommends 1472. SNMP requires definite lengths and primitive simple values, but explicitly permits extra length octets. [RFC 3417 §§3, 8](https://www.rfc-editor.org/rfc/rfc3417.html#section-3)
 
-Responses return to the originating transport endpoint. Binding the shared request/response socket to 162 can work, but 162 is not a mandatory response destination. The existing lifecycle assertion documents the library's choice. [RFC 3412 §4.1.2](https://www.rfc-editor.org/rfc/rfc3412.html#section-4.1.2)
+Responses return to the originating transport endpoint. Binding the shared request/response socket to 162 can work, but 162 is not a mandatory response destination. The low-level `SNMPManager::begin()` binds port 162; `SNMPClient::begin()` defaults to port 0 (a transport-selected ephemeral port). Pass 162 explicitly for notification reception. [RFC 3412 §4.1.2](https://www.rfc-editor.org/rfc/rfc3412.html#section-4.1.2)
 
 Keep exact-byte assertions for the chosen encoder output, but do not require decoders to accept only that representation. Tests cover nonminimal definite lengths and reject indefinite lengths.
 
@@ -28,7 +28,7 @@ Exact-byte integer assertions describe minimal signed BER, not a requirement for
 
 ## Data types versus library conventions
 
-Integer32 is signed 32-bit. OCTET STRING holds binary or textual bytes, with no implicit C terminator. OID limits are 128 subidentifiers, each at most 2^32−1—not 128 printable characters. Counter32/64 wrap; Gauge32 can increase or decrease; TimeTicks measures hundredths of a second modulo 2^32. [RFC 2578 §7.1](https://www.rfc-editor.org/rfc/rfc2578.html#section-7.1)
+INTEGER values (including SMIv2 Integer32) are signed 32-bit. OCTET STRING holds binary or textual bytes, with no implicit C terminator. OID limits are 128 subidentifiers, each at most 2^32−1—not 128 printable characters. Counter32/64 wrap; Gauge32 can increase or decrease; TimeTicks measures hundredths of a second modulo 2^32. [RFC 2578 §7.1](https://www.rfc-editor.org/rfc/rfc2578.html#section-7.1)
 
 Tests cover embedded-zero strings, maximum subidentifiers, and the 128-arc limit. `make oid-limits` uses a separate 1408-byte printable-OID build to round-trip the maximum legal OID against independent expected wire bytes; production defaults remain smaller. The float handler's division by ten is a library convention whose suitability depends on the MIB; SNMP does not mandate that scale. C-string termination is also an API responsibility. Tests for these API conventions are not standalone protocol-conformance assertions.
 

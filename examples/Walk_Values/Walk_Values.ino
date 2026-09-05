@@ -31,7 +31,7 @@ bool printValue(const SNMPResult &result, void *)
     switch (value.type)
     {
     case INTEGER:
-        Serial.print("Integer32: ");
+        Serial.print("INTEGER: ");
         Serial.println(static_cast<long>(value.integer()));
         break;
     case COUNTER32:

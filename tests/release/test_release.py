@@ -38,7 +38,7 @@ class ReleaseTests(unittest.TestCase):
     def test_rejects_downgrade_and_existing_release(self):
         for version in ["1.2.0", "1.2.1"]:
             with self.assertRaises(ValueError):
-                release.prepare(self.root, version, "master")
+                release.prepare(self.root, version, "release/1.x")
 
     def test_rejects_invalid_versions_and_branches(self):
         for version in ["v1.2.2", "1.2", "01.2.3", "1.2.3;echo bad", "2.0.0-rc.0"]:
@@ -50,7 +50,23 @@ class ReleaseTests(unittest.TestCase):
     def test_prerelease_order(self):
         versions = ["2.0.0-alpha.1", "2.0.0-beta.1", "2.0.0-rc.1", "2.0.0"]
         self.assertEqual(sorted(versions, key=release.parts), versions)
-        release.check_branch("feature/friendly-query-api", "2.0.0-rc.1")
+        release.check_branch("main", "2.0.0-rc.1")
+
+    def test_rejects_retired_release_branches(self):
+        for branch in ["master", "release/2.x", "feature/friendly-query-api"]:
+            with self.subTest(branch=branch), self.assertRaises(ValueError):
+                release.check_branch(branch, "2.0.0-alpha.1")
+
+    def test_prepare_2x_preserves_1x_pinning_guidance(self):
+        (self.root / "library.properties").write_text("version=2.0.0-alpha.1\n")
+        (self.root / "library.json").write_text('{"version":"2.0.0-alpha.1"}')
+        (self.root / "README.md").write_text("Version 2.0.0-alpha.1; pin 1.x to @^1.2.1\n")
+        release.prepare(self.root, "2.0.0-alpha.2", "main")
+        self.assertEqual(release.current(self.root), "2.0.0-alpha.2")
+        self.assertEqual(
+            (self.root / "README.md").read_text(),
+            "Version 2.0.0-alpha.2; pin 1.x to @^1.2.1\n",
+        )
 
     def test_metadata_mismatch(self):
         (self.root / "library.json").write_text('{"version":"2.0.0"}')
@@ -60,7 +76,7 @@ class ReleaseTests(unittest.TestCase):
     def test_missing_notes(self):
         (self.root / "CHANGELOG.md").write_text("# Changes\n\n## Unreleased\n")
         with self.assertRaises(ValueError):
-            release.prepare(self.root, "1.2.2", "master")
+            release.prepare(self.root, "1.2.2", "release/1.x")
 
 
 if __name__ == "__main__":

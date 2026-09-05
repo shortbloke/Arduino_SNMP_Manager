@@ -1,5 +1,6 @@
 # D1 Mini notification burst test
 
+These are historical results, not hardware tests of the current checkout.
 The baseline below predates the flush fix. See the final section for its hardware retest.
 
 Physical-board run on 2026-09-05, using unchanged library commit `6da6ec6` and

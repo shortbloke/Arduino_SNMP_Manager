@@ -62,14 +62,16 @@ or 24 for the printer example's two-part index. Arbitrary MIB tables may need la
 capacities. Too-long indices return `CapacityExceeded`, never truncated rows.
 Full request/response OIDs retain the independent library-wide limit.
 
-Measured static RAM for the interface example's 48 rows, with pinned build profiles:
+Historical static RAM measurements during the compact-index change, using the
+interface example's 48 rows and the build profiles pinned at that time:
 
 | Target | Before compact indices | With 16-byte indices | Reduction |
 | --- | ---: | ---: | ---: |
 | ESP8266 | 50,116 bytes | 38,596 bytes | 11,520 bytes |
 | ESP32 | 69,264 bytes | 57,744 bytes | 11,520 bytes |
 
-These are linker figures, excluding runtime Wi-Fi, decoder, and retained-payload heap
+These are historical linker figures, not measurements of the current checkout.
+They exclude runtime Wi-Fi, decoder, and retained-payload heap
 use. They do not establish peak RAM or certify a workload. Row count, payload limit,
 packet size, pending operations, and application-held snapshots also affect memory.
 No automatic PSRAM placement is used.

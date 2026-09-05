@@ -91,9 +91,9 @@ bool sent = request.sendTo(remoteAgent);
 
 ## Check operations that can fail
 
-Handler registration returns `nullptr`; `addOIDPointer`, `sendTo`, request building, and `SNMPManager::addHandler` report failure. Embedded allocation failures and UDP failures are handled without partial ownership, but applications must check these results.
+Handler registration returns `nullptr` on failure; `addOIDPointer`, `sendTo`, request building, and `SNMPManager::addHandler` report failure. Embedded allocation failures and UDP failures are handled without partial ownership, but applications must check these results.
 
-`SNMPManager`, `SNMPGet`, `SNMPGetResponse`, and `ComplexType` are owning types and cannot be copied. Move them or keep stable instances instead of copying them. `addHandler` adopts a callback only when it succeeds. `ComplexType::addValueToList` consumes its BER child on both success and failure.
+`SNMPManager`, `SNMPGet`, `SNMPGetResponse`, and `ComplexType` are owning types and cannot be copied. Keep stable instances instead of copying them. Only `SNMPManager` and `SNMPGet` provide move constructors; `SNMPGetResponse` and `ComplexType` do not support moving. The low-level manager and request borrow their community strings; keep those strings alive and unchanged while in use. `SNMPDevice` instead owns its community copy. `addHandler` adopts a callback only when it succeeds. `ComplexType::addValueToList` consumes its BER child on both success and failure.
 
 ## Custom BER types
 
@@ -108,7 +108,7 @@ Return a negative serialization length or `false` when the supplied bounds are i
 
 ## Optional device and query API
 
-Existing bounded handler code continues to work. New sketches can use
+After applying the migration changes above, low-level handler code remains supported. New sketches can use
 `SNMPClient`, `SNMPDevice`, `SNMPQuery`, `SNMPWalk`, and `SNMPTableRead` without
 callback registration or explicit request IDs. The client accepts a UDP reference;
 devices accept `IPAddress` or checked dotted IPv4 strings and own their community.

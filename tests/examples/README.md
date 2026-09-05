@@ -8,7 +8,9 @@ From the repository root, run:
 pio run -d tests/examples
 ```
 
-The Wi-Fi examples compile for ESP8266 and ESP32. The Ethernet example compiles with the ESP8266 Arduino core's bundled Ethernet library; it remains a compile check rather than a claim of hardware compatibility.
+The Wi-Fi examples compile for ESP8266 and ESP32. The Ethernet example compiles on the ESP8266 core with the pinned Arduino Ethernet 2.0.2 library; it remains a compile check rather than a claim of hardware compatibility.
 
-The default builds also compile Simple_Read, Multiple_Devices, and Interface_Traffic
-on ESP8266 and ESP32, exercising the new device/query API with real Arduino cores.
+The default builds compile every distributed Wi-Fi sketch on ESP8266 and ESP32,
+including reads, walks, device tables, SET/read-back, and notification reception.
+CI divides these environments into `legacy`, `query_esp8266`, and `query_esp32`
+groups through `scripts/build_examples.py`.

@@ -27,12 +27,22 @@ the prepare workflow explicitly starts the compatibility workflow on their branc
 For local preparation, run:
 
 ```sh
-python3 scripts/release.py prepare --version 1.2.2 --branch release/1.x
-python3 scripts/release.py check --version 1.2.2 --branch release/1.x
+python3 scripts/release.py prepare --version 2.0.0-alpha.2 --branch main
+python3 scripts/release.py check --version 2.0.0-alpha.2 --branch main
 ```
 
-The example assumes you checked out `release/1.x` and wrote an Unreleased section.
+The example assumes you checked out `main` and wrote an Unreleased section.
+For a 1.x patch, use `release/1.x` and an appropriate 1.x version.
 Maintainers still author release notes: version and metadata edits are automated.
+
+## Existing 2.x draft
+
+`2.0.0-alpha.1` is an unpublished GitHub draft. A draft is not an installed
+Library Manager release or a public version tag. The publication workflow creates
+a new release; it does not publish an existing draft. Do not run it for a version
+that already has a draft. After review, either complete that draft manually against
+a validated immutable tag, or remove the draft before using the workflow. Review
+and update any draft-status wording in the notes before publication.
 
 ## Publish a prepared release
 

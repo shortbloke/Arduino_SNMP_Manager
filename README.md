@@ -74,7 +74,7 @@ does not change uptime; use suitable Counter64/discontinuity objects where neede
 ## Pin your project's library version
 
 Use an exact release for reproducible builds, or a major-version range if you want
-compatible updates. Avoid an unversioned Git URL or a moving branch such as `master`
+compatible updates. Avoid an unversioned Git URL or a moving branch such as `main`
 when your project must remain on the 1.x API. The default `main` branch develops 2.x; `release/1.x` maintains 1.x.
 2.0.0 is under development and has not been released.
 
@@ -152,7 +152,9 @@ the exact commit before tagging. See [maintaining and releasing](docs/RELEASING.
 
 ## Projects using this library
 
-I'd love to hear about projects that find this library useful.
+These projects demonstrate uses of the library's earlier API; their inclusion does
+not imply migration to or compatibility with 2.x. I'd love to hear about projects
+using the new API too.
 
 - [Broadband Utilisation Display](https://github.com/shortbloke/Broadband_Usage_Display) - An LED display showing broadband upstream and downstream utilisation.
 - [Dekatron-speed](https://github.com/elegantalchemist/dekatron-speed) - Uses a Dekatron (1950s era neon counting tube) spinning based on broadband utilisation rate.
@@ -161,7 +163,7 @@ I'd love to hear about projects that find this library useful.
 
 ## Acknowledgements
 
-This project a derived from an [SNMP Agent project](https://github.com/fusionps/Arduino_SNMP). With Manager functionality adapted from work by [Niich's fork](https://github.com/Niich/Arduino_SNMP).
+This project is derived from an [SNMP Agent project](https://github.com/fusionps/Arduino_SNMP). With Manager functionality adapted from work by [Niich's fork](https://github.com/Niich/Arduino_SNMP).
 
 ## Embedded development
 
@@ -173,7 +175,7 @@ Packet buffers use `SNMP_PACKET_LENGTH` directly (512 bytes by default, 1500 on 
 
 ### Library compilation and configuration
 
-Public headers contain declarations and small inline operations; the corresponding `src/*.cpp` files implement encoding, decoding, request handling, and callback tracking. Arduino and PlatformIO compile these sources automatically when the library is installed. Custom build systems must compile and link all `src/*.cpp` files. `Arduino_SNMP_Manager.h` remains the umbrella header; individual headers can also be included independently.
+Public headers contain declarations and small inline operations; the corresponding `src/*.cpp` files implement encoding, decoding, request handling, and callback tracking. Arduino and PlatformIO compile these sources automatically when the library is installed. Custom build systems must compile and link all `src/*.cpp` files. `Arduino_SNMP_Manager.h` is the low-level manager header. Include `SNMPClient.h` for the friendly API and `SNMPTable.h` for table helpers; public headers can also be included independently.
 
 Defaults live in `src/SNMPConfig.h`. Apply overrides to **both the application and library sources**, for example in PlatformIO:
 

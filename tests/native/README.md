@@ -15,7 +15,7 @@ ASan (AddressSanitizer) detects memory errors such as out-of-bounds accesses and
 
 In VS Code, use the integrated terminal or PlatformIO Project Tasks → native → Advanced → Test. This step adds PlatformIO testing only; it does not configure the VS Code Testing sidebar.
 
-PlatformIO reports each case under `Ber`, `Requests`, `Responses`, `Manager`, `Tracking`, `Ownership`, or `Configuration`. Use `-v` for full assertion diagnostics. Names replace spaces/punctuation with underscores; pass an exact `--gtest_filter=Group.case_name` to run one case. The same cases and fixtures are shared with the Make runner below, including child-process crash/timeout isolation. Crashes must remain failures, not successful death tests.
+PlatformIO reports each case under `Ber`, `Requests`, `Responses`, `Manager`, `Tracking`, `Ownership`, `Configuration`, `Client`, `Agent`, `MIB`, `Heap`, or `Examples`. Use `-v` for full assertion diagnostics. Names replace spaces/punctuation with underscores; pass an exact `--gtest_filter=Group.case_name` to run one case. The same cases and fixtures are shared with the Make runner below, including child-process crash/timeout isolation. Crashes must remain failures, not successful death tests.
 
 Use `pio test` for the exit status: the GoogleTest executable returns zero as required by PlatformIO’s result parser, while PlatformIO itself returns nonzero for test failures. The build-only command compiles without executing tests. Neither environment runs on an ESP board; POSIX process isolation remains host-only.
 
@@ -36,7 +36,7 @@ The Make build compiles sources into separate object files, links the library as
 
 ## Source organization
 
-- `cases/`: BER, requests, responses, manager integration, tracking, and ownership tests.
+- `cases/`: protocol, manager, query, mock-agent, MIB, heap, ownership, and example regressions.
 - `support/fixtures.*`: independent wire fixtures and shared test helpers.
 - `support/allocations.cpp`: shared allocation-failure injection.
 - `support/registry.*`: registers all behavior groups for either runner.
@@ -83,7 +83,7 @@ Tests use production initialization and destructors, and verify shared registrat
 
 All BER types expose capacity-aware serialization and bounded decoding. Tests exercise short buffers and oversized request rejection. Legacy calls without sizes retain caller responsibility; they cannot infer allocation sizes. Custom BER subclasses must implement the new capacity-aware virtual signatures.
 
-The default printable OID buffer remains smaller than the protocol's maximum possible OID representation. A separate wide-OID codec target verifies the maximum legal OID; exhaustive boundary combinations and target hardware behavior need further work. Allocation-failure injection checks partial-build cleanup and recovery; it does not reproduce every possible heap condition. C-string callbacks support explicit capacities; binary callbacks preserve OCTET STRING and Opaque payloads and report their lengths. The query client also covers trap reception and INFORM acknowledgement.
+The default printable OID buffer remains smaller than the protocol's maximum possible OID representation. A separate wide-OID codec target verifies the maximum legal OID; these codec checks do not cover every boundary combination or physical target. Allocation-failure injection checks partial-build cleanup and recovery; it does not reproduce every possible heap condition. C-string callbacks support explicit capacities; binary callbacks preserve OCTET STRING and Opaque payloads and report their lengths. The query client also covers trap reception and INFORM acknowledgement.
 
 ## Compatibility checks
 
@@ -97,11 +97,11 @@ See [embedded builds](../embedded/README.md) for real ESP8266, ESP32, ESP32-C3, 
 
 The native builds compile and link the library's `src/*.cpp` sources alongside the tests. `make check` also compiles each public header independently, verifies that matching custom settings link, and checks that inconsistent capacity or logging settings fail to link. These checks use Python 3 and the configured C++ compiler. They also cover the shared `SNMP_CONFIG_HEADER` option. The Arduino serial stub has one shared definition, so logging checks exercise calls from the compiled library.
 
-`make -C tests/native configuration` runs the configuration group against separately compiled library archives with smaller and larger limits; it is also part of `make check`. The cases exercise exact receive limits, oversized request rejection before transmission, pending-slot exhaustion/reuse, and octet/opaque/OID capacity boundaries. The normal suite runs these cases with the default settings. To select a standalone group, use `tests/native/build/tests --group Configuration`; an unknown or empty group fails.
+`make -C tests/native configuration` runs the configuration group against separately compiled library archives with smaller and larger limits; it is also part of `make check`. The cases exercise configured receive limits, oversized request rejection before transmission, pending-slot exhaustion/reuse, and octet/opaque/OID capacity boundaries. The normal suite runs these cases with the default settings. To select a standalone group, use `tests/native/build/tests --group Configuration`; an unknown or empty group fails.
 
 ## Lifecycle and leak checks
 
-`make -C tests/native lifecycle` runs the shared ownership, response, and MIB cases directly in one process, including allocation-failure recovery, repeated packet building, parser reuse, and destruction. It returns normally so destructors and exit-time leak checking can run; assertions or crashes fail the executable. A process timeout prevents a hang. This target is also part of `make check`.
+`make -C tests/native lifecycle` runs the shared ownership, response, MIB, and heap cases directly in one process, including allocation-failure recovery, repeated packet building, parser reuse, and destruction. It returns normally so destructors and exit-time leak checking can run; assertions or crashes fail the executable. A process timeout prevents a hang. This target is also part of `make check`.
 
 Run `make -C tests/native leaks` for explicit leak detection. On Linux it uses AddressSanitizer/UndefinedBehaviorSanitizer with LeakSanitizer enabled; CI runs this target on Ubuntu. On macOS it uses the system `leaks --atExit` tool with an unsanitized debug build. Tool failures and detected leaks fail the target. These checks cover the exercised lifecycles; they do not prove all allocation paths are leak-free.
 
@@ -191,7 +191,7 @@ compiled 1408-byte OID configuration. It is included in `make check`; this does 
 increase the embedded defaults. See [RFC coverage](RFC_NOTES.md) for the standards
 baseline, verified erratum, tested restrictions, and remaining conformance limits.
 
-### Recent-change coverage map
+### Implementation coverage map
 
 | Change | Regression coverage |
 | --- | --- |
@@ -204,8 +204,8 @@ baseline, verified erratum, tested restrictions, and remaining conformance limit
 | New examples | ESP8266/ESP32 builds in `tests/examples`; compile checks do not prove device semantics |
 | Physical-board harness | D1 Mini compile profile; `tests/hardware/test_check_log.py` rejects failed, incomplete or inconsistent serial runs |
 
-The latest audit adds owned OID/IpAddress SET wire checks and MIB helper boundary
-cases that were not previously explicit. Shared behavior cases run through both
+The suite includes owned OID/IpAddress SET wire checks and MIB helper boundary
+cases. Shared behavior cases run through both
 native runners. Memory-related MIB/Heap cases also run in the leak executable.
 This map associates changes with tests; it is not a claim of complete line/branch
 coverage or exhaustive hardware, heap, and protocol coverage.

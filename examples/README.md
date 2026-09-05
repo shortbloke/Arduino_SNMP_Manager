@@ -54,7 +54,7 @@ not return every type. Change the root to a subtree exposed by your agent.
 
 | Wire value | Handling / useful objects |
 | --- | --- |
-| Integer32 | Signed output; host storage block counts, printer supply levels |
+| INTEGER | Signed output; host storage block counts, printer supply levels |
 | OCTET STRING | Hex preserves embedded zeros and binary data; device examples display descriptions after `isText()` |
 | OBJECT IDENTIFIER | Dotted text, for example sysObjectID |
 | IpAddress | Four-byte IPv4 value, distinct from an InetAddress OCTET STRING |

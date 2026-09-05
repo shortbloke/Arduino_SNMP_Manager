@@ -11,8 +11,9 @@ Other retired branches have matching `archive/*-2026-09-05` tags.
 - Request-aware dispatch for repeated IP/OID registrations and `updateCount()`.
 - Bounded strings, persistent OID lists, fresh-response polling, corrected counter
   arithmetic, and configuration hints in the low-level examples.
-- The published 1.x changelog, current GitHub Actions, Markdown checks, and release
-  metadata automation.
+- Shared GitHub Actions, Markdown checks, and release metadata automation.
+  The 2.x changelog records this major line; published 1.x history remains on
+  `release/1.x`.
 
 ## Intentional 2.x differences
 
@@ -27,4 +28,3 @@ Other retired branches have matching `archive/*-2026-09-05` tags.
 
 These differences are not lost backports. See [migration](../MIGRATION.md) for
 application changes and [release maintenance](RELEASING.md) for branch policy.
-The parked proposal-heading edit remains in the local Git stash; it was not dropped.
