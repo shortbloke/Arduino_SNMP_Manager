@@ -260,15 +260,27 @@ int main(int argc,char** argv) {
     });
 
     add("Counter64 handles a long-form length header", [] {
-        // Padding keeps the legacy unbounded decoder within allocated memory;
-        // it is outside the TLV and must not be treated as integer contents.
-        Bytes bytes(132,0);
-        bytes[0]=0x46; bytes[1]=0x81; bytes[2]=1; bytes[3]=42;
+        for (Bytes bytes : {Bytes{0x46,0x81,1,42}, Bytes{0x46,0x82,0,1,42},
+                            Bytes{0x46,0x83,0,0,1,42}}) {
+            Counter64 value;
+            CHECK(value.fromBuffer(bytes.data()));
+            CHECK(value._value==42);
+            CHECK(value.getLength()==1);
+        }
+        Bytes maximum{0x46,0x81,9,0,255,255,255,255,255,255,255,255};
         Counter64 value;
-        CHECK(value.fromBuffer(bytes.data()));
-        CHECK(value._value==42);
-        CHECK(value.getLength()==1);
-    }, true);
+        CHECK(value.fromBuffer(maximum.data()));
+        CHECK(value._value==UINT64_MAX && value.getLength()==9);
+    });
+    add("Counter64 rejects invalid lengths and out-of-range contents", [] {
+        for (Bytes bytes : {Bytes{0x46,0}, Bytes{0x46,0x80}, Bytes{0x46,0xff},
+                            Bytes{0x46,10}, Bytes{0x46,0x82,1,0},
+                            Bytes{0x46,1,0xff}, Bytes{0x46,9,1,0,0,0,0,0,0,0,0}}) {
+            Counter64 value(42);
+            CHECK(!value.fromBuffer(bytes.data()));
+            CHECK(value._value==42);
+        }
+    });
 
     add("child length cannot exceed enclosing sequence", [] {
         // Backing bytes exist, but the parent declares only three content bytes.

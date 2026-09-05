@@ -55,7 +55,7 @@ Inspected [issue #66](https://github.com/0neblock/Arduino_SNMP/issues/66) and [f
 | Comparison | Local result |
 | --- | --- |
 | Sequence length exactly 256 | **Fixed:** the length header now uses two octets at exactly 256 content bytes. This check and adjacent sequence sizes pass in the baseline. |
-| Long-form header accounting | Nested sequence/sibling alignment passes. Counter64 long-form length decoding fails here. Local parsers return bool, so the fork's incorrect consumed-byte return is not literally present. |
+| Long-form header accounting | Nested sequence/sibling alignment passes. **Counter64 fixed:** long-form length headers are decoded before reading the value. Local parsers return bool, so the fork's incorrect consumed-byte return is not literally present. |
 | Defensive parser bounds | Child overrun of its enclosing sequence, a dangling child tag, and a truncated UDP response are accepted. Added three failures. |
 | Three-byte negative integer | Callback gets an incorrect positive number. Related sign-extension defect; the fork's specific compound-assignment expression is absent. |
 | UDP initialization | **Fixed:** `begin()` returns the UDP bind result. The baseline checks failure and a successful retry on port 162. Fake UDP supports begin failure injection. |
@@ -136,4 +136,10 @@ Added a virtual ValueCallback destructor without changing registration ownership
 
 ## Counter64 serialization fix
 
-Counter64 serialization now emits minimal big-endian contents with a leading zero when needed to preserve the positive sign. Tests cover zero, byte/sign boundaries, the 64-bit sign boundary, UINT64_MAX, value preservation, and repeat serialization. Normal checks report 44 baseline passes and 25 remaining failures; the sanitizer baseline also passes all 44 cases. Long-form Counter64 decoding remains a separate regression.
+Counter64 serialization now emits minimal big-endian contents with a leading zero when needed to preserve the positive sign. Tests cover zero, byte/sign boundaries, the 64-bit sign boundary, UINT64_MAX, value preservation, and repeat serialization. Normal checks report 44 baseline passes and 25 remaining failures; the sanitizer baseline also passes all 44 cases. Long-form Counter64 decoding was addressed in the subsequent fix below.
+
+## Counter64 length decoding fix
+
+Counter64 decoding now consumes the definite-length header before reading contents, including nonminimal long-form lengths with leading zero octets. It rejects indefinite/reserved lengths, empty or oversized contents, negative encodings, and values exceeding 64 bits without changing the stored value. Exact-sized fixtures replace the padded regression input and cover UINT64_MAX.
+
+Normal checks report 46 baseline passes and 24 remaining regression failures; the sanitizer baseline also passes all 46 cases. The pointer-only API still requires a complete input TLV, and parent parser error propagation remains separate work.

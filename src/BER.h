@@ -489,20 +489,38 @@ public:
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Counter64:fromBuffer");
 #endif
-        buf++; // skip Type
-        _length = *buf;
-        buf++;
-        unsigned short tempLength = _length;
-        //        _value = *buf; // TODO: make work for integers more than 255
-        _value = 0;
-        while (tempLength > 0)
+        // This pointer-only API requires the caller to supply the complete TLV.
+        if (*buf++ != COUNTER64)
+            return false;
+        unsigned int length = *buf++;
+        if (length & 0x80)
         {
-            _value = _value << 8;
-            _value = _value | *buf++;
-            tempLength--;
+            const unsigned int lengthOctets = length & 0x7f;
+            if (lengthOctets == 0 || lengthOctets == 127)
+                return false;
+            length = 0;
+            for (unsigned int i = 0; i < lengthOctets; ++i)
+            {
+                length = (length << 8) | *buf++;
+                // Counter64 needs at most eight value octets and a sign octet.
+                if (length > 9)
+                    return false;
+            }
         }
+        if (length == 0 || length > 9 || (buf[0] & 0x80))
+            return false;
+        if (length == 9 && buf[0] != 0)
+            return false;
+        uint64_t value = 0;
+        for (unsigned int i = 0; i < length; ++i)
+        {
+            value = (value << 8) | *buf++;
+        }
+        _length = length;
+        _value = value;
         return true;
     }
+
     int getLength()
     {
         return _length;
