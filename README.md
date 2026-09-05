@@ -1,7 +1,5 @@
 # SNMP Manager for ESP8266 and ESP32
 
-> **PUBLIC** — Tracked in Git and shared in the repository.
-
 Version 2.0.0-alpha.1 is under development on `main`. It introduces a friendly query API
 and intentional API/build changes. Stable 1.x releases remain supported on
 [`release/1.x`](https://github.com/shortbloke/Arduino_SNMP_Manager/tree/release/1.x).

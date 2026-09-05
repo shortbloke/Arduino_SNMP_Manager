@@ -1,7 +1,5 @@
 # Get your first reading from a device
 
-> **PUBLIC** — Tracked in Git and shared in the repository.
-
 SNMP lets a device answer questions such as “How long have you been running?” or
 “How many bytes has this interface received?” This library lets an ESP8266 or
 ESP32 ask those questions. You do not need to write network packets or manage
