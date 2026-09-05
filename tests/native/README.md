@@ -112,3 +112,27 @@ owned results, timeout/retry and cancellation, large query batching, SET encodin
 walk progression, sparse table joins and counter fallback, and trap/INFORM handling.
 Run `make test` for the complete suite or `./build/tests --group Client` after building.
 The existing manager/handler regression groups remain active for compatibility.
+
+## Mock SNMP agent
+
+The `Agent` regression group uses `support/mock_agent.h` and `mock_agent.cpp` to
+answer actual outgoing GET, GETNEXT, and GETBULK datagrams from an ordered OID
+fixture database. Its BER reader, numeric OID ordering, and traversal logic are
+independent of the library under test. Bindings use independent fixture encoding;
+no library serializer is used to generate agent responses.
+
+The scenarios verify complete sparse walks, multiple GETBULK pages, non-repeaters
+and repetition ordering, subtree boundaries, version-specific end-of-MIB responses,
+composite indices, uneven table columns, and interface Counter64/Counter32 fallback.
+Fault cases cover packet-size limits, dropped/truncated replies, duplicates,
+nonadvancing OIDs, and result capacity exhaustion. The same group runs under small
+and large library configurations.
+
+After building, run `./build/tests --group Agent`. To create another scenario,
+use `MockAgent::put(oid, primitiveTLV)`, start a client operation, then alternate
+`client.loop(now)` and `agent.service(udp)`. `exchanges` records request IDs, PDU
+parameters, requested/returned OIDs, errors, and response bytes for assertions.
+The service helper requires one outgoing datagram per step; it is not a concurrent
+multi-device network emulator. GET missing-instance inference treats the final arc
+as an instance index; walking and table joins support complete composite indices.
+The mock is test-only and does not replace real-agent interoperability testing.

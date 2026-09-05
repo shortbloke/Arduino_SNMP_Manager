@@ -194,7 +194,8 @@ void registerClientTests(std::vector<Test> &tests)
                 CHECK(walk.status().code() == SNMPStatus::ProtocolError);
                 CHECK(walk.start().ok());
                 client.loop(3);
-                udp.incoming = reply(udp, binding({0x82, 0}));
+                udp.incoming = version == SNMPVersion::Version1 ? reply(udp, binding({5, 0}), 2)
+                                                                : reply(udp, binding({0x82, 0}));
                 client.loop(4);
                 CHECK(walk.status().ok());
                 CHECK(walk.size() == 0);

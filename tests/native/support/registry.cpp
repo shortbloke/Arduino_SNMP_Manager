@@ -4,6 +4,7 @@ std::vector<Test> allTests()
 {
     std::vector<Test> tests;
     registerClientTests(tests);
+    registerAgentTests(tests);
     registerBerTests(tests);
     registerRequestsTests(tests);
     registerResponsesTests(tests);

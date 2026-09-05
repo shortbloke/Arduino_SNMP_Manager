@@ -49,6 +49,7 @@ configuration:
 configuration-run: $(BUILD)/tests
 	./$(BUILD)/tests --group Configuration
 	./$(BUILD)/tests --group Client
+	./$(BUILD)/tests --group Agent
 
 .PHONY: lifecycle leaks
 $(BUILD)/lifecycle: $(LIFECYCLE_OBJECTS) $(BUILD)/libsnmp.a
