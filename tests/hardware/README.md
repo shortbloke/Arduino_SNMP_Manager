@@ -1,7 +1,7 @@
 # Physical-board interoperability and memory testing
 
 This project is a runnable test sketch, separate from compile-only smoke tests.
-**No physical-board run has been recorded yet.** A USB serial adapter is not proof
+**A D1 Mini run is recorded in [D1_MINI_RESULT.md](D1_MINI_RESULT.md).** A USB serial adapter is not proof
 of its board model. Confirm the target and that replacing its firmware is acceptable
 before uploading. A run requires an accessible agent supporting both SNMPv1 and v2c
 with the same system-group view.
@@ -9,7 +9,7 @@ with the same system-group view.
 1. Copy `src/hardware_config.h.example` to `src/hardware_config.h` and fill in the
    Wi-Fi credentials and agent address/community/port. The local file is ignored.
 2. Select the matching board environment in `platformio.ini`; the supplied profiles
-   are NodeMCU ESP8266 and ESP32 DevKit. Do not guess from the USB serial adapter.
+   are NodeMCU ESP8266, D1 Mini (`d1_mini`), and ESP32 DevKit. Do not guess from the USB serial adapter.
 3. Compile with `pio run -d tests/hardware -e esp8266` (or `esp32`). With configuration
    omitted, the sketch prints a configuration message and does not connect.
 4. Once firmware replacement is authorized, upload using
@@ -18,6 +18,11 @@ with the same system-group view.
    `pio device monitor --port PORT --baud 115200`. Some boards reset when monitoring
    opens. Record the exact commit, board/chip, Arduino core, agent software/firmware,
    SNMP view, signal strength, and any packet-capture reference with the result.
+
+Validate the captured log with `python3 tests/hardware/check_log.py path/to/run.log`.
+The validator requires every stage, compares exact OID sequences independently of
+the firmware hashes, and rejects reported failures or incomplete runs. Its rejection
+cases run in CI through `python3 tests/hardware/test_check_log.py`.
 
 The sketch performs repeated typed GETs in both versions and compares streamed
 GETNEXT/GETBULK system-subtree instance counts and hashes. It logs every OID so an

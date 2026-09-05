@@ -2,6 +2,8 @@
 
 ## 2.0.0
 
+- Extend MIB boundary and owned SET-value regressions; add D1 Mini hardware-run validation and record live read/walk memory measurements.
+
 - Enforce SNMP version/PDU/value combinations and the 128-subidentifier OID limit; recover from empty successful GETBULK replies with GETNEXT.
 - Add RFC-derived request-ID and full-size OID checks, and document the bounded v1/v2c standards scope.
 

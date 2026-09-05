@@ -90,7 +90,8 @@ Choosing GETNEXT as recovery is this client's policy, not a mandated algorithm.
 - This audit and suite are not an independent conformance certification or an
   exhaustive ASN.1/procedure proof. Additional malformed inputs, all error-index
   combinations, every agent behavior, and physical-network interoperability need
-  broader validation. The hardware run remains pending board/network setup.
+  broader validation. A D1 Mini read/walk run is recorded in [the hardware results](../hardware/D1_MINI_RESULT.md);
+  other boards, operations, and failure conditions still require physical validation.
 
 The accurate product claim is **bounded SNMPv1/v2c manager operations with explicit
 resource limits and RFC-derived regression coverage**, not “implements the latest

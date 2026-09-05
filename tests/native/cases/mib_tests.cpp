@@ -181,6 +181,63 @@ void registerMIBTests(std::vector<Test> &tests)
             CHECK(std::string(table[0].index) == "123");
             CHECK(table[0][0].ok() && table[0][0].value.bytes[0] == 'a');
         });
+    add("MIB helper invalid inputs preserve outputs and all supply states are distinct",
+        []
+        {
+            SNMPValue wrong = SNMPValue::counter32(1);
+            uint64_t bytes = 99;
+            bool truth = false;
+            double number = 42;
+            CHECK(!SNMPMIB::storageBytes(wrong, SNMPValue::integer32(1), bytes));
+            CHECK(!SNMPMIB::truthValue(wrong, truth));
+            CHECK(SNMPMIB::truthValue(SNMPValue::integer32(1), truth) && truth);
+            for (int exponent : {-25, 25})
+                CHECK(!SNMPMIB::fixedPoint(SNMPValue::integer32(1), exponent, 0, number));
+            for (int precision : {-9, 10})
+                CHECK(!SNMPMIB::fixedPoint(SNMPValue::integer32(1), 0, precision, number));
+            CHECK(!SNMPMIB::fixedPoint(wrong, 0, 0, number));
+            CHECK(!SNMPMIB::fixedPoint(SNMPValue::integer32(-1000000000), 0, 0, number));
+            CHECK(SNMPMIB::supplyState(SNMPValue::integer32(-1)) == SNMPMIB::SupplyState::Other);
+            CHECK(SNMPMIB::supplyState(SNMPValue::integer32(-4)) == SNMPMIB::SupplyState::Invalid);
+            CHECK(SNMPMIB::supplyState(wrong) == SNMPMIB::SupplyState::Invalid);
+            CHECK(SNMPMIB::supplyState(SNMPValue::integer32(0)) == SNMPMIB::SupplyState::Known);
+            CHECK(
+                !SNMPMIB::supplyPercent(SNMPValue::integer32(2), SNMPValue::integer32(1), number));
+            CHECK(
+                !SNMPMIB::supplyPercent(SNMPValue::integer32(0), SNMPValue::integer32(0), number));
+            CHECK(!SNMPMIB::supplyPercent(SNMPValue::integer32(1), wrong, number));
+            CHECK(bytes == 99 && number == 42);
+        });
+    add("address helpers and owned address OID payloads enforce lengths and preserve binary data",
+        []
+        {
+            SNMPValue value;
+            unsigned char ip[] = {192, 0, 2, 1};
+            CHECK(value.setBytes(ip, sizeof(ip)).ok());
+            char text[40] = "unchanged";
+            CHECK(!SNMPMIB::formatAddress(SNMPValue::integer32(1), value, text, 9));
+            CHECK(std::string(text) == "unchanged");
+            CHECK(SNMPMIB::formatAddress(SNMPValue::integer32(1), value, text, sizeof(text)));
+            CHECK(std::string(text) == "192.0.2.1");
+            CHECK(!SNMPMIB::formatAddress(SNMPValue::integer32(3), value, text, sizeof(text)));
+            CHECK(!SNMPMIB::formatAddress(SNMPValue::counter32(1), value, text, sizeof(text)));
+            CHECK(!SNMPMIB::formatAddress(SNMPValue::integer32(2), value, text, sizeof(text)));
+            CHECK(!SNMPMIB::formatAddress(SNMPValue::integer32(1), value, nullptr, sizeof(text)));
+            CHECK(!SNMPMIB::formatMAC(value, text, sizeof(text)));
+            CHECK(std::string(text) == "192.0.2.1");
+            CHECK(value.setBytes(ip, sizeof(ip), NETWORK_ADDRESS).ok());
+            CHECK(!value.setBytes(ip, 3, NETWORK_ADDRESS).ok());
+            CHECK(value.type == NETWORK_ADDRESS && value.length == 4);
+            CHECK(!value.setBytes(nullptr, 1).ok());
+            CHECK(!value.setBytes(ip, 4, INTEGER).ok());
+            const unsigned char oid[] = ".1.3.6.1";
+            CHECK(value.setBytes(oid, sizeof(oid) - 1, OID).ok());
+            CHECK(!value.setBytes(oid, sizeof(oid), OID).ok());
+            CHECK(!value.setBytes(nullptr, 0, OID).ok());
+            CHECK(value.type == OID && std::string(value.text()) == ".1.3.6.1");
+            CHECK(value.setBytes(value.bytes, value.length, OID).ok()); // Aliased replacement.
+            CHECK(std::string(value.text()) == ".1.3.6.1");
+        });
     add("host storage conversion uses wide arithmetic and checked types",
         []
         {

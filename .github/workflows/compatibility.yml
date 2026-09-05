@@ -14,6 +14,7 @@ jobs:
       - run: make -C tests/native BUILD=build-sanitize CXXFLAGS='-std=c++11 -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all' check
       - run: make -C tests/native leaks
       - run: pio test -e native
+      - run: python3 tests/hardware/test_check_log.py
   embedded:
     runs-on: ubuntu-latest
     strategy:

@@ -192,3 +192,23 @@ these tests cannot establish that every possible low-memory condition is crash-f
 compiled 1408-byte OID configuration. It is included in `make check`; this does not
 increase the embedded defaults. See [RFC coverage](RFC_NOTES.md) for the standards
 baseline, verified erratum, tested restrictions, and remaining conformance limits.
+
+
+### Recent-change coverage map
+
+| Change | Regression coverage |
+| --- | --- |
+| Friendly queries, SET, scheduling, correlation, notifications | `Client`, with independent wire checks in `tests/interop` |
+| Sparse traversal and composite indices | `Agent`; compact index rejection and retained-row cleanup in `MIB` |
+| Owned payloads, larger descriptions, long IPv6 TCP indices | `MIB`, including aliasing, failed replacement and copies across polls |
+| MIB conversions and formatting | `MIB`: normal values, invalid types/ranges, sentinel states and buffer boundaries |
+| Low-heap behavior | `Heap`: allocation-boundary sweeps, recovery, snapshot preservation, INFORM acceptance and SET timeout |
+| RFC version/value restrictions, request IDs, empty bulk responses | `Responses` and `Client`; OID bounds in `Configuration` and `oid-limits` |
+| New examples | ESP8266/ESP32 builds in `tests/examples`; compile checks do not prove device semantics |
+| Physical-board harness | D1 Mini compile profile; `tests/hardware/test_check_log.py` rejects failed, incomplete or inconsistent serial runs |
+
+The latest audit adds owned OID/IpAddress SET wire checks and MIB helper boundary
+cases that were not previously explicit. Shared behavior cases run through both
+native runners. Memory-related MIB/Heap cases also run in the leak executable.
+This map associates changes with tests; it is not a claim of complete line/branch
+coverage or exhaustive hardware, heap, and protocol coverage.

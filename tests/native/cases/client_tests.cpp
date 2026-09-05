@@ -17,6 +17,37 @@ void registerClientTests(std::vector<Test> &tests)
 {
     auto add = [&](const char *name, std::function<void()> run)
     { tests.push_back({"Client", name, run}); };
+    add("SET owned OID and address values encode their actual wire primitives",
+        []
+        {
+            UDP udp;
+            SNMPClient client(udp);
+            SNMPDevice device(client, udp.peer, "public");
+            SNMPSet<2> write(device);
+            SNMPValue object, address;
+            const unsigned char name[] = ".1.3.6.1.4.1.12325";
+            const unsigned char ip[] = {192, 0, 2, 99};
+            CHECK(object.setBytes(name, sizeof(name) - 1, OID).ok());
+            CHECK(address.setBytes(ip, sizeof(ip), NETWORK_ADDRESS).ok());
+            CHECK(write.addValue(".1.3.6.1.2.1.1.2.0", object).ok());
+            CHECK(write.addValue(".1.3.6.1.2.1.4.20.1.1.192.0.2.99", address).ok());
+            object = SNMPValue(); // Request owns copies after the caller releases them.
+            address = SNMPValue();
+            CHECK(client.begin().ok() && write.start().ok());
+            client.loop(0);
+            CHECK(write.pending() && udp.packets == 1);
+            SNMPGetResponse packet;
+            CHECK(packet.parseFrom(udp.outgoing.data(), udp.outgoing.size()));
+            CHECK(packet.requestType == SetRequestPDU);
+            auto *first = packet.varBinds->value;
+            auto *second = packet.varBinds->next->value;
+            CHECK(first->type == OID);
+            CHECK(std::string(static_cast<OIDType *>(first->value)->_value) ==
+                  reinterpret_cast<const char *>(name));
+            CHECK(second->type == NETWORK_ADDRESS);
+            CHECK(static_cast<NetworkAddress *>(second->value)->_value == IPAddress(192, 0, 2, 99));
+            write.cancel();
+        });
     add("empty successful GETBULK falls back without inventing end of view",
         []
         {

@@ -79,6 +79,12 @@ void setup()
         Serial.println("FAIL Wi-Fi connection");
         return;
     }
+#if defined(ESP8266)
+    Serial.printf("BOARD core=%s sdk=%s cpuMHz=%u flashBytes=%u rssi=%d\n",
+                  ESP.getCoreVersion().c_str(), ESP.getSdkVersion(),
+                  static_cast<unsigned>(ESP.getCpuFreqMHz()),
+                  static_cast<unsigned>(ESP.getFlashChipRealSize()), static_cast<int>(WiFi.RSSI()));
+#endif
     auto status = client.begin();
     for (auto *query : {&get1, &get2})
     {
