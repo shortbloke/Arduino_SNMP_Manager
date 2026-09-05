@@ -15,7 +15,7 @@ ASan (AddressSanitizer) detects memory errors such as out-of-bounds accesses and
 
 In VS Code, use the integrated terminal or PlatformIO Project Tasks → native → Advanced → Test. This step adds PlatformIO testing only; it does not configure the VS Code Testing sidebar.
 
-PlatformIO reports each case under `Ber`, `Requests`, `Responses`, `Manager`, `Tracking`, or `Ownership`. Use `-v` for full assertion diagnostics. Names replace spaces/punctuation with underscores; pass an exact `--gtest_filter=Group.case_name` to run one case. The same cases and fixtures are shared with the Make runner below, including child-process crash/timeout isolation. Crashes must remain failures, not successful death tests.
+PlatformIO reports each case under `Ber`, `Requests`, `Responses`, `Manager`, `Tracking`, `Ownership`, or `Configuration`. Use `-v` for full assertion diagnostics. Names replace spaces/punctuation with underscores; pass an exact `--gtest_filter=Group.case_name` to run one case. The same cases and fixtures are shared with the Make runner below, including child-process crash/timeout isolation. Crashes must remain failures, not successful death tests.
 
 Use `pio test` for the exit status: the GoogleTest executable returns zero as required by PlatformIO’s result parser, while PlatformIO itself returns nonzero for test failures. The build-only command compiles without executing tests. Neither environment runs on an ESP board; POSIX process isolation remains host-only.
 
@@ -96,3 +96,5 @@ make -C tests/native BUILD=build-sanitize CXXFLAGS='-std=c++11 -g -O1 -fsanitize
 See [embedded builds](../embedded/README.md) for real ESP8266, ESP32, ESP32-C3, and Arduino Nano ESP32 compile/link checks. These do not require attached hardware.
 
 The native builds compile and link the library's `src/*.cpp` sources alongside the tests. `make check` also compiles each public header independently, verifies that matching custom settings link, and checks that inconsistent capacity or logging settings fail to link. These checks use Python 3 and the configured C++ compiler. They also cover the shared `SNMP_CONFIG_HEADER` option. The Arduino serial stub has one shared definition, so logging checks exercise calls from the compiled library.
+
+`make -C tests/native configuration` runs the configuration group against separately compiled library archives with smaller and larger limits; it is also part of `make check`. The cases exercise exact receive limits, oversized request rejection before transmission, pending-slot exhaustion/reuse, and octet/opaque/OID capacity boundaries. The normal suite runs these cases with the default settings. To select a standalone group, use `tests/native/build/tests --group Configuration`; an unknown or empty group fails.

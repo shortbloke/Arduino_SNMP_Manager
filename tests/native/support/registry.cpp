@@ -9,5 +9,6 @@ std::vector<Test> allTests()
     registerManagerTests(tests);
     registerTrackingTests(tests);
     registerOwnershipTests(tests);
+    registerConfigurationTests(tests);
     return tests;
 }

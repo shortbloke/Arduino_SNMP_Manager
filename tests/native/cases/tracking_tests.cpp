@@ -5,36 +5,6 @@ void registerTrackingTests(std::vector<Test> &tests)
 {
     auto add = [&](const char *name, std::function<void()> run)
     { tests.push_back({"Tracking", name, run}); };
-    add("pending request capacity rejects excess sends and can be cleared",
-        []
-        {
-            Manager manager;
-            UDP udp;
-            manager.setUDP(&udp);
-            int value = 99;
-            auto *callback = manager.addIntegerHandler(udp.peer, oid, &value);
-            Request request;
-            request.setUDP(&udp);
-            request.addOIDPointer(callback);
-            for (int i = 0; i < SNMP_MAX_PENDING_REQUESTS; ++i)
-            {
-                request.setRequestID(i + 1);
-                CHECK(request.sendTo(udp.peer));
-            }
-            int packets = udp.packets;
-            request.setRequestID(100);
-            CHECK(!request.sendTo(udp.peer) && udp.packets == packets);
-            udp.incoming = message(binding({2, 1, 42}), 1, "public", 0xa2, 1);
-            manager.loop();
-            CHECK(value == 42);
-            CHECK(request.sendTo(udp.peer));
-            callback->clearPendingRequests();
-            CHECK(!callback->requestPending);
-            udp.incoming = message(binding({2, 1, 7}), 1, "public", 0xa2, 100);
-            manager.loop();
-            CHECK(value == 42);
-            CHECK(request.sendTo(udp.peer));
-        });
     add("legacy request summary cannot disable response matching",
         []
         {

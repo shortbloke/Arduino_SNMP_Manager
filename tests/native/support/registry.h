@@ -14,3 +14,5 @@ void registerResponsesTests(std::vector<Test> &tests);
 void registerManagerTests(std::vector<Test> &tests);
 void registerTrackingTests(std::vector<Test> &tests);
 void registerOwnershipTests(std::vector<Test> &tests);
+
+void registerConfigurationTests(std::vector<Test> &tests);

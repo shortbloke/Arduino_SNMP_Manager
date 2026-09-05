@@ -22,7 +22,7 @@ $(BUILD)/tests: $(TEST_OBJECTS) $(BUILD)/libsnmp.a
 	$(CXX) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
 test: $(BUILD)/tests
 	./$(BUILD)/tests
-check: test debug compatibility headers
+check: test debug compatibility headers configuration
 sanitize:
 	$(MAKE) BUILD=build-sanitize CXXFLAGS='-std=c++11 -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer' test
 debug:
@@ -39,3 +39,10 @@ clean:
 	rm -rf build build-*
 
 -include $(LIB_OBJECTS:.o=.d) $(TEST_OBJECTS:.o=.d) $(COMPAT_OBJECTS:.o=.d)
+
+.PHONY: configuration configuration-run
+configuration:
+	$(MAKE) BUILD=$(BUILD)-config-small CPPFLAGS='$(CPPFLAGS) -DSNMP_PACKET_LENGTH=256 -DSNMP_OCTETSTRING_MAX_LENGTH=512 -DMAX_OID_LENGTH=64 -DSNMP_MAX_PENDING_REQUESTS=2' configuration-run
+	$(MAKE) BUILD=$(BUILD)-config-large CPPFLAGS='$(CPPFLAGS) -DSNMP_PACKET_LENGTH=768 -DSNMP_OCTETSTRING_MAX_LENGTH=2048 -DMAX_OID_LENGTH=192 -DSNMP_MAX_PENDING_REQUESTS=6' configuration-run
+configuration-run: $(BUILD)/tests
+	./$(BUILD)/tests --group Configuration
