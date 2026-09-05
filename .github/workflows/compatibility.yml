@@ -3,6 +3,9 @@ on: [push, pull_request, workflow_dispatch, workflow_call]
 permissions:
   contents: read
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+
   markdown:
     runs-on: ubuntu-latest
     steps:
@@ -10,7 +13,9 @@ jobs:
       - uses: actions/setup-node@v7.0.0
         with:
           node-version: '24'
-      - run: npx --yes markdownlint-cli@0.49.1 $(git ls-files '*.md')
+      - run: |
+          mapfile -d '' markdown_files < <(git ls-files -z '*.md')
+          npx --yes markdownlint-cli@0.49.1 "${markdown_files[@]}"
   native:
     runs-on: ubuntu-latest
     steps:

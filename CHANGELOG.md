@@ -54,6 +54,7 @@ not been published. Existing 1.x projects should read the
 - Retain historical D1 Mini read/walk and burst-test evidence; those runs do not
   certify this preview on every board or agent.
 - Automate release preparation PRs and checked publication for both major lines.
+- Gate CI and releases with workflow/shell, Python, and Arduino packaging lint checks.
 
 ### Scope and review status
 

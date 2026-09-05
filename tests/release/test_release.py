@@ -1,10 +1,11 @@
 import importlib.util
-import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
-spec = importlib.util.spec_from_file_location("release", Path(__file__).resolve().parents[2] / "scripts/release.py")
+spec = importlib.util.spec_from_file_location(
+    "release", Path(__file__).resolve().parents[2] / "scripts/release.py"
+)
 release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
 
@@ -17,7 +18,9 @@ class ReleaseTests(unittest.TestCase):
         (self.root / "library.properties").write_text("name=SNMP Manager\nversion=1.2.1\n")
         (self.root / "library.json").write_text('{"version":"1.2.1", "name":"SNMP Manager"}')
         (self.root / "README.md").write_text("Version 1.2.1; pin #v1.2.1 or @^1.2.1\n")
-        (self.root / "CHANGELOG.md").write_text("# Changes\n\n## Unreleased\n\n- A fix.\n\n## 1.2.1\n\n- Old fix.\n")
+        (self.root / "CHANGELOG.md").write_text(
+            "# Changes\n\n## Unreleased\n\n- A fix.\n\n## 1.2.1\n\n- Old fix.\n"
+        )
 
     def test_prepare_updates_metadata_and_preserves_history(self):
         release.prepare(self.root, "1.2.2", "release/1.x")
