@@ -33,21 +33,22 @@ const char *oidUptime = ".1.3.6.1.2.1.1.3.0";               // TimeTicks uptime 
 //************************************
 //* Settings                         *
 //************************************
-int pollInterval = 10000; // delay in milliseconds
+uint32_t pollInterval = 10000; // delay in milliseconds
 //************************************
 
 //************************************
 //* Initialise                       *
 //************************************
 // Variables
-long unsigned int ifSpeedResponse = 0;
-long unsigned int inOctetsResponse = 0;
-unsigned int uptime = 0;
-unsigned int lastUptime = 0;
+uint32_t ifSpeedResponse = 0;
+uint32_t inOctetsResponse = 0;
+uint32_t uptime = 0;
+uint32_t lastUptime = 0;
 unsigned long pollStart = 0;
 unsigned long intervalBetweenPolls = 0;
 float bandwidthInUtilPct = 0;
-long unsigned int lastInOctets = 0;
+uint32_t lastInOctets = 0;
+int32_t nextRequestId = 1;
 // SNMP Objects
 EthernetUDP udp;                                       // UDP object used to send and receive packets
 SNMPManager snmp = SNMPManager(community);             // Starts an SNMPManager to listen to replies to get-requests
@@ -69,7 +70,6 @@ void printVariableValues();
 void setup()
 {
   Serial.begin(38400);
-  Ethernet.begin(mac);
   while (!Serial);
   Serial.print("Establishing network connection... ");
   
@@ -83,12 +83,15 @@ void setup()
   }
 
   snmp.setUDP(&udp); // give snmp a pointer to the UDP object
-  snmp.begin();      // start the SNMP Manager
+  if (!snmp.begin())
+    Serial.println(F("Could not start the SNMP response listener"));
 
   // Get callbacks from creating a handler for each of the OID
   callbackIfSpeed = snmp.addGaugeHandler(router, oidIfSpeedGauge, &ifSpeedResponse);
   callbackInOctets= snmp.addCounter32Handler(router, oidInOctetsCount32, &inOctetsResponse);
   callbackUptime = snmp.addTimestampHandler(router, oidUptime, &uptime);
+  if (!callbackIfSpeed || !callbackInOctets || !callbackUptime)
+    Serial.println(F("Could not register all SNMP callbacks"));
 }
 
 void loop()
@@ -121,15 +124,11 @@ void doSNMPCalculations()
   {
     if (inOctetsResponse > 0 && ifSpeedResponse > 0 && lastInOctets > 0)
     {
-      if (inOctetsResponse > lastInOctets)
-      {
-        bandwidthInUtilPct = ((float)((inOctetsResponse - lastInOctets) * 8) / (float)(ifSpeedResponse * ((uptime - lastUptime) / 100)) * 100);
-      }
-      else if (lastInOctets > inOctetsResponse)
-      {
-        Serial.println("inOctets Counter wrapped");
-        bandwidthInUtilPct = (((float)((4294967295 - lastInOctets) + inOctetsResponse) * 8) / (float)(ifSpeedResponse * ((uptime - lastUptime) / 100)) * 100);
-      }
+      uint32_t octets = inOctetsResponse - lastInOctets; // Unsigned subtraction handles wrap.
+      float elapsedSeconds = static_cast<float>(uptime - lastUptime) / 100.0f;
+      if (elapsedSeconds > 0.0f)
+        bandwidthInUtilPct = static_cast<float>(octets) * 8.0f * 100.0f /
+                             (static_cast<float>(ifSpeedResponse) * elapsedSeconds);
     }
   }
   // Update last samples
@@ -140,14 +139,20 @@ void doSNMPCalculations()
 void getSNMP()
 {
   // Build a SNMP get-request add each OID to the request
-  snmpRequest.addOIDPointer(callbackIfSpeed);
-  snmpRequest.addOIDPointer(callbackInOctets);
-  snmpRequest.addOIDPointer(callbackUptime);
+  if (!snmpRequest.addOIDPointer(callbackIfSpeed) || !snmpRequest.addOIDPointer(callbackInOctets) ||
+      !snmpRequest.addOIDPointer(callbackUptime))
+  {
+    Serial.println(F("Could not add callbacks to SNMP request"));
+    snmpRequest.clearOIDList();
+    return;
+  }
 
-  snmpRequest.setIP(Ethernet.localIP()); //IP of the Arduino
   snmpRequest.setUDP(&udp);
-  snmpRequest.setRequestID(rand() % 5555);
-  snmpRequest.sendTo(router);
+  snmpRequest.cancelPendingRequests(); // Treat the previous poll as timed out.
+  snmpRequest.setRequestID(nextRequestId);
+  nextRequestId = nextRequestId == INT32_MAX ? 1 : nextRequestId + 1;
+  if (!snmpRequest.sendTo(router))
+    Serial.println(F("SNMP request could not be sent"));
   snmpRequest.clearOIDList();
 }
 

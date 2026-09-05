@@ -27,8 +27,8 @@ const char *oidUptime = ".1.3.6.1.2.1.1.3.0";  // TimeTicks uptime (hundredths o
 //************************************
 //* Settings                         *
 //************************************
-int devicePollInterval = 100;    // delay in milliseconds
-int lastDeviceWaitPeriod = 5000; // delay in milliseconds
+uint32_t devicePollInterval = 100;    // delay in milliseconds
+uint32_t lastDeviceWaitPeriod = 5000; // delay in milliseconds
 #define LOWEROCTETLIMIT 1        // Set the lowest IP address to 1, .0 typically isn't used and isn't well supported.
 #define UPPEROCTETLIMIT 6        // Set the upper limit of the range of IPs to query
 //************************************
@@ -42,7 +42,9 @@ struct device
   IPAddress address;
   char name[50];
   char *sysName = name; // StringHandler needs pointer to char*
-  unsigned int uptime;
+  uint32_t uptime;
+  ValueCallback *sysNameCallback = nullptr;
+  ValueCallback *uptimeCallback = nullptr;
 }; // Structure for the device records
 
 // Global Variables
@@ -59,8 +61,7 @@ unsigned long deviceReadyStart = 0;
 WiFiUDP udp;                                           // UDP object used to send and receive packets
 SNMPManager snmp = SNMPManager(community);             // Starts an SNMPManager to listen to replies to get-requests
 SNMPGet snmpRequest = SNMPGet(community, snmpVersion); // Starts an SNMPGet instance to send requests
-ValueCallback *callbackSysName;                        // Callback pointer for each OID
-ValueCallback *callbackUptime;                         // Callback pointer for each OID
+int32_t nextRequestId = 1;
 //************************************
 
 //************************************
@@ -86,7 +87,8 @@ void setup()
   Serial.println(WiFi.localIP());
 
   snmp.setUDP(&udp); // give snmp a pointer to the UDP object
-  snmp.begin();      // start the SNMP Manager
+  if (!snmp.begin())
+    Serial.println("Could not start the SNMP response listener");
 }
 
 void loop()
@@ -121,17 +123,32 @@ void sendSNMPRequest(IPAddress target, struct device *deviceRecord)
   Serial.println(target);
   deviceRecord->address = target;
   // Get callbacks from creating a handler for each of the OID
-  callbackSysName = snmp.addStringHandler(target, oidSysName, &deviceRecord->sysName);
-  callbackUptime = snmp.addTimestampHandler(target, oidUptime, &deviceRecord->uptime);
+  if (!deviceRecord->sysNameCallback)
+    deviceRecord->sysNameCallback =
+        snmp.addStringHandler(target, oidSysName, &deviceRecord->sysName, sizeof(deviceRecord->name));
+  if (!deviceRecord->uptimeCallback)
+    deviceRecord->uptimeCallback = snmp.addTimestampHandler(target, oidUptime, &deviceRecord->uptime);
+  if (!deviceRecord->sysNameCallback || !deviceRecord->uptimeCallback)
+  {
+    Serial.println("Could not register SNMP callbacks");
+    return;
+  }
 
   // Build a SNMP get-request add each OID to the request
-  snmpRequest.addOIDPointer(callbackSysName);
-  snmpRequest.addOIDPointer(callbackUptime);
+  if (!snmpRequest.addOIDPointer(deviceRecord->sysNameCallback) ||
+      !snmpRequest.addOIDPointer(deviceRecord->uptimeCallback))
+  {
+    Serial.println("Could not add callbacks to SNMP request");
+    snmpRequest.clearOIDList();
+    return;
+  }
 
-  snmpRequest.setIP(WiFi.localIP()); // IP of the listening MCU
   snmpRequest.setUDP(&udp);
-  snmpRequest.setRequestID(rand() % 5555);
-  snmpRequest.sendTo(target);
+  snmpRequest.cancelPendingRequests(); // Treat this device's previous poll as timed out.
+  snmpRequest.setRequestID(nextRequestId);
+  nextRequestId = nextRequestId == INT32_MAX ? 1 : nextRequestId + 1;
+  if (!snmpRequest.sendTo(target))
+    Serial.println("SNMP request could not be sent");
   snmpRequest.clearOIDList();
 }
 

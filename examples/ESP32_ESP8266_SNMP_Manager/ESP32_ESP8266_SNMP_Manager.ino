@@ -33,25 +33,26 @@ const char *oidUptime = ".1.3.6.1.2.1.1.3.0";               // TimeTicks uptime 
 //************************************
 //* Settings                         *
 //************************************
-int pollInterval = 10000; // delay in milliseconds
+uint32_t pollInterval = 10000; // delay in milliseconds
 //************************************
 
 //************************************
 //* Initialise                       *
 //************************************
 // Variables
-unsigned int ifSpeedResponse = 0;
-unsigned int inOctetsResponse = 0;
-int servicesResponse = 0;
+uint32_t ifSpeedResponse = 0;
+uint32_t inOctetsResponse = 0;
+int32_t servicesResponse = 0;
 char sysName[50];
 char *sysNameResponse = sysName;
-long long unsigned int hcCounter = 0;
-unsigned int uptime = 0;
-unsigned int lastUptime = 0;
+uint64_t hcCounter = 0;
+uint32_t uptime = 0;
+uint32_t lastUptime = 0;
 unsigned long pollStart = 0;
 unsigned long intervalBetweenPolls = 0;
 float bandwidthInUtilPct = 0;
-unsigned int lastInOctets = 0;
+uint32_t lastInOctets = 0;
+int32_t nextRequestId = 1;
 // SNMP Objects
 WiFiUDP udp;                                           // UDP object used to send and receive packets
 SNMPManager snmp = SNMPManager(community);             // Starts an SNMPManager to listen to replies to get-requests
@@ -91,15 +92,19 @@ void setup()
   Serial.println(WiFi.localIP());
 
   snmp.setUDP(&udp); // give snmp a pointer to the UDP object
-  snmp.begin();      // start the SNMP Manager
+  if (!snmp.begin())
+    Serial.println("Could not start the SNMP response listener");
 
   // Get callbacks from creating a handler for each of the OID
   callbackIfSpeed = snmp.addGaugeHandler(router, oidIfSpeedGauge, &ifSpeedResponse);
   callbackInOctets= snmp.addCounter32Handler(router, oidInOctetsCount32, &inOctetsResponse);
   callbackServices = snmp.addIntegerHandler(router, oidServiceCountInt, &servicesResponse);
-  callbackSysName = snmp.addStringHandler(router, oidSysName, &sysNameResponse);
+  callbackSysName = snmp.addStringHandler(router, oidSysName, &sysNameResponse, sizeof(sysName));
   callback64Counter = snmp.addCounter64Handler(router, oid64Counter, &hcCounter);
   callbackUptime = snmp.addTimestampHandler(router, oidUptime, &uptime);
+  if (!callbackIfSpeed || !callbackInOctets || !callbackServices || !callbackSysName ||
+      !callback64Counter || !callbackUptime)
+    Serial.println("Could not register all SNMP callbacks");
 }
 
 void loop()
@@ -132,15 +137,11 @@ void doSNMPCalculations()
   {
     if (inOctetsResponse > 0 && ifSpeedResponse > 0 && lastInOctets > 0)
     {
-      if (inOctetsResponse > lastInOctets)
-      {
-        bandwidthInUtilPct = ((float)((inOctetsResponse - lastInOctets) * 8) / (float)(ifSpeedResponse * ((uptime - lastUptime) / 100)) * 100);
-      }
-      else if (lastInOctets > inOctetsResponse)
-      {
-        Serial.println("inOctets Counter wrapped");
-        bandwidthInUtilPct = (((float)((4294967295 - lastInOctets) + inOctetsResponse) * 8) / (float)(ifSpeedResponse * ((uptime - lastUptime) / 100)) * 100);
-      }
+      uint32_t octets = inOctetsResponse - lastInOctets; // Unsigned subtraction handles wrap.
+      float elapsedSeconds = static_cast<float>(uptime - lastUptime) / 100.0f;
+      if (elapsedSeconds > 0.0f)
+        bandwidthInUtilPct = static_cast<float>(octets) * 8.0f * 100.0f /
+                             (static_cast<float>(ifSpeedResponse) * elapsedSeconds);
     }
   }
   // Update last samples
@@ -151,18 +152,22 @@ void doSNMPCalculations()
 void getSNMP()
 {
   // Build a SNMP get-request add each OID to the request
-  snmpRequest.addOIDPointer(callbackIfSpeed);
-  snmpRequest.addOIDPointer(callbackInOctets);
-  snmpRequest.addOIDPointer(callbackServices);
-  snmpRequest.addOIDPointer(callbackSysName);
-  snmpRequest.addOIDPointer(callback64Counter);
-  snmpRequest.addOIDPointer(callbackUptime);
+  if (!snmpRequest.addOIDPointer(callbackIfSpeed) || !snmpRequest.addOIDPointer(callbackInOctets) ||
+      !snmpRequest.addOIDPointer(callbackServices) || !snmpRequest.addOIDPointer(callbackSysName) ||
+      !snmpRequest.addOIDPointer(callback64Counter) || !snmpRequest.addOIDPointer(callbackUptime))
+  {
+    Serial.println("Could not add callbacks to SNMP request");
+    snmpRequest.clearOIDList();
+    return;
+  }
 
-  snmpRequest.setIP(WiFi.localIP()); // IP of the listening MCU
   // snmpRequest.setPort(501);  // Default is UDP port 161 for SNMP. But can be overriden if necessary.
   snmpRequest.setUDP(&udp);
-  snmpRequest.setRequestID(rand() % 5555);
-  snmpRequest.sendTo(router);
+  snmpRequest.cancelPendingRequests(); // Treat the previous poll as timed out.
+  snmpRequest.setRequestID(nextRequestId);
+  nextRequestId = nextRequestId == INT32_MAX ? 1 : nextRequestId + 1;
+  if (!snmpRequest.sendTo(router))
+    Serial.println("SNMP request could not be sent");
   snmpRequest.clearOIDList();
 }
 

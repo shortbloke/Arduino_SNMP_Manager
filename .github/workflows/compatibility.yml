@@ -31,3 +31,16 @@ jobs:
           path: ~/.platformio
           key: pio-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('tests/embedded/platformio.ini') }}
       - run: pio run -d tests/embedded -e ${{ matrix.target }}
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install platformio==6.1.19
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-examples-${{ hashFiles('tests/examples/platformio.ini') }}
+      - run: pio run -d tests/examples
