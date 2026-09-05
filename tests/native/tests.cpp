@@ -113,8 +113,30 @@ int main(int argc,char** argv) {
     // RFC 3416 section 4.2.1: exceptions are values, not malformed packets.
     add("v2c Get exceptions parse as individual bindings",[]{for(int tag:{0x80,0x81}){auto b=message(binding(tlv(tag,{}))); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.errorStatus==0); CHECK(r.varBinds->value->type==tag);}});
     add("traversal endOfMibView parses as an exception",[]{auto b=message(binding({0x82,0})); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.varBinds->value->type==ENDOFMIBVIEW);});
-    add("integer 128 minimal signed BER encoding",[]{IntegerType v(128); CHECK(encode(v)==Bytes({2,2,0,128}));},true);
-    add("integer serialization preserves value",[]{IntegerType v(256); encode(v); CHECK(v._value==256);},true);
+    add("Integer32 serialization byte and sign boundaries", [] {
+        const std::vector<std::pair<int32_t,Bytes>> fixtures{
+            {127,{127}}, {128,{0,128}}, {255,{0,255}}, {256,{1,0}},
+            {32767,{0x7f,255}}, {32768,{0,0x80,0}},
+            {-1,{255}}, {-128,{128}}, {-129,{255,127}},
+            {-32768,{128,0}}, {-32769,{255,127,255}},
+            {INT32_MAX,{127,255,255,255}}, {INT32_MIN,{128,0,0,0}}
+        };
+        for (const auto& fixture : fixtures) {
+            IntegerType value(static_cast<unsigned long>(fixture.first));
+            const auto original=value._value;
+            CHECK(encode(value)==tlv(2,fixture.second));
+            CHECK(value._value==original);
+            CHECK(encode(value)==tlv(2,fixture.second));
+        }
+        Counter32 counter(UINT32_MAX);
+        Gauge gauge(UINT32_MAX);
+        TimestampType ticks(UINT32_MAX);
+        CHECK(encode(counter)==Bytes({0x41,5,0,255,255,255,255}));
+        CHECK(encode(gauge)==Bytes({0x42,5,0,255,255,255,255}));
+        CHECK(encode(ticks)==Bytes({0x43,5,0,255,255,255,255}));
+    });
+    add("integer 128 minimal signed BER encoding",[]{IntegerType v(128); CHECK(encode(v)==Bytes({2,2,0,128}));});
+    add("integer serialization preserves value",[]{IntegerType v(256); encode(v); CHECK(v._value==256);});
     add("octet 256 length encoding",[]{OctetType v; memset(v._value,0,sizeof(v._value)); memset(v._value,'x',256); CHECK(encode(v)==tlv(4,Bytes(256,'x')));});
     add("OID base128 boundary 16384",[]{char s[]=".1.3.16384"; OIDType v(s); CHECK(encode(v)==Bytes({6,4,43,0x81,0x80,0}));},true);
     add("manager rejects unsupported version", [] {
@@ -169,7 +191,7 @@ int main(int argc,char** argv) {
     add("manager receives 484-byte response",[]{Manager m; UDP u; m.setUDP(&u); char storage[512]{}; char* ptr=storage; m.addStringHandler(u.peer,oid,&ptr); u.incoming=message(binding(tlv(4,Bytes(434,'x')))); CHECK(u.incoming.size()==484); m.loop(); CHECK(std::string(ptr)==std::string(434,'x'));});
     // X.690 section 8.3: signed values require sign extension on decode.
     add("negative INTEGER sign extension",[]{for(auto b:{Bytes{2,1,0xff},Bytes{2,1,0x80},Bytes{2,2,0xff,0x7f}}){IntegerType v; CHECK(v.fromBuffer(b.data())); long expected=b.size()==4 ? -129 : (b[2]==0xff ? -1 : -128); CHECK(v._value==static_cast<unsigned long>(expected));}},true);
-    add("Integer32 signed boundary encoding",[]{IntegerType v(static_cast<unsigned long>(INT32_MIN)); CHECK(encode(v)==Bytes({2,4,0x80,0,0,0}));},true);
+    add("Integer32 signed boundary encoding",[]{IntegerType v(static_cast<unsigned long>(INT32_MIN)); CHECK(encode(v)==Bytes({2,4,0x80,0,0,0}));});
     add("Counter64 small value uses minimal contents", [] {
         const std::vector<std::pair<uint64_t,Bytes>> fixtures{
             {0,{0}}, {1,{1}}, {127,{127}}, {128,{0,128}},
@@ -185,7 +207,7 @@ int main(int argc,char** argv) {
         }
     });
     add("Counter64 maximum has positive sign octet",[]{Counter64 v(UINT64_MAX); CHECK(encode(v)==Bytes({0x46,9,0,255,255,255,255,255,255,255,255}));});
-    add("unsigned application encoding preserves positive sign",[]{Counter32 v(UINT32_MAX); CHECK(encode(v)==Bytes({0x41,5,0,255,255,255,255}));},true);
+    add("unsigned application encoding preserves positive sign",[]{Counter32 v(UINT32_MAX); CHECK(encode(v)==Bytes({0x41,5,0,255,255,255,255}));});
     add("binary OCTET STRING preserves embedded zero",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(v.getLength()==3); CHECK(memcmp(v._value,"a\0b",3)==0);},true);
     add("binary OCTET STRING re-encoding preserves length",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(encode(v)==b);},true);
     add("OID first arcs are decoded rather than assumed",[]{Bytes b{6,3,0x88,0x37,3}; OIDType v; CHECK(v.fromBuffer(b.data())); CHECK(std::string(v._value)==".2.999.3");},true);

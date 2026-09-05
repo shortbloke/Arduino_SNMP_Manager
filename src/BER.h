@@ -120,42 +120,27 @@ public:
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] IntegerType:serialise");
 #endif
-        // here we print out the BER encoded ASN.1 bytes, which includes type, length and value. we return the length of the entire block (TL&V) in bytes;
-        unsigned char *ptr = buf;
-        *ptr = _type;
-        ptr++;
-        unsigned char *lengthPtr = ptr++;
-
-        // // For values <= 127 we use a single byte for the value
-        if (_value != 0 && _value <= 0x7F)
+        // INTEGER carries signed Integer32 bits; application types are unsigned.
+        // Work on a copy so repeated serialization preserves the stored value.
+        const uint32_t value = static_cast<uint32_t>(_value);
+        unsigned char contents[5] = {0,
+            static_cast<unsigned char>(value >> 24),
+            static_cast<unsigned char>(value >> 16),
+            static_cast<unsigned char>(value >> 8),
+            static_cast<unsigned char>(value)};
+        size_t start = _type == INTEGER ? 1 : 0;
+        while (start < 4)
         {
-            _length = 1;
-            *ptr++ = _value;
+            const bool redundantZero = contents[start] == 0 && !(contents[start + 1] & 0x80);
+            const bool redundantSign = _type == INTEGER && contents[start] == 0xff && (contents[start + 1] & 0x80);
+            if (!redundantZero && !redundantSign)
+                break;
+            ++start;
         }
-        else if (_value != 0 && _value >= 0x80)
-        {
-            // Determine the number of bytes required for encoding
-            uint32_t temp = _value;
-            _length = 0;
-            while (temp > 0) {
-                temp >>= 8;
-                _length++;
-            }
-            // Multi-byte encoding
-            *ptr++ = 0x80 | _length;  // Tag for multi-byte encoding
-
-            for (size_t i = 1; i <= _length; i++) {
-                *ptr++ = _value & 0xFF;  // Store the least significant byte
-                _value >>= 8;
-            }
-            _length++;
-        }
-        else
-        {
-            _length = 1;
-            *ptr = 0;
-        }
-        *lengthPtr = _length;
+        _length = sizeof(contents) - start;
+        buf[0] = _type;
+        buf[1] = _length;
+        memcpy(buf + 2, contents + start, _length);
         return _length + 2;
     }
     bool fromBuffer(unsigned char *buf)
