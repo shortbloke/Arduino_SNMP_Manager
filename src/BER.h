@@ -88,10 +88,10 @@ class NetworkAddress : public BER_CONTAINER
 {
 public:
     NetworkAddress() : BER_CONTAINER(true, NETWORK_ADDRESS){};
-    NetworkAddress(IPAddress ip) : _value(ip), BER_CONTAINER(true, NETWORK_ADDRESS){};
+    NetworkAddress(IPAddress ip) : BER_CONTAINER(true, NETWORK_ADDRESS), _value(ip){};
     ~NetworkAddress(){};
     IPAddress _value;
-    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NetworkAddress:serialise");
@@ -110,7 +110,7 @@ public:
         *ptr++ = _value[3];
         return _length + 2;
     }
-    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NetworkAddress:fromBuffer");
@@ -127,7 +127,7 @@ public:
         _value = IPAddress(tempAddress);
         return true;
     }
-    int getLength()
+    int getLength() override
     {
         return _length;
     }
@@ -137,10 +137,10 @@ class IntegerType : public BER_CONTAINER
 {
 public:
     IntegerType() : BER_CONTAINER(true, INTEGER){};
-    IntegerType(unsigned long value) : _value(value), BER_CONTAINER(true, INTEGER){};
+    IntegerType(unsigned long value) : BER_CONTAINER(true, INTEGER), _value(value){};
     ~IntegerType(){};
     unsigned long _value;
-    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] IntegerType:serialise");
@@ -170,7 +170,7 @@ public:
         memcpy(buf + 2, contents + start, _length);
         return _length + 2;
     }
-    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Integer:fromBuffer");
@@ -193,7 +193,7 @@ public:
         _length = length;
         return true;
     }
-    int getLength()
+    int getLength() override
     {
         return _length;
     }
@@ -225,7 +225,7 @@ public:
         if (valid) memcpy(_value, value, length + 1);
     }
     char _value[SNMP_OCTETSTRING_MAX_LENGTH] = {};
-    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override
     {
         if (!valid) return -1;
         // Decoded strings retain their binary length. Directly populated legacy
@@ -248,7 +248,7 @@ public:
         _length = length;
         return header + length;
     }
-    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override
     {
         size_t header, length;
         if (!readBERHeader(buf, available, header, length) || buf[0] != STRING ||
@@ -260,7 +260,7 @@ public:
         valid = true;
         return true;
     }
-    int getLength() { return _length; }
+    int getLength() override { return _length; }
 private:
     bool decoded = false;
     bool valid = true;
@@ -272,7 +272,7 @@ class RawType : public BER_CONTAINER
 public:
     explicit RawType(ASN_TYPE type = OPAQUE) : BER_CONTAINER(true,type) {}
     unsigned char _value[SNMP_OCTETSTRING_MAX_LENGTH] = {};
-    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override
     {
         size_t header,length;
         if (!readBERHeader(buf,available,header,length) || buf[0] != _type || length > sizeof(_value)) return false;
@@ -281,7 +281,7 @@ public:
         _length=length;
         return true;
     }
-    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override
     {
         size_t header=_length<128 ? 2 : (_length<256 ? 3 : 4);
         if (header+_length>capacity) return -1;
@@ -293,7 +293,7 @@ public:
         memcpy(buf+header,_value,_length);
         return header+_length;
     }
-    int getLength() { return _length; }
+    int getLength() override { return _length; }
 };
 
 class OIDType : public BER_CONTAINER
@@ -306,7 +306,7 @@ public:
         if (strlen(value) < sizeof(_value)) strcpy(_value, value);
     }
     char _value[MAX_OID_LENGTH] = {};
-    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override
     {
         size_t textLength = 0;
         while (textLength < sizeof(_value) && _value[textLength]) ++textLength;
@@ -361,7 +361,7 @@ public:
         _length = length;
         return header + length;
     }
-    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override
     {
         size_t header, length;
         if (!readBERHeader(buf, available, header, length) || buf[0] != OID || length == 0) return false;
@@ -398,7 +398,7 @@ public:
         _length = length;
         return true;
     }
-    int getLength() { return _length; }
+    int getLength() override { return _length; }
 };
 
 class NullType : public BER_CONTAINER
@@ -407,7 +407,7 @@ public:
     NullType() : BER_CONTAINER(true, NULLTYPE){};
     ~NullType(){};
     char _value = 0;
-    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NullType:serialise");
@@ -421,7 +421,7 @@ public:
         *ptr = 0;
         return 2;
     }
-    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NullType:fromBuffer");
@@ -432,7 +432,7 @@ public:
         return true;
     }
 
-    int getLength()
+    int getLength() override
     {
         return 0;
     }
@@ -442,10 +442,10 @@ class Counter64 : public BER_CONTAINER
 {
 public:
     Counter64() : BER_CONTAINER(true, COUNTER64){};
-    Counter64(uint64_t value) : _value(value), BER_CONTAINER(true, COUNTER64){};
+    Counter64(uint64_t value) : BER_CONTAINER(true, COUNTER64), _value(value){};
     ~Counter64(){};
     uint64_t _value;
-    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Counter64:serialise");
@@ -472,7 +472,7 @@ public:
         return _length + 2;
     }
 
-    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Counter64:fromBuffer");
@@ -494,7 +494,7 @@ public:
         return true;
     }
 
-    int getLength()
+    int getLength() override
     {
         return _length;
     }
@@ -641,7 +641,7 @@ public:
         return true;
     }
 
-    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) override
     {
         // Measure before writing, so insufficient capacity leaves the buffer unchanged.
         size_t length = 0;
@@ -669,7 +669,7 @@ public:
         return offset;
     }
 
-    int getLength()
+    int getLength() override
     {
         return _length;
     }

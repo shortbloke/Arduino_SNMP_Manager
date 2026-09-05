@@ -8,7 +8,7 @@ $(BUILD)/tests: Makefile tests.cpp stubs/Arduino.h stubs/Udp.h $(wildcard ../../
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests.cpp -o $@
 test: $(BUILD)/tests
 	./$(BUILD)/tests
-check: test regressions debug
+check: test regressions debug compatibility
 regressions: $(BUILD)/tests
 	./$(BUILD)/tests --regressions
 sanitize:
@@ -20,3 +20,10 @@ clean:
 
 debug:
 	$(MAKE) BUILD=$(BUILD)-debug CPPFLAGS='-Istubs -I../../src -DDEBUG -DDEBUG_BER' test
+
+.PHONY: compatibility
+$(BUILD)/compatibility: compatibility/main.cpp compatibility/other.cpp $(wildcard ../../src/*.h) stubs/Arduino.h stubs/Udp.h
+	@mkdir -p $(BUILD)
+	$(CXX) $(CPPFLAGS) -std=c++11 -pedantic-errors -Wall -Wextra -Werror compatibility/main.cpp compatibility/other.cpp -o $@
+compatibility: $(BUILD)/compatibility
+	./$(BUILD)/compatibility

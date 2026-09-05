@@ -148,7 +148,7 @@ public:
 	}
 };
 
-bool SNMPGet::build()
+inline bool SNMPGet::build()
 {
 	// Build the community wrapper and GetRequest PDU.
     delete packet;
@@ -190,7 +190,7 @@ bool SNMPGet::build()
 	return true;
 }
 
-void SNMPGet::addOIDPointer(ValueCallback *callback)
+inline void SNMPGet::addOIDPointer(ValueCallback *callback)
 {
     if (!callback) return;
     callback->retain();

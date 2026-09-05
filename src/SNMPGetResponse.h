@@ -30,7 +30,7 @@ public:
 	bool isCorrupt = false;
 };
 
-bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
+inline bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
 {
     delete varBinds;
     varBinds = varBindsCursor = nullptr;

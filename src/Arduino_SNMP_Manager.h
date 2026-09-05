@@ -220,7 +220,7 @@ private:
     void printPacket(int len);
 };
 
-void SNMPManager::setUDP(UDP *udp)
+inline void SNMPManager::setUDP(UDP *udp)
 {
     if (_udp)
     {
@@ -230,14 +230,14 @@ void SNMPManager::setUDP(UDP *udp)
     this->begin();
 }
 
-bool SNMPManager::begin()
+inline bool SNMPManager::begin()
 {
     if (!_udp)
         return false;
     return _udp->begin(162) != 0;
 }
 
-bool SNMPManager::loop()
+inline bool SNMPManager::loop()
 {
     if (!_udp)
     {
@@ -247,7 +247,7 @@ bool SNMPManager::loop()
     return true;
 }
 
-void SNMPManager::printPacket(int len)
+inline void SNMPManager::printPacket(int len)
 {
     Serial.print("[DEBUG] packet: ");
     for (int i = 0; i < len; i++)
@@ -259,7 +259,7 @@ void SNMPManager::printPacket(int len)
     Serial.println();
 }
 
-bool SNMPManager::testParsePacket(String testPacket)
+inline bool SNMPManager::testParsePacket(String testPacket)
 {
     // Parse directly from the String storage; no input-sized stack allocation.
     const char *cursor = testPacket.c_str();
@@ -287,7 +287,7 @@ bool SNMPManager::testParsePacket(String testPacket)
     return parsePacket(length);
 }
 
-bool inline SNMPManager::receivePacket(int packetLength)
+inline bool SNMPManager::receivePacket(int packetLength)
 {
     if (packetLength == 0) return false;
     if (packetLength < 0 || packetLength > SNMP_PACKET_LENGTH)
@@ -315,7 +315,7 @@ bool inline SNMPManager::receivePacket(int packetLength)
     return parsePacket(len);
 }
 
-bool SNMPManager::parsePacket(size_t length)
+inline bool SNMPManager::parsePacket(size_t length)
 {
     SNMPGetResponse *snmpgetresponse = new SNMPGetResponse();
     if (snmpgetresponse->parseFrom(_packetBuffer, length))
@@ -350,7 +350,6 @@ bool SNMPManager::parsePacket(size_t length)
                 delete snmpgetresponse;
                 return false;
             }
-            int varBindIndex = 1;
             snmpgetresponse->varBindsCursor = snmpgetresponse->varBinds;
             while (snmpgetresponse->varBindsCursor && snmpgetresponse->varBindsCursor->value)
             {
@@ -377,14 +376,12 @@ bool SNMPManager::parsePacket(size_t length)
                 if (callback->requestTracked && !callback->consume(snmpgetresponse->requestID,_udp,responseIP))
                 {
                     snmpgetresponse->varBindsCursor = snmpgetresponse->varBindsCursor->next;
-                    ++varBindIndex;
                     continue;
                 }
                 // An exception belongs to this binding, not the whole response.
                 if (responseType == NOSUCHOBJECT || responseType == NOSUCHINSTANCE || responseType == ENDOFMIBVIEW)
                 {
                     snmpgetresponse->varBindsCursor = snmpgetresponse->varBindsCursor->next;
-                    ++varBindIndex;
                     continue;
                 }
                 ASN_TYPE callbackType = callback->type;
@@ -510,7 +507,6 @@ bool SNMPManager::parsePacket(size_t length)
                 {
                     break;
                 }
-                varBindIndex++;
             } // End while
         }     // End if GetResponsePDU
     }
@@ -529,7 +525,7 @@ bool SNMPManager::parsePacket(size_t length)
     return true;
 }
 
-ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
+inline ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
 {
     callbacksCursor = callbacks;
 
@@ -560,7 +556,7 @@ ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
     return 0;
 }
 
-ValueCallback *SNMPManager::addStringHandler(IPAddress ip, const char *oid, char **value, size_t capacity)
+inline ValueCallback *SNMPManager::addStringHandler(IPAddress ip, const char *oid, char **value, size_t capacity)
 {
     ValueCallback *callback = new StringCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -572,7 +568,7 @@ ValueCallback *SNMPManager::addStringHandler(IPAddress ip, const char *oid, char
     return callback;
 }
 
-ValueCallback *SNMPManager::addIntegerHandler(IPAddress ip, const char *oid, int *value)
+inline ValueCallback *SNMPManager::addIntegerHandler(IPAddress ip, const char *oid, int *value)
 {
     ValueCallback *callback = new IntegerCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -584,7 +580,7 @@ ValueCallback *SNMPManager::addIntegerHandler(IPAddress ip, const char *oid, int
     return callback;
 }
 
-ValueCallback *SNMPManager::addFloatHandler(IPAddress ip, const char *oid, float *value)
+inline ValueCallback *SNMPManager::addFloatHandler(IPAddress ip, const char *oid, float *value)
 {
     ValueCallback *callback = new IntegerCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -596,7 +592,7 @@ ValueCallback *SNMPManager::addFloatHandler(IPAddress ip, const char *oid, float
     return callback;
 }
 
-ValueCallback *SNMPManager::addTimestampHandler(IPAddress ip, const char *oid, uint32_t *value)
+inline ValueCallback *SNMPManager::addTimestampHandler(IPAddress ip, const char *oid, uint32_t *value)
 {
     ValueCallback *callback = new TimestampCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -607,7 +603,7 @@ ValueCallback *SNMPManager::addTimestampHandler(IPAddress ip, const char *oid, u
     return callback;
 }
 
-ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, const char *oid, char *value, size_t capacity)
+inline ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, const char *oid, char *value, size_t capacity)
 {
     ValueCallback *callback = new OIDCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -619,7 +615,7 @@ ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, const char *oid, char *v
     return callback;
 }
 
-ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value)
+inline ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value)
 {
     ValueCallback *callback = new Counter64Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -630,7 +626,7 @@ ValueCallback *SNMPManager::addCounter64Handler(IPAddress ip, const char *oid, u
     return callback;
 }
 
-ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value)
+inline ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value)
 {
     ValueCallback *callback = new Counter32Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -641,7 +637,7 @@ ValueCallback *SNMPManager::addCounter32Handler(IPAddress ip, const char *oid, u
     return callback;
 }
 
-ValueCallback *SNMPManager::addGaugeHandler(IPAddress ip, const char *oid, uint32_t *value)
+inline ValueCallback *SNMPManager::addGaugeHandler(IPAddress ip, const char *oid, uint32_t *value)
 {
     ValueCallback *callback = new Gauge32Callback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
@@ -652,7 +648,7 @@ ValueCallback *SNMPManager::addGaugeHandler(IPAddress ip, const char *oid, uint3
     return callback;
 }
 
-ValueCallback *SNMPManager::addBinaryHandler(ASN_TYPE type, IPAddress ip, const char *oid,
+inline ValueCallback *SNMPManager::addBinaryHandler(ASN_TYPE type, IPAddress ip, const char *oid,
                                              unsigned char *value, size_t capacity, size_t *length)
 {
     if ((type != STRING && type != OPAQUE) || !value || !length || !oid) return nullptr;
@@ -666,12 +662,12 @@ ValueCallback *SNMPManager::addBinaryHandler(ASN_TYPE type, IPAddress ip, const 
     addHandler(callback);
     return callback;
 }
-ValueCallback *SNMPManager::addOctetHandler(IPAddress ip, const char *oid, unsigned char *value, size_t capacity, size_t *length)
+inline ValueCallback *SNMPManager::addOctetHandler(IPAddress ip, const char *oid, unsigned char *value, size_t capacity, size_t *length)
 { return addBinaryHandler(STRING,ip,oid,value,capacity,length); }
-ValueCallback *SNMPManager::addOpaqueHandler(IPAddress ip, const char *oid, unsigned char *value, size_t capacity, size_t *length)
+inline ValueCallback *SNMPManager::addOpaqueHandler(IPAddress ip, const char *oid, unsigned char *value, size_t capacity, size_t *length)
 { return addBinaryHandler(OPAQUE,ip,oid,value,capacity,length); }
 
-void SNMPManager::addHandler(ValueCallback *callback)
+inline void SNMPManager::addHandler(ValueCallback *callback)
 {
     callbacksCursor = callbacks;
     if (callbacksCursor->value)
