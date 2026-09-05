@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Address [#28](https://github.com/shortbloke/Arduino_SNMP_Manager/issues/28) with `SNMPQuery::addRange`, bounded table reads, and `SNMPInterfaceRead` for multiple interface counters without per-OID callbacks. Available on the 2.x development branch; not part of 1.x releases.
+
 - Avoid receive-side UDP flush calls that transmit empty datagrams on ESP8266; drain rejected packets with bounded reads in both manager APIs.
 
 - Extend MIB boundary and owned SET-value regressions; add D1 Mini hardware-run validation and record live read/walk memory measurements.
