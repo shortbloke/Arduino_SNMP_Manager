@@ -3,10 +3,6 @@
 
 #include "SNMPConfig.h"
 
-#ifndef UDP_TX_PACKET_MAX_SIZE
-#define UDP_TX_PACKET_MAX_SIZE 484
-#endif
-
 #include <Udp.h>
 
 #include "BER.h"
