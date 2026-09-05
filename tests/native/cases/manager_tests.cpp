@@ -186,7 +186,7 @@ void registerManagerTests(std::vector<Test> &tests)
             m.setUDP(&u);
             char storage[512]{};
             char *ptr = storage;
-            m.addStringHandler(u.peer, oid, &ptr);
+            m.addStringHandler(u.peer, oid, &ptr, sizeof(storage));
             u.incoming = message(binding(tlv(4, Bytes(434, 'x'))));
             CHECK(u.incoming.size() == 484);
             m.loop();
@@ -425,7 +425,7 @@ void registerManagerTests(std::vector<Test> &tests)
             manager.setUDP(&udp);
             char storage[32] = "previous value";
             char *value = storage;
-            manager.addStringHandler(udp.peer, oid, &value);
+            manager.addStringHandler(udp.peer, oid, &value, sizeof(storage));
             for (const char *text : {"new", "", "longer again", "x"})
             {
                 udp.incoming = message(binding(tlv(4, Bytes(text, text + strlen(text)))));

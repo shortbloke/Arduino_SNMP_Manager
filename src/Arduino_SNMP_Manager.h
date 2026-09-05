@@ -33,10 +33,8 @@ public:
     ValueCallback *
     findCallback(IPAddress ip, const char *oid); // Find based on responding host IP address and OID
     ValueCallback *addFloatHandler(IPAddress ip, const char *oid, float *value);
-    // Capacity includes the C terminator. Legacy calls without capacity require caller-sized
-    // storage.
-    ValueCallback *addStringHandler(IPAddress ip, const char *, char **,
-                                    size_t capacity = static_cast<size_t>(-1));
+    // Capacity includes the C terminator.
+    ValueCallback *addStringHandler(IPAddress ip, const char *, char **, size_t capacity);
     ValueCallback *addOctetHandler(IPAddress ip, const char *oid, unsigned char *value,
                                    size_t capacity, size_t *length);
     ValueCallback *addOpaqueHandler(IPAddress ip, const char *oid, unsigned char *value,
@@ -45,8 +43,7 @@ public:
                                     unsigned char *value, size_t capacity, size_t *length);
     ValueCallback *addIntegerHandler(IPAddress ip, const char *oid, int32_t *value);
     ValueCallback *addTimestampHandler(IPAddress ip, const char *oid, uint32_t *value);
-    ValueCallback *addOIDHandler(IPAddress ip, const char *oid, char *value,
-                                 size_t capacity = static_cast<size_t>(-1));
+    ValueCallback *addOIDHandler(IPAddress ip, const char *oid, char *value, size_t capacity);
     ValueCallback *addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value);
     ValueCallback *addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value);
     ValueCallback *addGaugeHandler(IPAddress ip, const char *oid, uint32_t *value);

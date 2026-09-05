@@ -20,22 +20,16 @@ public:
     void releaseCallbacks();
     const char *_community;
     short _version;
-    IPAddress agentIP;
     uint16_t port = 161;
     int32_t requestID = 0;
     short errorID = 0;
     short errorIndex = 0;
 
-    // Configure the request ID, destination, port, and transport.
+    // Configure the request ID, port, and transport.
 
     void setRequestID(int32_t request)
     {
         requestID = request;
-    }
-
-    void setIP(IPAddress ip)
-    {
-        agentIP = ip;
     }
 
     void setPort(uint16_t portnumber)
@@ -62,6 +56,8 @@ public:
     bool version2 = false;
 
     void clearOIDList();
+    // Abandon outstanding requests for the callbacks currently in this request.
+    void cancelPendingRequests();
 };
 
 #endif

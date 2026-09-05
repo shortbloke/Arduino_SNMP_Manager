@@ -5,6 +5,27 @@ void registerTrackingTests(std::vector<Test> &tests)
 {
     auto add = [&](const char *name, std::function<void()> run)
     { tests.push_back({"Tracking", name, run}); };
+    add("request cancellation releases pending slots for its callbacks",
+        []
+        {
+            Manager manager;
+            UDP udp;
+            int32_t value = 0;
+            Request request;
+            request.setUDP(&udp);
+            auto *callback = manager.addIntegerHandler(udp.peer, oid, &value);
+            CHECK(request.addOIDPointer(callback));
+            for (int id = 1; id <= SNMP_MAX_PENDING_REQUESTS; ++id)
+            {
+                request.setRequestID(id);
+                CHECK(request.sendTo(udp.peer));
+            }
+            request.setRequestID(100);
+            CHECK(!request.sendTo(udp.peer));
+            request.cancelPendingRequests();
+            CHECK(!callback->requestPending);
+            CHECK(request.sendTo(udp.peer));
+        });
     add("legacy request summary cannot disable response matching",
         []
         {

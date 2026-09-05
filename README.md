@@ -77,7 +77,7 @@ ValueCallback *callbackSysName;  // Blank Callback for each OID
 void setup()
 {
     IPAddress target(192, 168, 200, 187);
-    callbackSysName = snmpManager.addStringHandler(target, ".1.3.6.1.2.1.1.5.0", &sysNameResponse);  // Callback for SysName for target host
+    callbackSysName = snmpManager.addStringHandler(target, ".1.3.6.1.2.1.1.5.0", &sysNameResponse, sizeof(sysName));  // Callback for SysName for target host
 }
 ```
 

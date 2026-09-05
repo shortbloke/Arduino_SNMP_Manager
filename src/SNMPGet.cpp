@@ -22,7 +22,6 @@ SNMPGet::SNMPGet(SNMPGet &&other) : SNMPGet(other._community, other._version)
     callbacksCursor = callbacks;
     other.callbacksCursor = other.callbacks;
     _udp = other._udp;
-    agentIP = other.agentIP;
     port = other.port;
     requestID = other.requestID;
     errorID = other.errorID;
@@ -96,6 +95,12 @@ void SNMPGet::clearOIDList()
     releaseCallbacks();
     callbacks = new (std::nothrow) ValueCallbacks();
     callbacksCursor = callbacks;
+}
+
+void SNMPGet::cancelPendingRequests()
+{
+    for (ValueCallbacks *entry = callbacks; entry && entry->value; entry = entry->next)
+        entry->value->clearPendingRequests();
 }
 
 bool SNMPGet::build()
