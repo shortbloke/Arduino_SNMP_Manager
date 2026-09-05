@@ -11,7 +11,7 @@ reading traffic counters from many switch interfaces.
 
 ## Public model
 
-- `SNMPManager` services a shared UDP transport through `loop()`.
+- `SNMPClient` services a shared UDP transport through `loop()`.
 - `SNMPDevice` holds the address, port, version, community, and timeout policy.
 - A reusable read operation owns its bounded result storage and pending state.
 - `start()` schedules work and returns a status immediately. Network progress
@@ -36,8 +36,8 @@ connection and reconnection remain application responsibilities.
 #include <Arduino_SNMP_Manager.h>
 
 WiFiUDP udp;
-SNMPManager manager(udp);
-SNMPDevice router(manager, IPAddress(192, 168, 1, 1), "public",
+SNMPClient manager(udp);
+SNMPDevice router(manager, "192.168.1.1", "public",
                   SNMPVersion::Version2c);
 SNMPRead<SystemUptime> uptime(router);
 bool ready = false;
@@ -89,9 +89,9 @@ version, and destination port. Reading the same OID on two devices requires no
 special registration logic.
 
 ```cpp
-SNMPDevice first(manager, IPAddress(192, 168, 1, 1), "public",
+SNMPDevice first(manager, "192.168.1.1", "public",
                  SNMPVersion::Version2c);
-SNMPDevice second(manager, IPAddress(192, 168, 1, 2), "public",
+SNMPDevice second(manager, "192.168.1.2", "public",
                   SNMPVersion::Version2c);
 SNMPRead<SystemUptime> firstUptime(first);
 SNMPRead<SystemUptime> secondUptime(second);
@@ -145,7 +145,7 @@ index. Capacity is the maximum number of interface rows stored, not a statement
 that indices run from 1 through 48 or that every row is a physical port.
 
 ```cpp
-SNMPDevice networkSwitch(manager, IPAddress(192, 168, 1, 10), "public",
+SNMPDevice networkSwitch(manager, "192.168.1.10", "public",
                          SNMPVersion::Version2c);
 SNMPInterfaceRead<48> traffic(networkSwitch);
 
@@ -196,6 +196,56 @@ A switch can expose more logical interfaces than physical ports. Reaching row
 capacity must produce `CapacityExceeded` with the collected rows accessible.
 An optional explicit index selection should let applications select the desired
 interfaces after discovery.
+
+## Address input and compatibility strategy
+
+Accept both `IPAddress` and dotted IPv4 text in `SNMPDevice`. The beginner form is
+`SNMPDevice device(client, "192.168.1.1", "public", SNMPVersion::Version2c)`.
+Parse and store the address during construction, retain any configuration error,
+and have `start()` return `InvalidAddress` before scheduling work. Never silently
+substitute a default address. Hostnames and DNS resolution are a separate future
+feature; a text overload must not imply hostname support.
+
+Both target cores expose checked `IPAddress::fromString(const char *)` parsing:
+[ESP8266](https://github.com/esp8266/Arduino/blob/master/cores/esp8266/IPAddress.h)
+and [ESP32](https://github.com/espressif/arduino-esp32/blob/master/cores/esp32/IPAddress.h).
+Use a common validated IPv4 input contract rather than inheriting differences in
+what each core accepts. Test four decimal octets, missing/extra octets, out-of-range
+values, null/empty input, trailing characters, and rejection of hostnames/IPv6.
+For existing code, checked `IPAddress::fromString()` already provides a usable
+helper; a new free function is not required just to shorten construction syntax.
+
+Recommendation: introduce a modern API while preserving ordinary use of the
+current refactored API. This does not restore source compatibility with every
+1.x sketch; the existing migration guide still applies.
+
+- Use the new name `SNMPClient` for the proposed engine. Existing
+  `SNMPManager::begin()` and `loop()` return booleans; changing their return types
+  to rich status objects would break callers. Separate names let the new API have
+  consistent status and ownership semantics without those constraints.
+- Preserve ordinary `SNMPManager`, `SNMPGet`, and bounded handler usage, including
+  explicit request IDs and polling, with regression and compilation fixtures.
+- Share BER encoding, decoding, packet validation, and transport utilities. Build
+  the new request scheduler and result routing independently of value callbacks.
+  The current manager validates one manager-wide community, finds destinations
+  by IP/OID, and tracks pending requests on each callback; these are unsuitable
+  as the foundation for per-device credentials and query-owned table results.
+- Keep compatibility entry points separate from the beginner documentation. Avoid
+  maintaining duplicate protocol parsers or requiring both interfaces to allocate
+  their state when only one is used. Measure flash/RAM effects on real toolchains.
+- Do not promise compatibility for direct mutation of public callback lists,
+  packet pointers, or other implementation fields if those internals change.
+  Inventory such changes explicitly before removal and document replacements.
+- Do not restore unsafe unbounded buffer writes to obtain compatibility. Existing
+  migration requirements for capacities and explicit protocol types remain.
+- Initially, old and new engines must not consume the same UDP instance. Mixing
+  them on one transport would require a single dispatcher with tested routing;
+  two independent `loop()` methods could consume each other's responses.
+
+Compatibility is an implementation target, not a proven property yet. Add fixtures
+for normal legacy registration/send/receive/cancellation alongside each new API
+feature. Prefer an adapter over the shared engine only when it preserves the old
+observable behaviour; do not force the new query model through old callbacks.
 
 ## Generic operations beneath the helpers
 
