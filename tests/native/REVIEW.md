@@ -159,3 +159,7 @@ Two regressions are promoted; additional checks cover INT32_MIN/MAX, long-form l
 ## Bounded BER parsing fix
 
 Added bounded sequence and response parsing, definite-length validation, child-bound checks, decoder error propagation, and a nesting limit. UDP parsing uses the actual read length and rejects oversized or short reads; hex input checks its buffer capacity. Legacy pointer-only overloads still require complete input. Four regressions are promoted, with new truncated-prefix and oversized-datagram checks. Validation: 59 baseline passes normally and under ASan/UBSan; 14 remaining failures.
+
+## Response structure and empty-list fix
+
+Replaced the packet-size heuristic and unchecked traversal with explicit message/PDU/varbind shape validation. Valid empty lists are accepted, manager dispatch handles them, and repeated parsing clears prior state. Two regressions are promoted and malformed/reused response checks added. Validation: 62 baseline passes normally and under ASan/UBSan; 12 remaining failures.

@@ -252,8 +252,23 @@ int main(int argc,char** argv) {
     });
     add("indefinite sequence length rejected",[]{Bytes b{0x30,0x80,2,1,42,0,0}; ComplexType v(STRUCTURE); CHECK(!v.fromBuffer(b.data()));});
     // RFC 3416 section 4.2.1 requires an empty list in the alternate tooBig response.
-    add("short tooBig response with empty bindings accepted",[]{auto b=message({},1,"public",0xa2,7,1,0); CHECK(b.size()<30); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.errorStatus==1 && r.errorIndex==0); CHECK(!r.varBinds || !r.varBinds->value);},true);
-    add("empty bindings accepted with long community",[]{auto b=message({},1,"long-community-name",0xa2,7,1,0); CHECK(b.size()>30); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.errorStatus==1); CHECK(!r.varBinds || !r.varBinds->value);},true);
+    add("response parser safely handles empty and missing fields on reuse", [] {
+        SNMPGetResponse response;
+        auto valid=message(binding({2,1,42}));
+        CHECK(response.parseFrom(valid.data(),valid.size()));
+        auto empty=message({});
+        CHECK(response.parseFrom(empty.data(),empty.size()));
+        CHECK(!response.varBinds->value);
+        for (Bytes malformed : {tlv(0x30,{}), message(tlv(0x30,{})),
+                                message(tlv(0x30,oidWire))}) {
+            CHECK(!response.parseFrom(malformed.data(),malformed.size()));
+            CHECK(response.isCorrupt);
+        }
+        CHECK(response.parseFrom(valid.data(),valid.size()));
+        CHECK(!response.isCorrupt && response.varBinds->value->type==INTEGER);
+    });
+    add("short tooBig response with empty bindings accepted",[]{auto b=message({},1,"public",0xa2,7,1,0); CHECK(b.size()<30); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.errorStatus==1 && r.errorIndex==0); CHECK(!r.varBinds || !r.varBinds->value);});
+    add("empty bindings accepted with long community",[]{auto b=message({},1,"long-community-name",0xa2,7,1,0); CHECK(b.size()>30); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.errorStatus==1); CHECK(!r.varBinds || !r.varBinds->value);});
     add("PDU-level errors must not update values", [] {
         for (int version : {0, 1}) {
             Manager manager;

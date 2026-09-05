@@ -252,7 +252,7 @@ bool SNMPManager::parsePacket(size_t length)
             }
             int varBindIndex = 1;
             snmpgetresponse->varBindsCursor = snmpgetresponse->varBinds;
-            while (true)
+            while (snmpgetresponse->varBindsCursor && snmpgetresponse->varBindsCursor->value)
             {
                 char *responseOID = snmpgetresponse->varBindsCursor->value->oid->_value;
                 IPAddress responseIP = _udp->remoteIP();

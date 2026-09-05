@@ -29,191 +29,56 @@ public:
 
 bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
 {
-	// confirm that the packet is a STRUCTURE
-	if (available < 2 || buf[0] != 0x30)
-	{
-#ifdef DEBUG
-		Serial.printf("[DEBUG] Packet is not an SNMPGetResponse, expected 0x30, received: 0x%02x\n", buf[0]);
-#endif
-		isCorrupt = true;
-		return false;
-	}
-	SNMPPacket = new ComplexType(STRUCTURE); // ensure SNMPPacket is initialised to avoid crash in deconstructor
-	if (!SNMPPacket->fromBuffer(buf, available))
-	{
-		isCorrupt = true;
-		return false;
-	}
+    delete varBinds;
+    varBinds = varBindsCursor = nullptr;
+    delete SNMPPacket;
+    SNMPPacket = nullptr;
+    communityString = nullptr;
+    EXPECTING = SNMPVERSION;
+    isCorrupt = true;
+    if (available < 2 || buf[0] != STRUCTURE) return false;
+    SNMPPacket = new ComplexType(STRUCTURE);
+    if (!SNMPPacket->fromBuffer(buf, available)) return false;
 
-	if (SNMPPacket->getLength() <= 30)
-	{
-#ifdef DEBUG
-		Serial.printf("[DEBUG] Packet too short. Expected > 30, Actual: %d\n", SNMPPacket->getLength());
-#endif
-#ifndef SUPPRESS_ERROR_SHORT_PACKET
-		Serial.print(F("SNMP packet too short, needs to be > 30."));
-#endif
-		return false;
-	}
-	// we now have a full ASN.1 packet in SNMPPacket
-	ValuesList *cursor = SNMPPacket->_values;
-	ValuesList *tempCursor = NULL;
-	while (EXPECTING != DONE)
-	{
-		switch (EXPECTING)
-		{
-		case SNMPVERSION:
-			if (cursor->value->_type == INTEGER)
-			{
-				version = ((IntegerType *)cursor->value)->_value + 1;
-				if (!cursor->next)
-				{
-					isCorrupt = true;
-					return false;
-				}
-				cursor = cursor->next;
-				EXPECTING = COMMUNITY;
-			}
-			else
-			{
-				isCorrupt = true;
-				return false;
-			}
-			break;
-		case COMMUNITY:
-			if (cursor->value->_type == STRING)
-			{
-				communityString = ((OctetType *)cursor->value)->_value;
-				if (!cursor->next)
-				{
-					isCorrupt = true;
-					return false;
-				}
-				cursor = cursor->next;
-				EXPECTING = PDU;
-			}
-			else
-			{
-				isCorrupt = true;
-				return false;
-			}
-			break;
-		case PDU:
-			switch (cursor->value->_type)
-			{
-			case GetRequestPDU:
-			case GetNextRequestPDU:
-			case GetResponsePDU:
-			case SetRequestPDU:
-				requestType = cursor->value->_type;
-				break;
-			default:
-				isCorrupt = true;
-				return false;
-				break;
-			}
-			cursor = ((ComplexType *)cursor->value)->_values;
-			EXPECTING = REQUESTID;
-			break;
-		case REQUESTID:
-			if (cursor->value->_type == INTEGER)
-			{
-				requestID = ((IntegerType *)cursor->value)->_value;
-				if (!cursor->next)
-				{
-					isCorrupt = true;
-					return false;
-				}
-				cursor = cursor->next;
-				EXPECTING = ERRORSTATUS;
-			}
-			else
-			{
-				isCorrupt = true;
-				return false;
-			}
-			break;
-		case ERRORSTATUS:
-			if (cursor->value->_type == INTEGER)
-			{
-				errorStatus = ((IntegerType *)cursor->value)->_value;
-				if (!cursor->next)
-				{
-					isCorrupt = true;
-					return false;
-				}
-				cursor = cursor->next;
-				EXPECTING = ERRORID;
-			}
-			else
-			{
-				isCorrupt = true;
-				return false;
-			}
-			break;
-		case ERRORID:
-			if (cursor->value->_type == INTEGER)
-			{
-				errorIndex = ((IntegerType *)cursor->value)->_value;
-				if (!cursor->next)
-				{
-					isCorrupt = true;
-					return false;
-				}
-				cursor = cursor->next;
-				EXPECTING = VARBINDS;
-			}
-			else
-			{
-				isCorrupt = true;
-				return false;
-			}
-			break;
-		case VARBINDS: // we have a varbind structure, lets dive into it.
-			if (cursor->value->_type == STRUCTURE)
-			{
-				varBinds = new VarBindList();
-				varBindsCursor = varBinds;
-				tempCursor = ((ComplexType *)cursor->value)->_values;
-				EXPECTING = VARBIND;
-			}
-			else
-			{
-				isCorrupt = true;
-				return false;
-			}
-			break;
-		case VARBIND:
-			// we need to keep the cursor outside the varbindlist itself so we always have access to the list
-			if (tempCursor->value->_type == STRUCTURE && ((ComplexType *)tempCursor->value)->_values->value->_type == OID)
-			{
-				VarBind *varbind = new VarBind();
-				varbind->oid = ((OIDType *)((ComplexType *)tempCursor->value)->_values->value);
-				varbind->type = ((ComplexType *)tempCursor->value)->_values->next->value->_type;
-				varbind->value = ((ComplexType *)tempCursor->value)->_values->next->value;
-				varBindsCursor->value = varbind;
-				varBindsCursor->next = new VarBindList();
-				if (!tempCursor->next)
-				{
-					EXPECTING = DONE;
-				}
-				else
-				{
-					tempCursor = tempCursor->next;
-					varBindsCursor = varBindsCursor->next;
-				}
-			}
-			else
-			{
-				isCorrupt = true;
-				return false;
-			}
-			break;
-		default:
-			break;
-		}
-	}
-	return true;
+    // Validate the message and PDU shapes before dereferencing their fields.
+    ValuesList *versionField = SNMPPacket->_values;
+    ValuesList *communityField = versionField ? versionField->next : nullptr;
+    ValuesList *pduField = communityField ? communityField->next : nullptr;
+    if (!versionField || !communityField || !pduField || pduField->next ||
+        versionField->value->_type != INTEGER || communityField->value->_type != STRING) return false;
+    requestType = pduField->value->_type;
+    if (requestType != GetRequestPDU && requestType != GetNextRequestPDU &&
+        requestType != GetResponsePDU && requestType != SetRequestPDU) return false;
+    version = static_cast<IntegerType *>(versionField->value)->_value + 1;
+    communityString = static_cast<OctetType *>(communityField->value)->_value;
+    ValuesList *id = static_cast<ComplexType *>(pduField->value)->_values;
+    ValuesList *status = id ? id->next : nullptr;
+    ValuesList *index = status ? status->next : nullptr;
+    ValuesList *bindings = index ? index->next : nullptr;
+    if (!id || !status || !index || !bindings || bindings->next ||
+        id->value->_type != INTEGER || status->value->_type != INTEGER ||
+        index->value->_type != INTEGER || bindings->value->_type != STRUCTURE) return false;
+    requestID = static_cast<IntegerType *>(id->value)->_value;
+    errorStatus = static_cast<IntegerType *>(status->value)->_value;
+    errorIndex = static_cast<IntegerType *>(index->value)->_value;
+    varBinds = new VarBindList();
+    varBindsCursor = varBinds;
+    for (ValuesList *entry = static_cast<ComplexType *>(bindings->value)->_values; entry; entry = entry->next)
+    {
+        if (entry->value->_type != STRUCTURE) return false;
+        ValuesList *oid = static_cast<ComplexType *>(entry->value)->_values;
+        if (!oid || oid->value->_type != OID || !oid->next || oid->next->next) return false;
+        VarBind *binding = new VarBind();
+        binding->oid = static_cast<OIDType *>(oid->value);
+        binding->type = oid->next->value->_type;
+        binding->value = oid->next->value;
+        varBindsCursor->value = binding;
+        varBindsCursor->next = new VarBindList();
+        varBindsCursor = varBindsCursor->next;
+    }
+    EXPECTING = DONE;
+    isCorrupt = false;
+    return true;
 }
 
 #endif
