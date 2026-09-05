@@ -61,7 +61,7 @@ Inspected [issue #66](https://github.com/0neblock/Arduino_SNMP/issues/66) and [f
 | UDP initialization | **Fixed:** `begin()` returns the UDP bind result. The baseline checks failure and a successful retry on port 162. Fake UDP supports begin failure injection. |
 | Community truncation | A 1024-byte incoming community matches its 253-byte prefix after lossy decoding. The test uses the public parser helper to isolate this from UDP packet-size truncation. |
 | Embedded-zero community | A distinct community beginning with `public` followed by NUL and another byte is accepted. Related comparison weakness, not claimed to be the exact fork fix. |
-| Callback destruction | A type-trait regression confirms no virtual base destructor. This is a latent public-API hazard, not evidence of an existing manager deletion path: callbacks currently leak rather than being polymorphically deleted. |
+| Callback destruction | **Fixed:** ValueCallback has a virtual destructor. The baseline verifies deletion through the base pointer invokes the derived destructor once. Manager ownership and allocation cleanup remain separate concerns. |
 
 The headline explicit request destruction/ASNPool double-release mechanism is absent. A nested-child destruction control passes, but is not a long-duration heap or concurrency test. Fixed callback-array overflow, trap/INFORM ownership, GetBulk generation limits, SET-change flags and pool sizing have no matching implementation here. Existing empty-response and PDU-error tests cover the manager's side of handling tooBig responses.
 
@@ -129,3 +129,7 @@ String callbacks now copy the terminating NUL, including for empty responses. Re
 ## Float callback fix
 
 Float callback dispatch restores the registered float pointer before writing and uses floating-point division. The unused temporary IntegerType is removed. Baseline checks cover zero, fractional, integral, and repeated updates. Normal checks report 41 baseline passes and 28 remaining failures; the sanitizer baseline also passes all 41 cases. Signed INTEGER decoding remains a separate defect.
+
+## Polymorphic callback destruction fix
+
+Added a virtual ValueCallback destructor without changing registration ownership or freeing caller-owned destinations. The baseline verifies derived destruction through a base pointer. This adds a vtable pointer to callback objects, increasing their memory footprint. Normal checks report 42 baseline passes and 27 remaining failures; the sanitizer baseline also passes all 42 cases.

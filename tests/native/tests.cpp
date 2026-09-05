@@ -350,7 +350,16 @@ int main(int argc,char** argv) {
     // supports callers deleting them through the base type.
     add("callback base supports safe polymorphic destruction", [] {
         CHECK(std::has_virtual_destructor<ValueCallback>::value);
-    }, true);
+        struct TrackedCallback : IntegerCallback {
+            int& destroyed;
+            explicit TrackedCallback(int& count) : destroyed(count) {}
+            ~TrackedCallback() override { ++destroyed; }
+        };
+        int destroyed=0;
+        ValueCallback* callback=new TrackedCallback(destroyed);
+        delete callback;
+        CHECK(destroyed==1);
+    });
 
     add("nested BER ownership destroys each child once", [] {
         struct TrackedInteger : IntegerType {

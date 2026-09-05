@@ -26,6 +26,7 @@ class ValueCallback
 {
 public:
     ValueCallback(ASN_TYPE atype) : type(atype){};
+    virtual ~ValueCallback() = default;
     IPAddress ip;
     char *OID;
     ASN_TYPE type;
