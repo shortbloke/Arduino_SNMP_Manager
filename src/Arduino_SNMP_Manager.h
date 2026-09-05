@@ -275,35 +275,21 @@ bool SNMPManager::parsePacket(size_t length)
                     delete snmpgetresponse;
                     return false;
                 }
+                // An exception belongs to this binding, not the whole response.
+                if (responseType == NOSUCHOBJECT || responseType == NOSUCHINSTANCE || responseType == ENDOFMIBVIEW)
+                {
+                    snmpgetresponse->varBindsCursor = snmpgetresponse->varBindsCursor->next;
+                    ++varBindIndex;
+                    continue;
+                }
                 ASN_TYPE callbackType = callback->type;
                 if (callbackType != responseType)
                 {
-                    switch (responseType)
-                    {
-                    case NOSUCHOBJECT:
-                    {
-                        Serial.print(F("No such object: "));
-                    }
-                    break;
-                    case NOSUCHINSTANCE:
-                    {
-                        Serial.print(F("No such instance: "));
-                    }
-                    break;
-                    case ENDOFMIBVIEW:
-                    {
-                        Serial.print(F("End of MIB view when calling: "));
-                    }
-                    break;
-                    default:
-                    {
-                        Serial.print(F("Incorrect Callback type. Expected: "));
-                        Serial.print(callbackType);
-                        Serial.print(F(" Received: "));
-                        Serial.print(responseType);
-                        Serial.print(F(" - When calling: "));
-                    }
-                    }
+                    Serial.print(F("Incorrect Callback type. Expected: "));
+                    Serial.print(callbackType);
+                    Serial.print(F(" Received: "));
+                    Serial.print(responseType);
+                    Serial.print(F(" - When calling: "));
                     Serial.println(responseOID);
                     delete snmpgetresponse;
                     snmpgetresponse = 0;

@@ -171,3 +171,7 @@ OCTET STRING decoding preserves binary data and its length; re-encoding uses tha
 ## OID encoding and decoding fix
 
 Replaced fixed-width OID arithmetic with integer base-128 loops, including five-octet subidentifiers and the combined first arcs. Decimal formatting is unsigned and bounded, input buffers are unchanged, and malformed/oversized OIDs are rejected. Six regressions are promoted and root/overflow/truncated-subidentifier fixtures added. Validation: 74 baseline passes normally and under ASan/UBSan; two remaining failures.
+
+## Per-binding exception fix
+
+noSuchObject, noSuchInstance, and endOfMibView skip only their binding, preserving its destination while allowing later successful bindings to update. Removed the obsolete whole-response exception error branches. Validation: 75 baseline passes normally and under ASan/UBSan; request-ID correlation remains the final regression.

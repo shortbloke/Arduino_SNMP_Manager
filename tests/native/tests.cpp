@@ -320,7 +320,7 @@ int main(int argc,char** argv) {
             CHECK(first==42 && second==7);
         }
     });
-    add("exception binding does not discard following success",[]{for(int tag:{0x80,0x81}){Manager m; UDP u; m.setUDP(&u); int missing=99,success=0; m.addIntegerHandler(u.peer,oid,&missing); m.addIntegerHandler(u.peer,".1.3.6.1.2.1.1.3.0",&success); Bytes second=oidWire; second[8]=3; u.incoming=message(join({binding(tlv(tag,{})),tlv(0x30,join({second,{2,1,42}}))})); m.loop(); CHECK(missing==99); CHECK(success==42);}},true);
+    add("exception binding does not discard following success",[]{for(int tag:{0x80,0x81,0x82}){Manager m; UDP u; m.setUDP(&u); int missing=99,success=0; m.addIntegerHandler(u.peer,oid,&missing); m.addIntegerHandler(u.peer,".1.3.6.1.2.1.1.3.0",&success); Bytes second=oidWire; second[8]=3; u.incoming=message(join({binding(tlv(tag,{})),tlv(0x30,join({second,{2,1,42}}))})); m.loop(); CHECK(missing==99); CHECK(success==42);}});
     add("response with matching outstanding request ID updates value",[]{Manager m; UDP u; m.setUDP(&u); int n=99; Request r; r.setUDP(&u); r.addOIDPointer(m.addIntegerHandler(u.peer,oid,&n)); CHECK(r.sendTo(u.peer)); u.incoming=message(binding({2,1,42}),1,"public",0xa2,7); m.loop(); CHECK(n==42);});
     add("response must match outstanding request ID",[]{Manager m; UDP u; m.setUDP(&u); int n=99; Request r; r.setUDP(&u); r.addOIDPointer(m.addIntegerHandler(u.peer,oid,&n)); CHECK(r.sendTo(u.peer)); u.incoming=message(binding({2,1,42}),1,"public",0xa2,8); m.loop(); CHECK(n==99);},true);
     add("sequence content exactly 256 has a two-octet length", [] {
