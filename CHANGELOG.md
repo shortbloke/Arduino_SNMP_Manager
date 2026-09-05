@@ -1,13 +1,16 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
-## Unreleased (1.x)
+## 1.2.0
 
-- Backport BER length, Integer32, Counter64, binary string, and full-range OID fixes from Sep26-Rework.
+A robustness and test-coverage release that retains the header-only 1.x API and existing sketch interfaces. It improves packet validation, BER encoding/decoding, callback memory handling, and request tracking, with optional bounded APIs for safer buffer use.
+
+- Fix BER length boundaries, Integer32 and Counter64 encoding/decoding, binary strings, and full-range OID subidentifiers.
 - Validate packet boundaries, response versions/communities/structure, and per-binding exceptions; reject incomplete UDP reads and avoid receive-side flush transmissions.
 - Correct string termination and fractional float callbacks, manage registration ownership, and handle allocation failures without leaking partial trees.
 - Correlate replies with successful sends while retaining rolling request tracking for existing polling loops; strict capacity enforcement is opt-in.
 - Retain the header-only 1.x API, numeric versions, short request fields, setIP(), capacity-free text calls, original BER virtual methods, and safe copying; add bounded/checked alternatives and portable numeric destination overloads.
-- Add native regression/sanitizer tests, source-compatibility checks, and real ESP build checks using the unchanged examples.
+- Fix OID callback registration and returned OID handling (#32).
+- Add native regression/sanitizer tests (#13), source-compatibility checks, and ESP8266, ESP32, ESP32-C3, and Nano ESP32 compilation checks, including the unchanged examples.
 
 ## 1.1.13
 - Fix crash when using OIDs with 10 digits. Contributor: [AlphaArslan](https://github.com/AlphaArslan)
