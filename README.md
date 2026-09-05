@@ -47,38 +47,17 @@ compatible updates. Avoid an unversioned Git URL or a moving branch such as `mas
 when your project must remain on the 1.x API. The 2.x rework is a separate development
 branch, not a published release at the time of 1.2.1.
 
-### PlatformIO
-
-To pin directly to this GitHub release, put this in your environment's
-`platformio.ini` (alongside its existing board/framework settings):
-
-```ini
-lib_deps =
-    https://github.com/shortbloke/Arduino_SNMP_Manager.git#v1.2.1
-```
-
-For the PlatformIO Registry package, choose one dependency constraint:
-
-| Requirement | `lib_deps` entry | Allowed versions |
-| --- | --- | --- |
-| Remain on 1.x | `shortbloke/SNMP Manager@^1.1.13` | At least 1.1.13, below 2.0.0 |
-| Require this patch, remain on 1.x | `shortbloke/SNMP Manager@^1.2.1` | At least 1.2.1, below 2.0.0 |
-| Exact patch | `shortbloke/SNMP Manager@1.2.1` | Only 1.2.1 |
-| Future 2.x opt-in | `shortbloke/SNMP Manager@^2.0.0` | At least 2.0.0, below 3.0.0 |
-
-Registry constraints only work for versions actually published there. A GitHub
-release does not establish PlatformIO Registry availability; use the Git tag above
-if 1.2.1 is not listed. The 2.x constraint is illustrative until 2.0.0 is published;
-migrate your code before changing to it. Git tag pins are exact and do not accept
-Registry-style version ranges. See [PlatformIO dependency configuration](https://docs.platformio.org/en/latest/projectconf/sections/env/options/library/lib_deps.html).
-
 ### Arduino IDE and Arduino CLI
 
-In Arduino IDE's Library Manager, find **SNMP Manager** and select the desired
-1.x version from the version selector. Review upgrade prompts instead of accepting
-a future 2.x upgrade for a 1.x project. Library Manager installation is shared by
-sketches using that library directory; it is not a per-project major-version lock.
-Record the exact version in your project's setup instructions.
+Install **SNMP Manager** from Arduino's community Library Manager. In Arduino IDE,
+open **Tools > Manage Libraries**, search for **SNMP Manager**, and select the
+required version. For existing 1.x projects, select **1.2.1** (or another compatible
+1.x release). There is no need to add a GitHub URL or a custom library index.
+
+Review upgrade prompts instead of accepting a future 2.x upgrade for a 1.x project.
+Library Manager installation is shared by sketches using that library directory;
+it is not a per-project major-version lock. Record the exact version in your
+project's setup instructions.
 
 For scripted Arduino CLI setup, request an exact indexed version:
 
@@ -87,12 +66,44 @@ arduino-cli lib update-index
 arduino-cli lib install "SNMP Manager@1.2.1"
 ```
 
-If the Arduino index has not yet picked up the release, download the source ZIP
-from the [1.2.1 release](https://github.com/shortbloke/Arduino_SNMP_Manager/releases/tag/v1.2.1)
-and use Arduino IDE's **Sketch > Include Library > Add .ZIP Library**. Avoid keeping
-multiple manual copies with the same headers in your library search paths. To use
-a future 2.x release, install its exact version intentionally after adapting the
-sketch; the CLI command installs a version, not a persistent major-version constraint.
+New releases can take time to appear in the community index. Refresh the index
+and retry if the requested version is not yet available. To use a future 2.x
+release, install its exact version intentionally after adapting the sketch;
+the CLI command installs a version, not a persistent major-version constraint.
+
+### PlatformIO
+
+Use the **shortbloke/SNMP Manager** registry package in your environment's
+`platformio.ini`, alongside its existing board/framework settings:
+
+```ini
+lib_deps =
+    shortbloke/SNMP Manager@^1.2.1
+```
+
+Choose the constraint that suits your project:
+
+| Requirement | `lib_deps` entry | Allowed versions |
+| --- | --- | --- |
+| Remain on 1.x | `shortbloke/SNMP Manager@^1.1.13` | At least 1.1.13, below 2.0.0 |
+| Require this patch, remain on 1.x | `shortbloke/SNMP Manager@^1.2.1` | At least 1.2.1, below 2.0.0 |
+| Exact patch | `shortbloke/SNMP Manager@1.2.1` | Only 1.2.1 |
+| Future 2.x opt-in | `shortbloke/SNMP Manager@^2.0.0` | At least 2.0.0, below 3.0.0 |
+
+Constraints only work for versions published in the PlatformIO Registry, which is
+separate from Arduino's community index. The 2.x constraint is illustrative until
+2.0.0 is published; migrate your code before changing to it. See
+[PlatformIO dependency configuration](https://docs.platformio.org/en/latest/projectconf/sections/env/options/library/lib_deps.html).
+
+### Optional source installation
+
+If you need a release before it appears in your package index, the
+[GitHub releases](https://github.com/shortbloke/Arduino_SNMP_Manager/releases)
+provide source archives. This is an optional fallback, not required for normal
+Library Manager installation. For a PlatformIO Git dependency, append the exact
+tag (for example, `#v1.2.1`) to the repository URL; Git tags do not accept
+Registry-style version ranges. Avoid duplicate manual copies in your library
+search paths.
 
 ## Configure the examples
 
