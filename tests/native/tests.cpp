@@ -137,7 +137,19 @@ int main(int argc,char** argv) {
         }
     });
     add("library convention: float callback preserves fractional tenths",[]{Manager m; UDP u; m.setUDP(&u); float n=0; m.addFloatHandler(u.peer,oid,&n); u.incoming=message(binding({2,1,123})); m.loop(); CHECK(std::abs(n-12.3f)<0.001f);},true);
-    add("library convention: shorter string response terminates old value",[]{Manager m; UDP u; m.setUDP(&u); char storage[32]="previous value"; char* p=storage; m.addStringHandler(u.peer,oid,&p); u.incoming=message(binding({4,3,'n','e','w'})); m.loop(); CHECK(std::string(p)=="new");},true);
+    add("library convention: shorter string response terminates old value", [] {
+        Manager manager;
+        UDP udp;
+        manager.setUDP(&udp);
+        char storage[32]="previous value";
+        char* value=storage;
+        manager.addStringHandler(udp.peer,oid,&value);
+        for (const char* text : {"new", "", "longer again", "x"}) {
+            udp.incoming=message(binding(tlv(4,Bytes(text,text+strlen(text)))));
+            manager.loop();
+            CHECK(std::string(value)==text);
+        }
+    });
     // RFC 3417 section 8 permits nonminimal definite-length fields.
     add("octet nonminimal definite length accepted",[]{Bytes b{4,0x82,0,3,'a','b','c'}; OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(v.getLength()==3); CHECK(std::string(v._value)=="abc");});
     add("response nonminimal outer length accepted",[]{auto b=message(binding({2,1,42})); b.insert(b.begin()+1,{0x82,0}); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.requestID==7); CHECK(r.varBinds->value->type==INTEGER);});

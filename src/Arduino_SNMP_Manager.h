@@ -310,12 +310,9 @@ bool SNMPManager::parsePacket()
                     Serial.println("[DEBUG] Type: String");
 #endif
 
-                    // Note: Requires that the size of the variable used to store the response is big enough.
-                    // Otherwise move responsibility for the creation of the variable to store the value here, but this would put the onus on the caller to free and reset to null.
-                    //*((StringCallback *)callback)->value = (char *)malloc(64); // Allocate memory for string, caller will need to free. Malloc updated to incoming message size.
-                    strncpy(*((StringCallback *)callback)->value, ((OctetType *)responseContainer)->_value, strlen(((OctetType *)responseContainer)->_value));
-                    OctetType *value = new OctetType(*((StringCallback *)callback)->value);
-                    delete value;
+                    // The caller must provide space for the string and its terminator.
+                    const char *source = ((OctetType *)responseContainer)->_value;
+                    memcpy(*((StringCallback *)callback)->value, source, strlen(source) + 1);
                 }
                 break;
                 case INTEGER:
