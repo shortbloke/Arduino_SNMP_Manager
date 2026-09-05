@@ -224,86 +224,52 @@ public:
 class OctetType : public BER_CONTAINER
 {
 public:
-    OctetType() : BER_CONTAINER(true, STRING){};
+    OctetType() : BER_CONTAINER(true, STRING) { _length = 0; }
     OctetType(char *value) : BER_CONTAINER(true, STRING)
     {
-        strncpy(_value, value, sizeof(_value));
-        _value[sizeof(_value)] = 0;
-    };
-    ~OctetType(){};
-    char _value[SNMP_OCTETSTRING_MAX_LENGTH];
+        const size_t length = strlen(value);
+        valid = length < sizeof(_value);
+        _length = valid ? length : 0;
+        if (valid) memcpy(_value, value, length + 1);
+    }
+    char _value[SNMP_OCTETSTRING_MAX_LENGTH] = {};
     int serialise(unsigned char *buf)
     {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] OctetType:serialise");
-#endif
-        // here we print out the BER encoded ASN.1 bytes, which includes type, length and value.
-        char *ptr = (char *)buf;
-        int numExtraBytes = 0;
-        char temp[SNMP_OCTETSTRING_MAX_LENGTH];
-        int valueLength = sprintf(temp, "%s", _value);
-
-        *ptr++ = _type; // Set the type identifier
-        // Long-form lengths start with 0x80 plus the number of length octets.
-        if (valueLength > 127)
+        if (!valid) return -1;
+        // Decoded strings retain their binary length. Directly populated legacy
+        // C-string values use their terminator to determine the length.
+        size_t length = _length;
+        if (!decoded)
         {
-            numExtraBytes++;       // Need an extra byte
-            if (valueLength >= 256) // Lengths 256 and above need two octets.
-            {
-                numExtraBytes++; // Need another extra byte to store the length
-            }
-            *ptr++ = (numExtraBytes | 0x80); // 0x8x where x is the number of bytes which provide the total string length
-            if (valueLength >= 256)
-            {
-                *ptr++ = valueLength / 256;
-                valueLength = valueLength % 256;
-            }
-            *ptr++ = valueLength;
+            length = 0;
+            while (length < sizeof(_value) && _value[length]) ++length;
+            if (length == sizeof(_value)) return -1;
         }
-        else
-        {
-            *ptr++ = valueLength;
-        }
-        _length = sprintf(ptr, "%s", _value);
-        return _length + numExtraBytes + 2;
+        size_t header = 2;
+        buf[0] = _type;
+        if (length < 128) buf[1] = length;
+        else if (length < 256) { buf[1] = 0x81; buf[2] = length; header = 3; }
+        else { buf[1] = 0x82; buf[2] = length >> 8; buf[3] = length; header = 4; }
+        memcpy(buf + header, _value, length);
+        _length = length;
+        return header + length;
     }
     bool fromBuffer(unsigned char *buf)
     {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] OctetType:fromBuffer");
-#endif
-        buf++; // skip Type
-        _length = *buf;
-        // length should be treated as: if first byte is 0x8x, the x is how many bytes follow
-        if (_length > 127)
-        {
-            int numBytes = _length &= 0x7F;
-            unsigned int special_length = 0;
-            for (int k = 0; k < numBytes; k++)
-            {
-                buf++;
-                special_length <<= 8;
-                special_length |= *buf;
-            }
-            _length = special_length;
-        }
-        buf++;
-        memset(_value, 0, sizeof(_value)); // Null out _value
-        if (_length < sizeof(_value))
-        {
-            strncpy(_value, (char *)buf, _length); // Copy buffer to Value, using length from ASN structure.
-        }
-        else
-        {
-            Serial.println(F("OctetString too large, adjust SNMP_OCTETSTRING_MAX_LENGTH. String Truncated."));
-            strncpy(_value, (char *)buf, 253); // Copy truncated buffer to Value
-        }
+        size_t header, length;
+        if (buf[0] != STRING || !readBERHeader(buf, static_cast<size_t>(-1), header, length) ||
+            length >= sizeof(_value)) return false;
+        memcpy(_value, buf + header, length);
+        _value[length] = 0;
+        _length = length;
+        decoded = true;
+        valid = true;
         return true;
     }
-    int getLength()
-    {
-        return _length;
-    }
+    int getLength() { return _length; }
+private:
+    bool decoded = false;
+    bool valid = true;
 };
 
 class OIDType : public BER_CONTAINER
@@ -709,6 +675,7 @@ public:
             delay(0);
 
             int length = conductor->value->serialise(ptr);
+            if (length < 0) return -1;
             ptr += length;
             actualLength += length;
             conductor = conductor->next;

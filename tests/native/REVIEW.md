@@ -163,3 +163,7 @@ Added bounded sequence and response parsing, definite-length validation, child-b
 ## Response structure and empty-list fix
 
 Replaced the packet-size heuristic and unchecked traversal with explicit message/PDU/varbind shape validation. Valid empty lists are accepted, manager dispatch handles them, and repeated parsing clears prior state. Two regressions are promoted and malformed/reused response checks added. Validation: 62 baseline passes normally and under ASan/UBSan; 12 remaining failures.
+
+## Binary strings and exact community matching
+
+OCTET STRING decoding preserves binary data and its length; re-encoding uses that length. Oversized strings are rejected rather than truncated, constructor termination is in bounds, and serialization errors propagate to request sending. Community comparison checks both length and bytes. Legacy direct C-string population remains supported; string callbacks still expose the existing C-string API. Four regressions are promoted and oversized construction/decoding checks added. Validation: 67 baseline passes normally and under ASan/UBSan; eight remaining failures.

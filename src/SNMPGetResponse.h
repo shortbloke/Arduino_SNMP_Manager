@@ -12,6 +12,7 @@ public:
 		delete SNMPPacket;
 	};
 	char *communityString;
+    size_t communityLength = 0;
 	int version;
 	ASN_TYPE requestType;
 	unsigned long requestID;
@@ -34,6 +35,7 @@ bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
     delete SNMPPacket;
     SNMPPacket = nullptr;
     communityString = nullptr;
+    communityLength = 0;
     EXPECTING = SNMPVERSION;
     isCorrupt = true;
     if (available < 2 || buf[0] != STRUCTURE) return false;
@@ -51,6 +53,7 @@ bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
         requestType != GetResponsePDU && requestType != SetRequestPDU) return false;
     version = static_cast<IntegerType *>(versionField->value)->_value + 1;
     communityString = static_cast<OctetType *>(communityField->value)->_value;
+    communityLength = static_cast<OctetType *>(communityField->value)->getLength();
     ValuesList *id = static_cast<ComplexType *>(pduField->value)->_values;
     ValuesList *status = id ? id->next : nullptr;
     ValuesList *index = status ? status->next : nullptr;

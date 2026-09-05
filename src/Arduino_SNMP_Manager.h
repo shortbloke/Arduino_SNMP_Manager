@@ -229,7 +229,8 @@ bool SNMPManager::parsePacket(size_t length)
         if (snmpgetresponse->requestType == GetResponsePDU)
         {
             // parseFrom exposes v1/v2c as 1/2, rather than their wire values 0/1.
-            if ((snmpgetresponse->version != 1 && snmpgetresponse->version != 2) || strcmp(_community, snmpgetresponse->communityString) != 0)
+            if ((snmpgetresponse->version != 1 && snmpgetresponse->version != 2) || (strlen(_community) != snmpgetresponse->communityLength ||
+                memcmp(_community, snmpgetresponse->communityString, snmpgetresponse->communityLength) != 0))
             {
                 Serial.print(F("Invalid community or version - Community: "));
                 Serial.print(snmpgetresponse->communityString);

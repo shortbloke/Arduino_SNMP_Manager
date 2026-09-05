@@ -230,8 +230,17 @@ int main(int argc,char** argv) {
     });
     add("Counter64 maximum has positive sign octet",[]{Counter64 v(UINT64_MAX); CHECK(encode(v)==Bytes({0x46,9,0,255,255,255,255,255,255,255,255}));});
     add("unsigned application encoding preserves positive sign",[]{Counter32 v(UINT32_MAX); CHECK(encode(v)==Bytes({0x41,5,0,255,255,255,255}));});
-    add("binary OCTET STRING preserves embedded zero",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(v.getLength()==3); CHECK(memcmp(v._value,"a\0b",3)==0);},true);
-    add("binary OCTET STRING re-encoding preserves length",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(encode(v)==b);},true);
+    add("oversized OCTET STRING is rejected without truncation", [] {
+        auto bytes=tlv(4,Bytes(SNMP_OCTETSTRING_MAX_LENGTH,'x'));
+        OctetType value;
+        CHECK(!value.fromBuffer(bytes.data()));
+        char output[2048]{};
+        std::string oversized(SNMP_OCTETSTRING_MAX_LENGTH,'x');
+        OctetType constructed(&oversized[0]);
+        CHECK(constructed.serialise(reinterpret_cast<unsigned char*>(output))<0);
+    });
+    add("binary OCTET STRING preserves embedded zero",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(v.getLength()==3); CHECK(memcmp(v._value,"a\0b",3)==0);});
+    add("binary OCTET STRING re-encoding preserves length",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(encode(v)==b);});
     add("OID first arcs are decoded rather than assumed",[]{Bytes b{6,3,0x88,0x37,3}; OIDType v; CHECK(v.fromBuffer(b.data())); CHECK(std::string(v._value)==".2.999.3");},true);
     add("OID maximum subidentifier encodes five base128 octets",[]{char oid[]=".1.3.4294967295"; OIDType v(oid); CHECK(encode(v)==Bytes({6,6,43,0x8f,0xff,0xff,0xff,0x7f}));},true);
     add("bounded response parser rejects every truncated prefix", [] {
@@ -408,7 +417,7 @@ int main(int argc,char** argv) {
         udp.incoming=tlv(0x30,body);
         manager.loop();
         CHECK(value==99);
-    }, true);
+    });
 
     add("over-cap community must not match truncated prefix", [] {
         Manager manager;
@@ -432,7 +441,7 @@ int main(int argc,char** argv) {
         }
         manager.testParsePacket(String(hex.c_str()));
         CHECK(value==99);
-    }, true);
+    });
 
     add("incomplete UDP response cannot update a callback", [] {
         Manager manager;

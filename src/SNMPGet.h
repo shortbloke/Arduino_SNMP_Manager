@@ -82,6 +82,7 @@ public:
 		int length = packet->serialise(_packetBuffer);
 		delete packet;
 		packet = 0;
+        if (length < 0) return false;
 #ifdef DEBUG
     Serial.print(F("[DEBUG] SNMPGet: Sending UDP packet to: "));
     Serial.print(ip);
