@@ -115,7 +115,7 @@ public:
     ValueCallbacks *callbacksCursor = callbacks;
     ValueCallback *findCallback(IPAddress ip, const char *oid); // Find based on responding host IP address and OID
     ValueCallback *addFloatHandler(IPAddress ip, const char *oid, float *value);
-    ValueCallback *addStringHandler(IPAddress ip, const char *, char **); // passing in a pointer to a char*
+    ValueCallback *addStringHandler(IPAddress ip, const char *, char **); // Caller supplies a pointer to writable, sufficiently sized C-string storage.
     ValueCallback *addIntegerHandler(IPAddress ip, const char *oid, int *value);
     ValueCallback *addTimestampHandler(IPAddress ip, const char *oid, uint32_t *value);
     ValueCallback *addOIDHandler(IPAddress ip, const char *oid, char *value);
@@ -177,13 +177,12 @@ void SNMPManager::printPacket(int len)
 
 bool SNMPManager::testParsePacket(String testPacket)
 {
-    // Function to test sample packet, each byte to be separated with a space:
-    // e.g. "32 02 01 01 04 06 70 75 62 6c 69 63 a2 25 02 02 0c 01 02 01 00 02 c1 00 30 19 30 17 06 11 2b 06 01 04 01 81 9e 16 02 03 01 01 01 02 03 01 00 02 02 14 9f";
+    // Parse a sample packet written as hexadecimal bytes separated by spaces.
     int len = testPacket.length() + 1;
     memset(_packetBuffer, 0, SNMP_PACKET_LENGTH * 3);
     char charArrayPacket[len];
     testPacket.toCharArray(charArrayPacket, len);
-    // split charArray at each ' ' and convert to uint8_t
+    // Split on spaces and convert each token from hexadecimal.
     char *p = strtok(charArrayPacket, " ");
     int i = 0;
     while (p != NULL)
@@ -442,7 +441,6 @@ ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
             strcat(OIDBuf, callbacksCursor->value->OID);
             if ((strcmp(OIDBuf, oid) == 0) && (callbacksCursor->value->ip == ip))
             {
-// Found
 #ifdef DEBUG
                 Serial.println(F("[DEBUG] Found callback with matching IP"));
 #endif

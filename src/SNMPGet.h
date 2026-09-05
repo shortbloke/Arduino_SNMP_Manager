@@ -37,7 +37,7 @@ public:
 	short errorID = 0;
 	short errorIndex = 0;
 
-	// the setters that need to be configured for each Get.
+	// Configure the request ID, destination, port, and transport.
 
 	void setRequestID(short request)
 	{
@@ -117,7 +117,7 @@ public:
 	bool version2 = false;
 
 	void clearOIDList()
-	{ // this just removes the list, does not kill the values in the list
+	{ // Remove list nodes without deleting the borrowed callbacks.
 		callbacksCursor = callbacks;
 		delete callbacksCursor;
 		callbacks = new ValueCallbacks();
@@ -127,7 +127,7 @@ public:
 
 bool SNMPGet::build()
 {
-	// Build packet for making GetRequest
+	// Build the community wrapper and GetRequest PDU.
 	if (packet)
 	{
 		packet = 0;
@@ -149,7 +149,7 @@ bool SNMPGet::build()
 		{
 			ComplexType *varBind = new ComplexType(STRUCTURE);
 			varBind->addValueToList(new OIDType(callbacksCursor->value->OID));
-			// Value can be null for Request payload.
+			// Each requested OID uses an ASN.1 NULL value placeholder.
 			BER_CONTAINER *value = new NullType();
 			varBind->addValueToList(value);
 			varBindList->addValueToList(varBind);

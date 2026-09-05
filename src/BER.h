@@ -20,8 +20,10 @@ typedef enum ASN_TYPE_WITH_VALUE
     NULLTYPE = 0x05,
     OID = 0x06,
 
-    // Complex
+    // Constructed sequence
     STRUCTURE = 0x30,
+
+    // Application types
     NETWORK_ADDRESS = 0x40,
     COUNTER32 = 0x41,
     GAUGE32 = 0x42, // UNSIGNED32
@@ -29,10 +31,12 @@ typedef enum ASN_TYPE_WITH_VALUE
     OPAQUE = 0x44,
     COUNTER64 = 0x46,
 
+    // Per-binding exception tags
     NOSUCHOBJECT = 0x80,
     NOSUCHINSTANCE = 0x81,
     ENDOFMIBVIEW = 0x82,
 
+    // Constructed PDU tags
     GetRequestPDU = 0xA0,
     GetNextRequestPDU = 0xA1,
     GetResponsePDU = 0xA2,
@@ -42,12 +46,9 @@ typedef enum ASN_TYPE_WITH_VALUE
     Trapv2PDU = 0xA7
 } ASN_TYPE;
 
-// Primitive types inherits straight off the container, complex come off complexType.
-// All primitives serialise themselves as type, length, and value (TLV) for inclusion in the packet.
-// For deserialising from the parent container we check the type, then create an object of that type and call deSerialise,
-// passing in the data, which pulls it out and saves it.
-// If complexType, first split up its children into separate BERs, then passes the child with it's data using the same process.
-// Complex types have a linked list of BER_CONTAINERS to hold its' children.
+// Primitive types derive from BER_CONTAINER and serialise as type, length, and value (TLV).
+// ComplexType owns a linked list of child BER_CONTAINER objects. Its fromBuffer method
+// selects each child's decoder by tag and passes the complete child TLV to it.
 
 // Read a definite-length TLV header without reading beyond the supplied buffer.
 // The legacy pointer-only entry points cannot validate the allocation size.
@@ -386,7 +387,7 @@ public:
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NullType:serialise");
 #endif
-        // here we print out the BER encoded ASN.1 bytes, which includes type, length and value.
+        // NULL has a zero-length value, so its TLV contains only the tag and length.
         char *ptr = (char *)buf;
         *ptr = _type;
         ptr++;
@@ -498,7 +499,7 @@ public:
 };
 
 class Gauge : public IntegerType
-{ // Unsigned int
+{ // Gauge32 uses unsigned 32-bit values.
 public:
     Gauge() : IntegerType()
     {
@@ -564,7 +565,7 @@ public:
             case GetResponsePDU:
             case SetRequestPDU:
             case GetBulkRequestPDU:
-            case TrapPDU: // should never get trap, but put it in anyway
+            case TrapPDU: // Recognized here; the response parser rejects trap PDUs.
             case Trapv2PDU:
                 newObj = new ComplexType(valueType);
                 break;
@@ -597,7 +598,7 @@ public:
             case COUNTER64:
                 newObj = new Counter64();
                 break;
-                /* OPAQUE = 0x44 */
+                // Unhandled tags currently fall back to constructed decoding.
 
             default:
 #ifdef DEBUG
@@ -637,7 +638,6 @@ public:
         int tempLength = 0;
         while (conductor)
         {
-            // Serial.print("about to serialise something of type: ");Serial.println(conductor->value->_type, HEX);
             delay(0);
 
             int length = conductor->value->serialise(ptr);
@@ -646,7 +646,6 @@ public:
             actualLength += length;
             conductor = conductor->next;
         }
-        // printf("Length to return: %d\n", actualLength);
         if (actualLength > 127)
         {
 #ifdef DEBUG_BER
@@ -663,7 +662,7 @@ public:
                 unsigned char *endPtrPos = ++ptr;
                 for (unsigned char *i = endPtrPos; i > buf + 1; i--)
                 {
-                    // i is the char we are moving INTO
+                    // Copy backward so overlapping contents are preserved.
                     *i = *(i - 1);
                 }
                 tempVal = 2;
@@ -678,12 +677,12 @@ public:
             unsigned char *endPtrPos = ptr + 1;
             for (unsigned char *i = endPtrPos; i > buf + tempVal; i--)
             {
-                // i is the char we are moving INTO
+                // Copy backward so overlapping contents are preserved.
                 *i = *(i - 1);
             }
             *lengthPtr++ = actualLength % 256;
 
-            tempLength += 1; // account for extra byte in Length param
+            tempLength += 1; // Account for the additional length octet.
         }
         else
         {
