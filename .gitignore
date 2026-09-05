@@ -3,3 +3,11 @@
 .DS_Store
 __pycache__/
 .venv/
+
+# Local design/history notes; maintained guidance lives in docs/QUERY_API.md,
+# docs/RELEASING.md and MIGRATION.md.
+/docs/API_PROPOSAL.md
+/docs/REBASELINE.md
+
+# Local Python lint cache.
+.ruff_cache/
