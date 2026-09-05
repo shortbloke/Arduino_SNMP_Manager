@@ -6,9 +6,9 @@ The original review covered the library headers, package metadata, README, and e
 
 All previously failing regression checks pass. The final validation covers native Make and PlatformIO, with and without ASan/UBSan. This is not a board-compatibility or complete protocol-conformance certification.
 
-Remaining source-inspection concerns outside those regression fixes include default-manager initialization, manager/request allocation ownership, the incomplete OID callback API, and the absence of a bounded request serializer. Legacy pointer-only decoding still requires complete input. The bounded parser caps nesting at 32, and printable OID/string capacities impose limits below some protocol maxima. Callback destinations remain caller-owned and caller-sized. Request tracking allows one pending request per callback and relies on callers choosing distinct IDs while older responses may arrive.
+The additional source-review fixes now cover safe initialization, registration/request ownership, bounded primitive decoding and request serialization, OID callbacks, binary callback delivery, Opaque decoding, and concurrent request tracking. Legacy APIs without buffer sizes still require caller-provided sufficient storage. Destination buffers, community strings, and transports remain borrowed. Pending-request slots are finite and require explicit clearing when requests time out.
 
-The historical source-inspection list below also contains issues subsequently fixed: bounded receive parsing, binary strings, safe response reuse, transport send-result checks, unsigned OID formatting, and request correlation. It is retained as review history, not a current defect inventory.
+The bounded parser caps nesting at 32, and printable OID/string capacities impose limits below some protocol maxima. Hardware behavior, exhaustive conformance, and allocation-failure handling remain outside the validated scope. Historical findings below are preserved as review history, not a current defect inventory.
 
 ## Specification cross-check
 
@@ -191,3 +191,15 @@ Successful SNMPGet sends record the request ID, peer, and transport per callback
 ## Final validation of the remaining regression fixes
 
 All 78 cases pass through standalone Make and PlatformIO native. All 78 also pass with ASan/UBSan in both runners. The regression group is empty after promotion of the resolved cases. No board or live SNMP agent was used.
+
+## Additional source-review fixes
+
+- `c2f3449`: initialize default community, transport and callback pointers.
+- `1602c37`: production manager/request cleanup, shared registration lifetime, and replacement-packet cleanup; test-only cleanup removed.
+- `027fa70`: bounded serialization/primitive decoding and request-capacity preflight. Legacy size-free entry points remain caller-responsible.
+- `56b2486`: Opaque and exceptions are primitive payloads; unsupported tags are rejected.
+- `43835e9`: complete OID registration/dispatch, bounded string/OID callbacks, and binary OCTET STRING/Opaque callbacks.
+- `40d5b7b`: configurable concurrent pending requests, no-transmission capacity failures, retransmission, and explicit clearing.
+- `756db44`: prevent shallow copies of owning packets; test request rebuild and move lifetime behavior.
+
+Validation: all 85 tests pass in both Make and PlatformIO, normally and with ASan/UBSan. These changes do not add trap dispatch, which remains outside the manager's scope.

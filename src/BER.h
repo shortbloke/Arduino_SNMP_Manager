@@ -570,7 +570,7 @@ public:
             size_t childHeader, valueLength;
             if (!readBERHeader(buf + offset, end - offset, childHeader, valueLength)) return false;
             ASN_TYPE valueType = static_cast<ASN_TYPE>(buf[offset]);
-            // Primitive fixed-width types must be checked before their legacy decoders.
+            // Enforce the payload lengths of NULL, exceptions, and IPv4 addresses.
             if ((valueType == NULLTYPE || valueType == NOSUCHOBJECT ||
                  valueType == NOSUCHINSTANCE || valueType == ENDOFMIBVIEW) && valueLength != 0) return false;
             if (valueType == NETWORK_ADDRESS && valueLength != 4) return false;

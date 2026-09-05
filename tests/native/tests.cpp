@@ -661,8 +661,7 @@ int main(int argc,char** argv) {
         CHECK(value==99);
     });
 
-    // The manager does not currently delete callbacks; check the public API
-    // supports callers deleting them through the base type.
+    // Registration release must invoke derived destructors through the base type.
     add("callback base supports safe polymorphic destruction", [] {
         CHECK(std::has_virtual_destructor<ValueCallback>::value);
         struct TrackedCallback : IntegerCallback {

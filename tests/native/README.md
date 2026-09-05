@@ -65,7 +65,7 @@ See [RFC review notes](RFC_NOTES.md) for the standards basis and additional cove
 - Check signed integers, unsigned sign-padding, Counter64, embedded-zero strings, OID roots and maximum subidentifiers.
 - Exercise short and long-community tooBig responses with empty lists, PDU-error suppression, mixed exception/success results, and outstanding request-ID matching.
 
-The lifecycle, float scaling, and C-string termination tests are explicitly labeled as library conventions. Exact wire comparisons specify this encoder’s chosen output, not the only BER representation a decoder may accept. Request tracking covers one outstanding request per callback, successful-send registration, superseded and duplicate replies, and independent callbacks. Callbacks never included in a successful send retain legacy direct-response handling.
+The lifecycle, float scaling, and C-string termination tests are explicitly labeled as library conventions. Exact wire comparisons specify this encoder’s chosen output, not the only BER representation a decoder may accept. Request tracking covers concurrent requests per callback, successful-send registration, duplicate replies, independent callbacks, capacity exhaustion, and explicit cancellation. Callbacks never included in a successful send retain legacy direct-response handling.
 
 Additional cases in `tests.cpp` cover sequence length boundaries and sibling alignment, Counter64 long-form lengths, malformed child lengths, signed callbacks, UDP bind failures, community matching, incomplete responses, and destruction behavior. These use the standard baseline and regression groups. The [review notes](REVIEW.md#issue-66-comparison) record the upstream comparison that suggested this coverage.
 
@@ -75,8 +75,8 @@ The stubs implement only the Arduino/UDP methods used by the headers. They canno
 
 Native `unsigned long` may be 64 bits while Arduino targets commonly use 32 bits; these tests do not establish AVR/ESP integer-width compatibility. The fake transport supports bind, beginPacket, short-write, and endPacket failure injection.
 
-Test fixtures explicitly initialize the manager's `_udp` pointer and release callback/request allocations because production initialization/ownership is incomplete. Consequently these tests do not certify default-constructor safety or production lifetime/leak behavior.
+Tests use production initialization and destructors, and verify shared registration lifetime, request rebuilding, and move construction. Caller-owned destinations and transports must remain valid while operations use them. Child-process execution still limits leak-checking coverage.
 
-Bounded sequence and response parser overloads validate supplied lengths; UDP handling uses the actual read length and rejects oversized datagrams. Legacy pointer-only parser overloads still require a complete buffer. Tests cover every truncated prefix of a representative response, malformed child lengths, empty lists, and repeated response parsing. This does not establish safety for all possible inputs.
+All BER types expose capacity-aware serialization and bounded decoding. Tests exercise short buffers and oversized request rejection. Legacy calls without sizes retain caller responsibility; they cannot infer allocation sizes. Custom BER subclasses must implement the new capacity-aware virtual signatures.
 
-The default printable OID buffer remains smaller than the protocol's maximum possible OID representation. Full protocol-size OIDs, exhaustive boundary combinations, target hardware behavior, and production allocation/lifetime management need further work. Binary OCTET STRING parsing is length-aware, but string callbacks retain the existing caller-sized C-string interface.
+The default printable OID buffer remains smaller than the protocol's maximum possible OID representation. Full protocol-size OIDs, exhaustive boundary combinations, allocation-failure handling, and target hardware behavior need further work. C-string callbacks support explicit capacities; binary callbacks preserve OCTET STRING and Opaque payloads and report their lengths. Trap dispatch remains outside this Get-oriented manager's scope.
