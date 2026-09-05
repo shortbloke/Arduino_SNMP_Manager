@@ -1,5 +1,8 @@
 # Example compile checks
 
+Contributor reference: this document covers library validation, not application
+setup. To read data from your device, start with [getting started](../../docs/GETTING_STARTED.md).
+
 These environments compile the distributed examples directly, so API changes or platform-dependent destination types fail CI. No sketches are uploaded and no network connections are attempted.
 
 From the repository root, run:

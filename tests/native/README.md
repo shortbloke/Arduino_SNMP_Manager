@@ -1,5 +1,8 @@
 # Native tests
 
+Contributor reference: this document covers library validation, not application
+setup. To read data from your device, start with [getting started](../../docs/GETTING_STARTED.md).
+
 ## PlatformIO (primary workflow)
 
 Requires PlatformIO Core (or the PlatformIO VS Code extension), a POSIX host (macOS/Linux), and a C++17 compiler. PlatformIO downloads the native platform and GoogleTest on first use. No board or Arduino SDK is required.

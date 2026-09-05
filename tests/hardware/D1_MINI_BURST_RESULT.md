@@ -1,5 +1,8 @@
 # D1 Mini notification burst test
 
+Contributor reference: this document covers library validation, not application
+setup. To read data from your device, start with [getting started](../../docs/GETTING_STARTED.md).
+
 These are historical results, not hardware tests of the current checkout.
 The baseline below predates the flush fix. See the final section for its hardware retest.
 

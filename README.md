@@ -5,6 +5,17 @@ and intentional API/build changes. Stable 1.x releases remain supported on
 [`release/1.x`](https://github.com/shortbloke/Arduino_SNMP_Manager/tree/release/1.x).
 Read [MIGRATION.md](MIGRATION.md) before moving an existing sketch to 2.x.
 
+## Is this library for me?
+
+Use an ESP8266 or ESP32 to read information from a router, switch, access point,
+NAS/server, or printer that supports SNMP. Examples include uptime, network traffic
+counters, storage usage, and printer supply levels. The device must have SNMPv1
+or SNMPv2c enabled; the library cannot add SNMP support to the device.
+
+**New to SNMP? Start with [getting your first reading](docs/GETTING_STARTED.md).**
+It explains how to check device support, install this 2.x preview, configure access,
+and run a complete sketch. Then choose an example by the data you want to read.
+
 ## Start with a device and a query
 
 ```cpp
@@ -27,31 +38,6 @@ The library supports SNMPv1 and SNMPv2c GET, GETNEXT, GETBULK (v2c), SET, bounde
 walks/tables, and receiving traps and v2c INFORMs with acknowledgement. It does not
 implement SNMPv3, DNS resolution, runtime MIB parsing, or sending traps/INFORMs.
 The [example guide](examples/README.md) maps each supported operation to a sketch.
-
-## Value types and low-level handlers
-
-The friendly API owns returned values. A lower-level `SNMPManager`/`SNMPGet` API
-also remains, with these SNMP type names:
-
-| SNMP type | Low-level handler | Destination |
-| --- | --- | --- |
-| INTEGER | `addIntegerHandler` | `int32_t` |
-| INTEGER | `addFloatHandler` | `float`, legacy integer value divided by ten |
-| OCTET STRING | `addStringHandler` | Bounded text buffer via `char**` |
-| OCTET STRING | `addOctetHandler` | Byte buffer and length |
-| OBJECT IDENTIFIER | `addOIDHandler` | Bounded dotted-text buffer |
-| Counter32 | `addCounter32Handler` | `uint32_t` |
-| Gauge32 | `addGaugeHandler` | `uint32_t` |
-| TimeTicks | `addTimestampHandler` | `uint32_t`, hundredths of a second |
-| Opaque | `addOpaqueHandler` | Byte buffer and length |
-| Counter64 | `addCounter64Handler` | `uint64_t`, SNMPv2c only |
-
-Register handlers once, keep destinations alive, check allocation/send results,
-and process only fresh responses. `updateCount()` increments after a successful
-write even if its value is unchanged. Tracked duplicates, errors and rejected
-values do not increment it. The maintained low-level examples use local `Polling.h`
-helpers for complete samples and timeouts. Fixed-width destinations, mandatory
-capacities, named versions and ownership changes are detailed in the migration guide.
 
 ## Configuration and memory
 
@@ -136,7 +122,7 @@ tag (for example, `#v1.2.1`) to the repository URL; Git tags do not accept
 Registry-style version ranges. Avoid duplicate manual copies in your library
 search paths.
 
-## Tests and releases
+## Contributor reference: tests and releases
 
 Run `make -C tests/native check`, `make -C tests/native sanitize`, and
 `pio test -e native`. See [native tests](tests/native/README.md),
@@ -165,7 +151,35 @@ using the new API too.
 
 This project is derived from an [SNMP Agent project](https://github.com/fusionps/Arduino_SNMP). With Manager functionality adapted from work by [Niich's fork](https://github.com/Niich/Arduino_SNMP).
 
-## Embedded development
+## Advanced: low-level value handlers
+
+The friendly API owns returned values. A lower-level `SNMPManager`/`SNMPGet` API
+also remains, with these SNMP type names:
+
+| SNMP type | Low-level handler | Destination |
+| --- | --- | --- |
+| INTEGER | `addIntegerHandler` | `int32_t` |
+| INTEGER | `addFloatHandler` | `float`, legacy integer value divided by ten |
+| OCTET STRING | `addStringHandler` | Bounded text buffer via `char**` |
+| OCTET STRING | `addOctetHandler` | Byte buffer and length |
+| OBJECT IDENTIFIER | `addOIDHandler` | Bounded dotted-text buffer |
+| Counter32 | `addCounter32Handler` | `uint32_t` |
+| Gauge32 | `addGaugeHandler` | `uint32_t` |
+| TimeTicks | `addTimestampHandler` | `uint32_t`, hundredths of a second |
+| Opaque | `addOpaqueHandler` | Byte buffer and length |
+| Counter64 | `addCounter64Handler` | `uint64_t`, SNMPv2c only |
+
+Register handlers once, keep destinations alive, check allocation/send results,
+and process only fresh responses. `updateCount()` increments after a successful
+write even if its value is unchanged. Tracked duplicates, errors and rejected
+values do not increment it. The maintained low-level examples use local `Polling.h`
+helpers for complete samples and timeouts. Fixed-width destinations, mandatory
+capacities, named versions and ownership changes are detailed in the migration guide.
+
+See [setup and troubleshooting](docs/TROUBLESHOOTING.md) for what to configure,
+what capacity means, and the next step for each error.
+
+## Contributor reference: embedded development
 
 Use `make -C tests/native check` for normal/debug regressions and strict C++11 multi-file compatibility. The compatibility executable builds with exceptions and RTTI disabled. `pio run -d tests/embedded` builds the real board toolchains; CI runs the same checks.
 

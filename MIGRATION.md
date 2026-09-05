@@ -1,5 +1,8 @@
 # Migrating to SNMP Manager 2.0
 
+This guide is for existing 1.x sketches. If you are starting a new project, use
+[getting started](docs/GETTING_STARTED.md); you do not need to migrate anything.
+
 Version 2.0 makes packet parsing, destination writes, ownership, and request matching explicit. Migration also requires named versions, compiled implementation files and review of ownership and request tracking; see the sections below. The 1.2.x fixes and successful-update counts are retained.
 
 ## Select the SNMP version by name

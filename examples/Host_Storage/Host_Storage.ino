@@ -18,7 +18,9 @@ SNMPDevice host(client, "192.168.1.20", "public");
 // Counts all exposed storage entries, including memory, mounts, and datasets.
 // Large NAS agents can exceed this capacity. Increase only within your RAM budget;
 // stream the storage subtree (see Walk_Values) if you cannot retain the full table.
-SNMPTableRead<16, 4, 16> storage(host);
+constexpr size_t MaxStorageRows = 16;    // Maximum rows retained; edit, rebuild, upload.
+constexpr size_t StorageIndexBytes = 16; // Index text bytes, including its terminating zero.
+SNMPTableRead<MaxStorageRows, 4, StorageIndexBytes> storage(host);
 bool ready = false;
 void setup()
 {
@@ -49,6 +51,16 @@ void loop()
     if (!storage.takeCompleted())
         return;
     Serial.println(storage.status().message()); // Partial rows remain inspectable.
+    if (storage.status().code() == SNMPStatus::CapacityExceeded)
+    {
+        Serial.print("Incomplete table: retained rows ");
+        Serial.print(storage.size());
+        Serial.print(" / ");
+        Serial.println(MaxStorageRows);
+        Serial.println("If full, increase MaxStorageRows only if RAM allows; rebuild and upload.");
+        Serial.println("Otherwise check index/value/packet limits. See docs/TROUBLESHOOTING.md.");
+        Serial.println("Use Walk_Values to stream without retaining a complete table.");
+    }
     for (const auto &row : storage)
     {
         Serial.print(row.index);

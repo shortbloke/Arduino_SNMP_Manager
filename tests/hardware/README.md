@@ -1,5 +1,8 @@
 # Physical-board interoperability and memory testing
 
+Contributor reference: this document covers library validation, not application
+setup. To read data from your device, start with [getting started](../../docs/GETTING_STARTED.md).
+
 This project is a runnable test sketch, separate from compile-only smoke tests.
 **A D1 Mini run is recorded in [D1_MINI_RESULT.md](D1_MINI_RESULT.md).** A USB serial adapter is not proof
 of its board model. Confirm the target and that replacing its firmware is acceptable

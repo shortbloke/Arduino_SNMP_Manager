@@ -11,6 +11,9 @@ First preview of the 2.x API (unpublished draft). Existing 1.x projects should r
 
 ### Friendly query API
 
+- Explain setup, memory limits, and error recovery with editable example capacity
+  constants and actionable messages for incomplete tables.
+
 - Introduce `SNMPClient` and `SNMPDevice` with checked IPv4 strings, owned results,
   automatic request IDs, bounded scheduling, batching, retries, and completion status.
 - Add range queries, selected-column tables, and interface traffic reads without

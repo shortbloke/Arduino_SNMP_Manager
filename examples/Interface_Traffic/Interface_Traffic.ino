@@ -14,7 +14,9 @@ SNMPClient client(udp);
 SNMPDevice networkSwitch(client, "192.168.1.10", "public");
 // Capacity counts logical interfaces, not physical ports. A 24-port switch can
 // expose more than 48 rows. Reduce this if the rest of the sketch needs more RAM.
-SNMPInterfaceRead<64, 16> interfaces(networkSwitch);
+constexpr size_t MaxInterfaces = 64;       // Maximum rows retained; edit, rebuild, upload.
+constexpr size_t InterfaceIndexBytes = 16; // Index text bytes, including its terminating zero.
+SNMPInterfaceRead<MaxInterfaces, InterfaceIndexBytes> interfaces(networkSwitch);
 
 bool ready = false;
 uint32_t lastPoll = 0;
@@ -50,6 +52,18 @@ void loop()
     {
         if (!interfaces.status().ok())
             Serial.println(interfaces.status().message());
+        if (interfaces.status().code() == SNMPStatus::CapacityExceeded)
+        {
+            Serial.print("Incomplete table: retained rows ");
+            Serial.print(interfaces.size());
+            Serial.print(" / ");
+            Serial.println(MaxInterfaces);
+            Serial.println(
+                "If full, increase MaxInterfaces only if RAM allows; rebuild and upload.");
+            Serial.println(
+                "Otherwise check index/value/packet limits. See docs/TROUBLESHOOTING.md.");
+            Serial.println("Use Walk_Values to stream without retaining a complete table.");
+        }
         for (const auto &row : interfaces)
         {
             Serial.print(row.index);

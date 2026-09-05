@@ -1,5 +1,8 @@
 # Maintaining and releasing SNMP Manager
 
+Maintainer reference: these workflows publish the library. Users do not need them
+to read device data; follow [getting started](GETTING_STARTED.md) instead.
+
 ## Branches
 
 - `main`: 2.x development and releases; this is the default branch.

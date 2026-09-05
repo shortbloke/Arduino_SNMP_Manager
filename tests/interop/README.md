@@ -1,5 +1,8 @@
 # Independent Net-SNMP wire test
 
+Contributor reference: this document covers library validation, not application
+setup. To read data from your device, start with [getting started](../../docs/GETTING_STARTED.md).
+
 Run `python3 tests/interop/run.py` with a C++11 compiler and Net-SNMP's `snmpd` and
 `snmpget` installed. It starts its own agent on an ephemeral loopback port with a
 private configuration and temporary persistent storage, then stops it. It never

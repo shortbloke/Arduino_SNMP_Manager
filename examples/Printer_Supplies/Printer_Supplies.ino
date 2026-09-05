@@ -14,7 +14,9 @@ WiFiUDP udp;
 SNMPClient client(udp);
 // Printer-MIB rows have a compound device/supply index; keep the full suffix.
 SNMPDevice printer(client, "192.168.1.30", "public");
-SNMPTableRead<16, 3, 24> supplies(printer);
+constexpr size_t MaxSupplyRows = 16;    // Maximum rows retained; edit, rebuild, upload.
+constexpr size_t SupplyIndexBytes = 24; // Index text bytes, including its terminating zero.
+SNMPTableRead<MaxSupplyRows, 3, SupplyIndexBytes> supplies(printer);
 bool ready = false;
 void setup()
 {
@@ -43,6 +45,16 @@ void loop()
     if (!supplies.takeCompleted())
         return;
     Serial.println(supplies.status().message());
+    if (supplies.status().code() == SNMPStatus::CapacityExceeded)
+    {
+        Serial.print("Incomplete table: retained rows ");
+        Serial.print(supplies.size());
+        Serial.print(" / ");
+        Serial.println(MaxSupplyRows);
+        Serial.println("If full, increase MaxSupplyRows only if RAM allows; rebuild and upload.");
+        Serial.println("Otherwise check index/value/packet limits. See docs/TROUBLESHOOTING.md.");
+        Serial.println("Use Walk_Values to stream without retaining a complete table.");
+    }
     for (const auto &row : supplies)
     {
         Serial.print(row.index);

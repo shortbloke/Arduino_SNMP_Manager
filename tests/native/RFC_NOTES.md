@@ -1,5 +1,8 @@
 # Protocol references for the native suite
 
+Contributor reference: this document covers library validation, not application
+setup. To read data from your device, start with [getting started](../../docs/GETTING_STARTED.md).
+
 These references explain the expectations behind the SNMPv1 and community-based SNMPv2c operation, notification, and BER tests in `cases/`. They distinguish protocol requirements from library conventions. The suite covers selected behavior; passing it is not a conformance certification.
 
 ## Message versions

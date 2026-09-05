@@ -1,5 +1,8 @@
 # D1 Mini read/walk interoperability run
 
+Contributor reference: this document covers library validation, not application
+setup. To read data from your device, start with [getting started](../../docs/GETTING_STARTED.md).
+
 This is a historical result, not a hardware test of the current checkout.
 
 Run on 2026-09-05 with the library at `987e6e9` and the hardware harness metadata

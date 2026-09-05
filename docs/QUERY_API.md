@@ -1,4 +1,9 @@
-# Device and query API (SNMPv1 / SNMPv2c)
+# Reading device data: API reference
+
+Start with [your first device reading](GETTING_STARTED.md) if SNMP is new to you.
+This reference explains how to adapt a working sketch; you do not need to learn
+all the operations below to read one value. An API is the set of C++ classes and
+methods your sketch calls.
 
 Include `SNMPClient.h` for reads, writes, walks, and notifications, or `SNMPTable.h`
 for selected-column tables and interface traffic. This API is implemented alongside
@@ -43,6 +48,9 @@ It copies the address and community; invalid configuration is reported by
 terminator. Hostnames, IPv6, trailing text, and octets greater than 255 are rejected.
 Set `device.port`, `timeoutMs`, and `retries` before starting work. Do not modify
 these settings while that device has pending operations.
+
+For practical setup and recovery steps, see [capacity and error guidance](TROUBLESHOOTING.md).
+It explains which number to edit and when increasing a limit will not help.
 
 ## Arbitrary OIDs and ranges
 

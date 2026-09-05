@@ -5,7 +5,21 @@ or ESP32 board, install this library, and set Wi-Fi credentials, target IPv4 add
 and community. The target device must have SNMP enabled and expose the selected MIB.
 Use Serial Monitor at 115200 baud. No MIB files are needed on the board.
 
-## Choose an operation
+Before uploading, follow [setup and error recovery](../docs/TROUBLESHOOTING.md).
+It explains credentials, device settings, row limits, and how to act on errors.
+
+## Start with the reading you need
+
+Run `Simple_Read` first to confirm the device answers. Then use
+`Interface_Traffic` for network counters, `Host_Storage` for NAS/server storage,
+`Printer_Supplies` for supplies, or `Multiple_Devices` for several targets.
+`Walk_Values` explores a chosen group of readings. The tables below link each sketch.
+
+If terms such as community, OID, MIB, or walk are unfamiliar, read
+[getting started](../docs/GETTING_STARTED.md) first. The operation names below
+explain what the examples do; they are not prerequisites for running them.
+
+## Operation reference
 
 | Operation | Example | What it demonstrates |
 | --- | --- | --- |
