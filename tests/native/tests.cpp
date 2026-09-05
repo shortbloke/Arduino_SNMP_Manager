@@ -115,7 +115,7 @@ int main(int argc,char** argv) {
     add("traversal endOfMibView parses as an exception",[]{auto b=message(binding({0x82,0})); SNMPGetResponse r; CHECK(r.parseFrom(b.data())); CHECK(r.varBinds->value->type==ENDOFMIBVIEW);});
     add("integer 128 minimal signed BER encoding",[]{IntegerType v(128); CHECK(encode(v)==Bytes({2,2,0,128}));},true);
     add("integer serialization preserves value",[]{IntegerType v(256); encode(v); CHECK(v._value==256);},true);
-    add("octet 256 length encoding",[]{OctetType v; memset(v._value,0,sizeof(v._value)); memset(v._value,'x',256); CHECK(encode(v)==tlv(4,Bytes(256,'x')));},true);
+    add("octet 256 length encoding",[]{OctetType v; memset(v._value,0,sizeof(v._value)); memset(v._value,'x',256); CHECK(encode(v)==tlv(4,Bytes(256,'x')));});
     add("OID base128 boundary 16384",[]{char s[]=".1.3.16384"; OIDType v(s); CHECK(encode(v)==Bytes({6,4,43,0x81,0x80,0}));},true);
     add("manager rejects unsupported version",[]{Manager m; UDP u; m.setUDP(&u); int n=99; m.addIntegerHandler(u.peer,oid,&n); u.incoming=message(binding({2,1,42}),2); m.loop(); CHECK(n==99);},true);
     add("library convention: float callback preserves fractional tenths",[]{Manager m; UDP u; m.setUDP(&u); float n=0; m.addFloatHandler(u.peer,oid,&n); u.incoming=message(binding({2,1,123})); m.loop(); CHECK(std::abs(n-12.3f)<0.001f);},true);
@@ -153,7 +153,7 @@ int main(int argc,char** argv) {
         }
         CHECK(content.size()==256);
         CHECK(encode(sequence)==tlv(0x30,content));
-    }, true);
+    });
 
     add("sequence lengths either side of 256", [] {
         for (size_t contentLength : {127,128,255,257}) {

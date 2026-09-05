@@ -224,12 +224,12 @@ public:
         if (valueLength > 127)
         {
             numExtraBytes++;       // Need an extra byte
-            if (valueLength > 256) // Max 65,536 characters, but likely will fail due to UDP packet fragmentation.
+            if (valueLength >= 256) // Max 65,536 characters, but likely will fail due to UDP packet fragmentation.
             {
                 numExtraBytes++; // Need another extra byte to store the length
             }
             *ptr++ = (numExtraBytes | 0x80); // 0x8x where x is the number of bytes which provide the total string length
-            if (valueLength > 256)
+            if (valueLength >= 256)
             {
                 *ptr++ = valueLength / 256;
                 valueLength = valueLength % 256;
@@ -708,7 +708,7 @@ public:
             // first byte is 128 + (actualLength / 128)
             // second is actualLength % 128;
             int tempVal = 1;
-            if (actualLength > 256)
+            if (actualLength >= 256)
             {
                 *lengthPtr++ = (2 | 0x80) & 0xFF; // dodgy
 

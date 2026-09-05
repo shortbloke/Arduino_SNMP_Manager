@@ -1,6 +1,6 @@
 # Review findings
 
-Reviewed the five library headers, package metadata, README, and example layout. Findings below distinguish executable failures from source inspection. Production files are unchanged.
+Reviewed the five library headers, package metadata, README, and example layout. Findings below distinguish executable failures from source inspection. The original review left production files unchanged; subsequent fixes are noted below.
 
 ## Specification cross-check
 
@@ -14,7 +14,7 @@ See [RFC review notes](RFC_NOTES.md) for official sources and corrections to the
 | High | `src/Arduino_SNMP_Manager.h`, `parsePacket` version condition | The version expression is always false, so an otherwise valid response with unsupported version updates registered values. |
 | High | `src/Arduino_SNMP_Manager.h`, INTEGER float branch | Integer division discards tenths and the result is written through an `int*` pointing at float storage. An integer response of 123 does not produce 12.3. |
 | Medium | `src/Arduino_SNMP_Manager.h`, STRING branch | Copying only the incoming string length omits the terminator. Updating `previous value` with `new` retains the old suffix. |
-| Medium | `src/BER.h`, `OctetType::serialise` | The `> 256` condition emits an invalid length for a string of exactly 256 bytes. |
+| Medium | `src/BER.h`, `OctetType::serialise` | **Fixed:** the length header now uses two octets at exactly 256 bytes. The regression check is promoted to baseline. |
 | Medium | `src/BER.h`, `OIDType::serialise` | Strict greater-than comparisons lose a base-128 group at subidentifier 16384. |
 
 ## Additional RFC-based regressions
@@ -54,7 +54,7 @@ Inspected [issue #66](https://github.com/0neblock/Arduino_SNMP/issues/66) and [f
 
 | Comparison | Local result |
 | --- | --- |
-| Sequence length exactly 256 | Confirmed incorrect encoding; previously only the OCTET STRING boundary had a regression. Adjacent sequence sizes pass. |
+| Sequence length exactly 256 | **Fixed:** the length header now uses two octets at exactly 256 content bytes. This check and adjacent sequence sizes pass in the baseline. |
 | Long-form header accounting | Nested sequence/sibling alignment passes. Counter64 long-form length decoding fails here. Local parsers return bool, so the fork's incorrect consumed-byte return is not literally present. |
 | Defensive parser bounds | Child overrun of its enclosing sequence, a dangling child tag, and a truncated UDP response are accepted. Added three failures. |
 | Three-byte negative integer | Callback gets an incorrect positive number. Related sign-extension defect; the fork's specific compound-assignment expression is absent. |
@@ -86,7 +86,7 @@ Seven additional cases are integrated into `tests.cpp`, using behavior-based nam
 
 The additions contribute four passing cases and three failing cases (related OID defects, not necessarily three independent root causes). Both Make groups were executed normally and with ASan/UBSan. ESP8266 alignment/UDP fixes require target hardware validation; logging suppression and example-only changes are not covered by these native behavioral additions.
 
-## Validation performed
+## Validation before library fixes
 
 On the supplied macOS environment using Apple Clang:
 
@@ -97,3 +97,9 @@ On the supplied macOS environment using Apple Clang:
 - Compiler reports the string-member out-of-bounds write and OID format mismatch. Runtime sanitizer success is limited to exercised behavior and does not override those findings.
 
 No hardware or real SNMP agent was used. See [README.md](README.md) for commands, fixture design, and explicit coverage gaps.
+
+## BER length-boundary fix
+
+String and sequence serialization now select a two-octet length at 256 bytes (`82 01 00`). Both existing exact-wire regressions are promoted to baseline; neighboring length checks remain passing.
+
+Validation: `make -C tests/native check` reports 36 baseline passes and 33 remaining regression failures. `make -C tests/native sanitize` reports 36 baseline passes with ASan/UBSan. The complete check still returns nonzero for the remaining defects.

@@ -26,7 +26,7 @@ If you find this useful, consider providing some support:
 
 ## Native tests
 
-Run `pio test -e native` to execute all native tests through PlatformIO, or `pio test -e native -a "--gtest_filter=Baseline.*"` for the passing baseline. The full suite currently exposes 35 known failures. No Arduino board is required. The standalone Make runner is also retained. See [native test documentation](tests/native/README.md) for coverage, sanitizer checks, and the separate failing regression suite. The [project review](tests/native/REVIEW.md) records the defects found while adding tests.
+Run `pio test -e native` to execute all native tests through PlatformIO, or `pio test -e native -a "--gtest_filter=Baseline.*"` for the passing baseline. The full suite includes regression checks for known defects. No Arduino board is required. The standalone Make runner is also retained. See [native test documentation](tests/native/README.md) for coverage, sanitizer checks, and the separate failing regression suite. The [project review](tests/native/REVIEW.md) records the defects found while adding tests.
 
 ## Usage
 
