@@ -4,10 +4,21 @@
 __pycache__/
 .venv/
 
-# Local design/history notes; maintained guidance lives in docs/QUERY_API.md,
-# docs/RELEASING.md and MIGRATION.md.
+# Local design/history notes; public guidance lives in docs/QUERY_API.md
+# and MIGRATION.md.
 /docs/API_PROPOSAL.md
 /docs/REBASELINE.md
 
 # Local Python lint cache.
 .ruff_cache/
+
+# Local maintainer procedures and validation notes.
+/docs/RELEASING.md
+/tests/embedded/README.md
+/tests/examples/README.md
+/tests/hardware/D1_MINI_BURST_RESULT.md
+/tests/hardware/D1_MINI_RESULT.md
+/tests/hardware/README.md
+/tests/interop/README.md
+/tests/native/README.md
+/tests/native/RFC_NOTES.md

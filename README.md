@@ -50,7 +50,8 @@ Use numeric OIDs with the appropriate instance suffix. Interface indices need no
 match physical port numbers; scalar instances end in `.0`. Match handler types to
 the agent's MIB. Limit packet sizes, outstanding operations and table/walk storage
 to suit the board; this is a bounded embedded implementation. See the
-[standards and limits](tests/native/RFC_NOTES.md) and [memory profiles](docs/QUERY_API.md).
+[resource limits](docs/QUERY_API.md#resource-and-compatibility-contract) and
+[capacity guidance](docs/TROUBLESHOOTING.md#what-does-capacity-mean).
 
 The examples mark SSID/password, address, community, OID and timing settings.
 Counter32 calculations require fresh samples, account for one rollover, and reset
@@ -122,18 +123,6 @@ tag (for example, `#v1.2.1`) to the repository URL; Git tags do not accept
 Registry-style version ranges. Avoid duplicate manual copies in your library
 search paths.
 
-## Contributor reference: tests and releases
-
-Run `make -C tests/native check`, `make -C tests/native sanitize`, and
-`pio test -e native`. See [native tests](tests/native/README.md),
-[embedded builds](tests/embedded/README.md), [wire interoperability](tests/interop/README.md)
-and [hardware tests](tests/hardware/README.md) for scope and prerequisites.
-Hardware logs describe specific historical runs, not certification of every revision.
-
-CI validates both active major lines. Release preparation updates manifests,
-README version references and changelog headings through a PR; publication checks
-the exact commit before tagging. See [maintaining and releasing](docs/RELEASING.md).
-
 **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
 ## Projects using this library
@@ -179,11 +168,7 @@ capacities, named versions and ownership changes are detailed in the migration g
 See [setup and troubleshooting](docs/TROUBLESHOOTING.md) for what to configure,
 what capacity means, and the next step for each error.
 
-## Contributor reference: embedded development
-
-Use `make -C tests/native check` for normal/debug regressions and strict C++11 multi-file compatibility. The compatibility executable builds with exceptions and RTTI disabled. `pio run -d tests/embedded` builds the real board toolchains; CI runs the same checks.
-
-Source formatting uses clang-format 19.1.7 and the checked-in `.clang-format`. Version 2.0 API changes are documented in the migration guide. Internal pending-request state is private; request summary fields are informational.
+## Advanced: library configuration
 
 Packet buffers use `SNMP_PACKET_LENGTH` directly (512 bytes by default, 1500 on ESP32). Configure this limit as described below if the application requires another value. Registration APIs return null on allocation failure; `addOIDPointer`, `addHandler`, and request building return false on failure. `addHandler` adopts a supplied callback only on success; `addValueToList` consumes a supplied BER child even on failure. Pending sends are not registered until transmission succeeds. Constructors can remain empty after allocation failure, and subsequent operations report failure or retry allocation safely.
 

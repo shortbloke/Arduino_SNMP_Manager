@@ -136,4 +136,4 @@ which constant to edit, rebuild, and check memory use. Streaming is an alternati
 when you can process individual values without retaining a complete table.
 
 You do not need to run the repository's tests, understand BER encoding, or use the
-release workflows to use the library. Those documents are contributor references.
+release workflows to use the library. Those are maintainer tasks, not application setup steps.
