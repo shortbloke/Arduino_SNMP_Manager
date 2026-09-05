@@ -138,6 +138,36 @@ int main(int argc,char** argv) {
         auto unknown=message(binding({0x47,0}));
         CHECK(!response.parseFrom(unknown.data(),unknown.size()));
     });
+    add("bounded string binary and OID callbacks preserve destinations", [] {
+        Manager manager;
+        UDP udp; manager.setUDP(&udp);
+        char text[4]="old"; char* ptr=text;
+        manager.addStringHandler(udp.peer,oid,&ptr,sizeof(text));
+        udp.incoming=message(binding(tlv(4,{'l','o','n','g'}))); manager.loop();
+        CHECK(std::string(text)=="old");
+        udp.incoming=message(binding(tlv(4,{'x',0,'y'}))); manager.loop();
+        CHECK(std::string(text)=="old");
+        udp.incoming=message(binding(tlv(4,{'n','e','w'}))); manager.loop();
+        CHECK(std::string(text)=="new");
+        for (int tag : {4,0x44}) {
+            Manager binary; binary.setUDP(&udp);
+            unsigned char output[3]={9,9,9}; size_t length=99;
+            if (tag==4) binary.addOctetHandler(udp.peer,oid,output,sizeof(output),&length);
+            else binary.addOpaqueHandler(udp.peer,oid,output,sizeof(output),&length);
+            udp.incoming=message(binding(tlv(tag,{'a',0,'b'}))); binary.loop();
+            CHECK(length==3 && output[0]=='a' && output[1]==0 && output[2]=='b');
+            udp.incoming=message(binding(tlv(tag,{1,2,3,4}))); binary.loop();
+            CHECK(length==3 && output[0]=='a');
+        }
+        Manager oidManager; oidManager.setUDP(&udp);
+        char result[7]="old";
+        auto* callback=oidManager.addOIDHandler(udp.peer,oid,result,sizeof(result));
+        CHECK(std::string(callback->OID)==oid);
+        udp.incoming=message(binding({6,2,43,6})); oidManager.loop();
+        CHECK(std::string(result)==".1.3.6");
+        udp.incoming=message(binding(oidWire)); oidManager.loop();
+        CHECK(std::string(result)==".1.3.6");
+    });
     add("default manager starts without transport", [] {
         SNMPManager manager;
         CHECK(manager._udp==nullptr);

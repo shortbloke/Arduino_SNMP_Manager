@@ -67,8 +67,11 @@ public:
 class StringCallback : public ValueCallback
 {
 public:
-    StringCallback() : ValueCallback(STRING){};
-    char **value;
+    StringCallback(ASN_TYPE type = STRING) : ValueCallback(type){};
+    char **value = nullptr;
+    unsigned char *bytes = nullptr;
+    size_t *length = nullptr;
+    size_t capacity = static_cast<size_t>(-1);
 };
 
 class OIDCallback : public ValueCallback
@@ -76,6 +79,7 @@ class OIDCallback : public ValueCallback
 public:
     OIDCallback() : ValueCallback(ASN_TYPE::OID){};
     char *value;
+    size_t capacity = static_cast<size_t>(-1);
 };
 
 class Counter32Callback : public ValueCallback
@@ -139,10 +143,14 @@ public:
     ValueCallbacks *callbacksCursor = callbacks;
     ValueCallback *findCallback(IPAddress ip, const char *oid); // Find based on responding host IP address and OID
     ValueCallback *addFloatHandler(IPAddress ip, const char *oid, float *value);
-    ValueCallback *addStringHandler(IPAddress ip, const char *, char **); // Caller supplies a pointer to writable, sufficiently sized C-string storage.
+    // Capacity includes the C terminator. Legacy calls without capacity require caller-sized storage.
+    ValueCallback *addStringHandler(IPAddress ip, const char *, char **, size_t capacity = static_cast<size_t>(-1));
+    ValueCallback *addOctetHandler(IPAddress ip, const char *oid, unsigned char *value, size_t capacity, size_t *length);
+    ValueCallback *addOpaqueHandler(IPAddress ip, const char *oid, unsigned char *value, size_t capacity, size_t *length);
+    ValueCallback *addBinaryHandler(ASN_TYPE type, IPAddress ip, const char *oid, unsigned char *value, size_t capacity, size_t *length);
     ValueCallback *addIntegerHandler(IPAddress ip, const char *oid, int *value);
     ValueCallback *addTimestampHandler(IPAddress ip, const char *oid, uint32_t *value);
-    ValueCallback *addOIDHandler(IPAddress ip, const char *oid, char *value);
+    ValueCallback *addOIDHandler(IPAddress ip, const char *oid, char *value, size_t capacity = static_cast<size_t>(-1));
     ValueCallback *addCounter64Handler(IPAddress ip, const char *oid, uint64_t *value);
     ValueCallback *addCounter32Handler(IPAddress ip, const char *oid, uint32_t *value);
     ValueCallback *addGaugeHandler(IPAddress ip, const char *oid, uint32_t *value);
@@ -348,14 +356,35 @@ bool SNMPManager::parsePacket(size_t length)
                 switch (callbackType)
                 {
                 case STRING:
+                case OPAQUE:
                 {
-#ifdef DEBUG
-                    Serial.println("[DEBUG] Type: String");
-#endif
-
-                    // The caller must provide space for the string and its terminator.
-                    const char *source = ((OctetType *)responseContainer)->_value;
-                    memcpy(*((StringCallback *)callback)->value, source, strlen(source) + 1);
+                    StringCallback *destination = static_cast<StringCallback *>(callback);
+                    const unsigned char *source = responseType == STRING
+                        ? reinterpret_cast<unsigned char *>(static_cast<OctetType *>(responseContainer)->_value)
+                        : static_cast<RawType *>(responseContainer)->_value;
+                    size_t length = responseContainer->getLength();
+                    if (destination->bytes)
+                    {
+                        if (length > destination->capacity) break;
+                        memcpy(destination->bytes,source,length);
+                        *destination->length=length;
+                    }
+                    else
+                    {
+                        if (!destination->value || !*destination->value || length >= destination->capacity ||
+                            memchr(source,0,length)) break;
+                        memcpy(*destination->value,source,length);
+                        (*destination->value)[length]=0;
+                    }
+                }
+                break;
+                case OID:
+                {
+                    OIDCallback *destination=static_cast<OIDCallback *>(callback);
+                    const char *source=static_cast<OIDType *>(responseContainer)->_value;
+                    size_t length=strlen(source);
+                    if (!destination->value || length >= destination->capacity) break;
+                    memcpy(destination->value,source,length+1);
                 }
                 break;
                 case INTEGER:
@@ -461,9 +490,7 @@ ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
     {
         while (true)
         {
-            memset(OIDBuf, 0, MAX_OID_LENGTH);
-            strcat(OIDBuf, callbacksCursor->value->OID);
-            if ((strcmp(OIDBuf, oid) == 0) && (callbacksCursor->value->ip == ip))
+            if ((strcmp(callbacksCursor->value->OID, oid) == 0) && (callbacksCursor->value->ip == ip))
             {
 #ifdef DEBUG
                 Serial.println(F("[DEBUG] Found callback with matching IP"));
@@ -486,12 +513,13 @@ ValueCallback *SNMPManager::findCallback(IPAddress ip, const char *oid)
     return 0;
 }
 
-ValueCallback *SNMPManager::addStringHandler(IPAddress ip, const char *oid, char **value)
+ValueCallback *SNMPManager::addStringHandler(IPAddress ip, const char *oid, char **value, size_t capacity)
 {
     ValueCallback *callback = new StringCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
     strcpy(callback->OID, oid);
     ((StringCallback *)callback)->value = value;
+    ((StringCallback *)callback)->capacity = capacity;
     callback->ip = ip;
     addHandler(callback);
     return callback;
@@ -532,10 +560,12 @@ ValueCallback *SNMPManager::addTimestampHandler(IPAddress ip, const char *oid, u
     return callback;
 }
 
-ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, const char *oid, char *value)
+ValueCallback *SNMPManager::addOIDHandler(IPAddress ip, const char *oid, char *value, size_t capacity)
 {
     ValueCallback *callback = new OIDCallback();
     callback->OID = (char *)malloc((sizeof(char) * strlen(oid)) + 1);
+    strcpy(callback->OID, oid);
+    ((OIDCallback *)callback)->capacity = capacity;
     ((OIDCallback *)callback)->value = value;
     callback->ip = ip;
     addHandler(callback);
@@ -574,6 +604,25 @@ ValueCallback *SNMPManager::addGaugeHandler(IPAddress ip, const char *oid, uint3
     addHandler(callback);
     return callback;
 }
+
+ValueCallback *SNMPManager::addBinaryHandler(ASN_TYPE type, IPAddress ip, const char *oid,
+                                             unsigned char *value, size_t capacity, size_t *length)
+{
+    if ((type != STRING && type != OPAQUE) || !value || !length || !oid) return nullptr;
+    StringCallback *callback=new StringCallback(type);
+    callback->OID=static_cast<char *>(malloc(strlen(oid)+1));
+    strcpy(callback->OID,oid);
+    callback->bytes=value;
+    callback->capacity=capacity;
+    callback->length=length;
+    callback->ip=ip;
+    addHandler(callback);
+    return callback;
+}
+ValueCallback *SNMPManager::addOctetHandler(IPAddress ip, const char *oid, unsigned char *value, size_t capacity, size_t *length)
+{ return addBinaryHandler(STRING,ip,oid,value,capacity,length); }
+ValueCallback *SNMPManager::addOpaqueHandler(IPAddress ip, const char *oid, unsigned char *value, size_t capacity, size_t *length)
+{ return addBinaryHandler(OPAQUE,ip,oid,value,capacity,length); }
 
 void SNMPManager::addHandler(ValueCallback *callback)
 {
