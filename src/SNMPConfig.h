@@ -18,8 +18,14 @@
 #define SNMP_OCTETSTRING_MAX_LENGTH 1024
 #endif
 #ifndef MAX_OID_LENGTH
-#define MAX_OID_LENGTH 128
+#define MAX_OID_LENGTH 256
 #endif
+#ifndef SNMP_VALUE_MAX_LENGTH
+#define SNMP_VALUE_MAX_LENGTH 1024
+#endif
+static_assert(SNMP_VALUE_MAX_LENGTH > 0 && SNMP_VALUE_MAX_LENGTH <= 65535,
+              "Invalid value capacity");
+
 #ifndef SNMP_MAX_PENDING_REQUESTS
 #define SNMP_MAX_PENDING_REQUESTS 4
 #endif
@@ -45,8 +51,8 @@ constexpr bool suppressParseErrors = false;
 
 // Each translation unit references the configuration compiled into the library.
 // Inconsistent settings produce a link error instead of incompatible class layouts.
-template <unsigned Packet, unsigned Octet, unsigned Oid, unsigned Pending, bool Debug,
-          bool BerDebug, bool SuppressErrors>
+template <unsigned Packet, unsigned Octet, unsigned Oid, unsigned Pending, unsigned Value,
+          bool Debug, bool BerDebug, bool SuppressErrors>
 struct BuildConfiguration
 {
     static void verify();
@@ -57,8 +63,8 @@ struct BuildConfiguration
 };
 using CurrentBuildConfiguration =
     BuildConfiguration<SNMP_PACKET_LENGTH, SNMP_OCTETSTRING_MAX_LENGTH, MAX_OID_LENGTH,
-                       SNMP_MAX_PENDING_REQUESTS, debugEnabled, berDebugEnabled,
-                       suppressParseErrors>;
+                       SNMP_MAX_PENDING_REQUESTS, SNMP_VALUE_MAX_LENGTH, debugEnabled,
+                       berDebugEnabled, suppressParseErrors>;
 }
 namespace
 {

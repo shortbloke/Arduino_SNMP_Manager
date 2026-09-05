@@ -98,7 +98,7 @@ bool appendValue(unsigned char *buffer, size_t capacity, size_t &end, const SNMP
     case STRING:
     case OPAQUE:
     {
-        if (value.length >= sizeof(value.bytes) || value.length > capacity - end)
+        if (value.length > SNMP_VALUE_MAX_LENGTH || value.length > capacity - end)
             return false;
         size_t start = end;
         memcpy(buffer + end, value.bytes, value.length);
@@ -107,7 +107,7 @@ bool appendValue(unsigned char *buffer, size_t capacity, size_t &end, const SNMP
     }
     case OID:
     {
-        if (value.length >= sizeof(value.bytes) || value.bytes[value.length] ||
+        if (value.length > SNMP_VALUE_MAX_LENGTH || value.bytes[value.length] ||
             memchr(value.bytes, 0, value.length))
             return false;
         OIDType oid(const_cast<char *>(value.text()));
@@ -162,33 +162,24 @@ SNMPStatus copyValue(BER_CONTAINER &source, SNMPValue &target)
     case NETWORK_ADDRESS:
     {
         IPAddress ip = static_cast<NetworkAddress &>(source)._value;
+        unsigned char octets[4];
         for (unsigned i = 0; i < 4; ++i)
-            target.bytes[i] = ip[i];
-        target.length = 4;
-        break;
+            octets[i] = ip[i];
+        return target.setBytes(octets, 4, NETWORK_ADDRESS);
     }
     case OID:
     {
         const char *text = static_cast<OIDType &>(source)._value;
-        size_t n = strlen(text);
-        if (n >= sizeof(target.bytes))
-            return SNMPStatus::CapacityExceeded;
-        memcpy(target.bytes, text, n + 1);
-        target.length = n;
-        break;
+        return target.setBytes(reinterpret_cast<const unsigned char *>(text), strlen(text), OID);
     }
     case STRING:
     case OPAQUE:
     {
-        size_t n = static_cast<size_t>(source.getLength());
-        if (n >= sizeof(target.bytes))
-            return SNMPStatus::CapacityExceeded;
-        const void *data = source._type == STRING
-                               ? static_cast<void *>(static_cast<OctetType &>(source)._value)
-                               : static_cast<void *>(static_cast<RawType &>(source)._value);
-        memcpy(target.bytes, data, n);
-        target.length = n;
-        break;
+        const unsigned char *data =
+            source._type == STRING
+                ? reinterpret_cast<const unsigned char *>(static_cast<OctetType &>(source)._value)
+                : static_cast<RawType &>(source)._value;
+        return target.setBytes(data, static_cast<size_t>(source.getLength()), source._type);
     }
     case NOSUCHOBJECT:
     case NOSUCHINSTANCE:
@@ -220,7 +211,8 @@ const char *SNMPStatus::message() const
                                            "Unexpected value type",
                                            "Invalid response or agent error",
                                            "Some values could not be read",
-                                           "Unsupported operation"};
+                                           "Unsupported operation",
+                                           "Could not allocate result storage"};
     return messages[static_cast<unsigned>(code_)];
 }
 SNMPValue SNMPValue::integer32(int32_t n)
@@ -237,17 +229,66 @@ SNMPValue SNMPValue::counter32(uint32_t n)
     value.number = n;
     return value;
 }
+void SNMPValue::release()
+{
+    if (payload_ && --payload_->references == 0)
+    {
+        payload_->~Payload();
+        ::operator delete(payload_);
+    }
+}
+SNMPValue::~SNMPValue()
+{
+    release();
+}
+SNMPValue::SNMPValue(const SNMPValue &other)
+    : type(other.type), number(other.number), bytes(other.bytes), length(other.length),
+      payload_(other.payload_)
+{
+    if (payload_)
+        ++payload_->references;
+}
+SNMPValue &SNMPValue::operator=(const SNMPValue &other)
+{
+    if (this != &other)
+    {
+        release();
+        type = other.type;
+        number = other.number;
+        bytes = other.bytes;
+        length = other.length;
+        payload_ = other.payload_;
+        if (payload_)
+            ++payload_->references;
+    }
+    return *this;
+}
 SNMPStatus SNMPValue::setBytes(const unsigned char *data, size_t size, ASN_TYPE tag)
 {
-    if ((tag != STRING && tag != OPAQUE) || (!data && size))
+    if ((tag != STRING && tag != OPAQUE && tag != OID && tag != NETWORK_ADDRESS) || (!data && size))
         return SNMPStatus::InvalidConfiguration;
-    if (size >= sizeof(bytes))
+    if (size > SNMP_VALUE_MAX_LENGTH || (tag == OID && size >= MAX_OID_LENGTH))
         return SNMPStatus::CapacityExceeded;
-    *this = SNMPValue();
-    type = tag;
-    length = size;
+    if ((tag == NETWORK_ADDRESS && size != 4) || (tag == OID && (!size || memchr(data, 0, size))))
+        return SNMPStatus::InvalidConfiguration;
+    Payload *storage = nullptr;
     if (size)
-        memcpy(bytes, data, size);
+    {
+        void *memory = ::operator new(sizeof(Payload) + size + 1, std::nothrow);
+        if (!memory)
+            return SNMPStatus::AllocationFailure;
+        storage = new (memory) Payload{1};
+        unsigned char *destination = reinterpret_cast<unsigned char *>(storage + 1);
+        memcpy(destination, data, size);
+        destination[size] = 0;
+    }
+    release();
+    payload_ = storage;
+    type = tag;
+    number = 0;
+    length = size;
+    bytes = storage ? reinterpret_cast<const unsigned char *>(storage + 1)
+                    : reinterpret_cast<const unsigned char *>("");
     return SNMPStatus::Success;
 }
 SNMPDevice::SNMPDevice(SNMPClient &client, IPAddress address, const char *community,
@@ -293,10 +334,39 @@ SNMPStatus SNMPOperation::add(const char *oid, ASN_TYPE expected, const SNMPValu
             return SNMPStatus::InvalidOID;
     if (value)
     {
-        unsigned char test[sizeof(value->bytes) + 8];
-        size_t end = 0;
-        if (!appendValue(test, sizeof(test), end, *value))
+        switch (value->type)
+        {
+        case INTEGER:
+        case COUNTER32:
+        case GAUGE32:
+        case TIMESTAMP:
+            if (value->number > UINT32_MAX)
+                return SNMPStatus::InvalidConfiguration;
+            break;
+        case COUNTER64:
+            break;
+        case STRING:
+        case OPAQUE:
+            if (value->length > SNMP_VALUE_MAX_LENGTH)
+                return SNMPStatus::CapacityExceeded;
+            break;
+        case OID:
+        {
+            if (value->length >= MAX_OID_LENGTH || value->length > SNMP_VALUE_MAX_LENGTH ||
+                memchr(value->bytes, 0, value->length))
+                return SNMPStatus::InvalidOID;
+            OIDType object(const_cast<char *>(value->text()));
+            if (object.serialise(nullptr) < 0)
+                return SNMPStatus::InvalidOID;
+            break;
+        }
+        case NETWORK_ADDRESS:
+            if (value->length != 4)
+                return SNMPStatus::InvalidConfiguration;
+            break;
+        default:
             return SNMPStatus::Unsupported;
+        }
         if (value->type == COUNTER64 && device_.version_ == SNMPVersion::Version1)
             return SNMPStatus::Unsupported;
     }

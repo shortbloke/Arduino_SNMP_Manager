@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <unistd.h>
 
-// Execute ownership and parser-reuse cases in this process. Returning from main
+// Execute ownership, MIB payload, and parser-reuse cases in this process. Returning from main
 // allows local/global destruction and the host's exit-time leak checker to run.
 int main()
 {
@@ -11,6 +11,7 @@ int main()
     std::vector<Test> tests;
     registerOwnershipTests(tests);
     registerResponsesTests(tests);
+    registerMIBTests(tests);
     for (const auto &test : tests)
     {
         try

@@ -2,6 +2,9 @@
 
 ## 2.0.0
 
+- Separate owned query payload capacity from OID capacity, retain shared payloads across polls, and increase default dotted OID storage to accommodate longer compound indices.
+- Add checked common MIB value conversions and regression fixtures for long interface descriptions, IPv6 TCP indices, payload ownership, and allocation failures.
+
 - Add a device/query API with checked IPv4 strings, owned results, automatic request IDs, bounded scheduling, batching, retries, and completion status.
 - Add SNMPv1/v2c walks, selected-column tables, and interface traffic reads with Counter64-to-Counter32 fallback.
 - Add single-packet SET requests, v1/v2c trap reception, and v2c INFORM acknowledgement while retaining the existing handler API.

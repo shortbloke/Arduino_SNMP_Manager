@@ -83,7 +83,7 @@ Tests use production initialization and destructors, and verify shared registrat
 
 All BER types expose capacity-aware serialization and bounded decoding. Tests exercise short buffers and oversized request rejection. Legacy calls without sizes retain caller responsibility; they cannot infer allocation sizes. Custom BER subclasses must implement the new capacity-aware virtual signatures.
 
-The default printable OID buffer remains smaller than the protocol's maximum possible OID representation. Full protocol-size OIDs, exhaustive boundary combinations, and target hardware behavior need further work. Allocation-failure injection checks partial-build cleanup and recovery; it does not reproduce every possible heap condition. C-string callbacks support explicit capacities; binary callbacks preserve OCTET STRING and Opaque payloads and report their lengths. Trap dispatch remains outside this Get-oriented manager's scope.
+The default printable OID buffer remains smaller than the protocol's maximum possible OID representation. Full protocol-size OIDs, exhaustive boundary combinations, and target hardware behavior need further work. Allocation-failure injection checks partial-build cleanup and recovery; it does not reproduce every possible heap condition. C-string callbacks support explicit capacities; binary callbacks preserve OCTET STRING and Opaque payloads and report their lengths. The query client also covers trap reception and INFORM acknowledgement.
 
 ## Compatibility checks
 
@@ -101,7 +101,7 @@ The native builds compile and link the library's `src/*.cpp` sources alongside t
 
 ## Lifecycle and leak checks
 
-`make -C tests/native lifecycle` runs the shared ownership and response cases directly in one process, including allocation-failure recovery, repeated packet building, parser reuse, and destruction. It returns normally so destructors and exit-time leak checking can run; assertions or crashes fail the executable. A process timeout prevents a hang. This target is also part of `make check`.
+`make -C tests/native lifecycle` runs the shared ownership, response, and MIB cases directly in one process, including allocation-failure recovery, repeated packet building, parser reuse, and destruction. It returns normally so destructors and exit-time leak checking can run; assertions or crashes fail the executable. A process timeout prevents a hang. This target is also part of `make check`.
 
 Run `make -C tests/native leaks` for explicit leak detection. On Linux it uses AddressSanitizer/UndefinedBehaviorSanitizer with LeakSanitizer enabled; CI runs this target on Ubuntu. On macOS it uses the system `leaks --atExit` tool with an unsanitized debug build. Tool failures and detected leaks fail the target. These checks cover the exercised lifecycles; they do not prove all allocation paths are leak-free.
 
@@ -136,3 +136,12 @@ The service helper requires one outgoing datagram per step; it is not a concurre
 multi-device network emulator. GET missing-instance inference treats the final arc
 as an instance index; walking and table joins support complete composite indices.
 The mock is test-only and does not replace real-agent interoperability testing.
+
+
+The `MIB` group exercises IF-MIB descriptions beyond the former inline capacity,
+TCP-MIB IPv6 compound instance OIDs, payload ownership across polls, allocation
+failure, and checked storage, sensor, printer, truth-value, MAC, and IPv6 conversions.
+It runs with the default and custom configurations; smaller configured limits are
+checked for explicit rejection. These are synthetic fixtures based on MIB definitions,
+not interoperability checks against physical agents. MIB payload lifetimes also run
+in the lifecycle/leak executable.

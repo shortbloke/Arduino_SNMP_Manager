@@ -27,7 +27,8 @@ public:
         TypeMismatch,
         ProtocolError,
         Partial,
-        Unsupported
+        Unsupported,
+        AllocationFailure
     };
     SNMPStatus(Code code = NotStarted) : code_(code) {}
     bool ok() const
@@ -48,7 +49,12 @@ struct SNMPValue
 {
     ASN_TYPE type = NULLTYPE;
     uint64_t number = 0;
-    unsigned char bytes[MAX_OID_LENGTH] = {};
+    // Immutable shared payload; copies retain ownership without allocating.
+    const unsigned char *bytes = reinterpret_cast<const unsigned char *>("");
+    SNMPValue() = default;
+    ~SNMPValue();
+    SNMPValue(const SNMPValue &other);
+    SNMPValue &operator=(const SNMPValue &other);
     size_t length = 0;
     int32_t integer() const
     {
@@ -64,7 +70,7 @@ struct SNMPValue
     }
     bool isText() const
     {
-        return type == STRING && !memchr(bytes, 0, length);
+        return type == STRING && length <= SNMP_VALUE_MAX_LENGTH && !memchr(bytes, 0, length);
     }
     const char *text() const
     {
@@ -73,6 +79,14 @@ struct SNMPValue
     static SNMPValue integer32(int32_t value);
     static SNMPValue counter32(uint32_t value);
     SNMPStatus setBytes(const unsigned char *data, size_t size, ASN_TYPE tag = STRING);
+
+private:
+    struct Payload
+    {
+        size_t references;
+    };
+    Payload *payload_ = nullptr;
+    void release();
 };
 
 struct SNMPResult

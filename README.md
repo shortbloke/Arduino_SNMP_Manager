@@ -249,6 +249,6 @@ build_flags =
     -DDEBUG
 ```
 
-The other capacity settings are `SNMP_OCTETSTRING_MAX_LENGTH` and `MAX_OID_LENGTH`. For a shared configuration file, define `SNMP_CONFIG_HEADER` as a quoted header filename in compiler flags and make its include directory available to all sources. Arduino CLI users can pass these `-D` options through `compiler.cpp.extra_flags`.
+The other capacity settings are `SNMP_OCTETSTRING_MAX_LENGTH`, `MAX_OID_LENGTH` (256 bytes by default, including termination), and `SNMP_VALUE_MAX_LENGTH` (1024 bytes per owned query payload by default). See [MIB value helpers](docs/QUERY_API.md#common-mib-values) for checked conversions of common readings. For a shared configuration file, define `SNMP_CONFIG_HEADER` as a quoted header filename in compiler flags and make its include directory available to all sources. Arduino CLI users can pass these `-D` options through `compiler.cpp.extra_flags`.
 
 A `#define` placed only before the include in a sketch no longer configures the separately compiled library. Inconsistent capacity or logging settings produce a linker error mentioning `snmp_detail::BuildConfiguration`; rebuild all sources with the same settings to resolve it. The check uses no heap allocation and performs no I/O.

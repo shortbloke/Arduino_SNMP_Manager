@@ -65,12 +65,21 @@ Access results by index only within `size()`.
 Check status and type before conversion. OCTET STRING and Opaque values use
 `bytes` and `length`, preserving embedded zeros. For display, check `isText()`
 before using `text()`. OID values use canonical dotted text; network addresses
-use four bytes. Text/binary result capacity is currently `MAX_OID_LENGTH - 1`;
-larger values report `CapacityExceeded` rather than truncating.
+use four bytes. `SNMP_VALUE_MAX_LENGTH` bounds each owned payload (default 1024
+bytes, excluding its extra terminator). `MAX_OID_LENGTH` separately bounds dotted
+OID storage (default 256 bytes, including the terminator). Larger values report
+`CapacityExceeded` rather than truncating. Packet and decoder limits also apply.
+
+Payload bytes are read-only. Use `setBytes()` to create or replace a value and check
+its returned status. Copying an `SNMPValue` shares ownership without allocating;
+a copy remains valid after the original result is replaced or destroyed. A raw
+`bytes` or `text()` pointer is valid only while an owning value retains that payload.
+Do not overwrite `bytes` or `length` directly. Ownership is not thread-safe; use
+values and the client from one task or provide external synchronization.
 
 An operation can finish successfully, partially, or with a failure such as
 `Missing`, `TypeMismatch`, `Timeout`, `TransportError`, `ProtocolError`, or
-`CapacityExceeded`. Use `status().message()` for a short description and
+`CapacityExceeded` or `AllocationFailure`. Use `status().message()` for a short description and
 `status().code()` for program logic. `agentError()`/`agentErrorIndex()` on a query
 or walk expose the most recently matched response's SNMP error fields.
 Already successful cells remain available if a later batch fails.
@@ -163,12 +172,16 @@ ESP8266/ESP32 defaults remain; query and table template capacities determine ret
 storage. Firmware and library configuration must match as described in the
 [migration guide](../MIGRATION.md).
 
-Result storage is fixed, and outgoing encoding does not allocate a BER tree.
-Incoming packets still use the existing bounded BER decoder and temporary heap
-allocations. The library is not allocation-free. Allocation failures cannot update
-results; the operation eventually retries or times out. Large collections should
-be global or deliberately allocated, not placed on a small task stack. PSRAM is
-not automatically selected by this API.
+Result slots and OID buffers have fixed capacities. Numeric values need no payload
+allocation; text, binary, and OID values allocate their actual length plus ownership
+metadata and a terminator. This keeps numeric tables compact without reserving the
+maximum string capacity in every cell. Increasing OID capacity still increases
+per-row storage. Outgoing encoding does not allocate a BER tree, but validating an
+OID can allocate. Incoming packets use the existing bounded BER decoder and
+temporary heap allocations. The library is not allocation-free. Failure to retain
+a decoded value reports `AllocationFailure`; decoder allocation failures can instead
+lead to a retry or timeout. Large collections should be global or deliberately
+allocated, not placed on a small task stack. PSRAM is not automatically selected.
 
 All manager-side SNMPv1/v2c operations are available on both targets. Extra RAM can
 increase capacities; it does not remove agent packet limits. Packet size, table
@@ -178,3 +191,48 @@ protocol features or compile-time feature switches are introduced in this versio
 The existing bounded handler and `SNMPGet` APIs remain available and covered by
 regression tests. Existing 1.x migration requirements still apply. New examples
 use the query API; direct manipulation of legacy internals is not required.
+
+
+## Common MIB values
+
+Include `<SNMPMIB.h>` for checked conversions. First check the result or table cell
+status. These helpers validate wire types and ranges, allocate no storage, and
+leave output arguments unchanged on failure:
+
+- `storageBytes(units, blocks, bytes)` multiplies HOST-RESOURCES-MIB allocation
+  units and block counts using 64-bit arithmetic.
+- `truthValue(value, result)` accepts TruthValue's `true(1)` and `false(2)` only.
+- `fixedPoint(value, decimalExponent, precision, result)` converts signed
+  ENTITY-SENSOR fixed-point readings and rejects underflow/overflow sentinels.
+  Pass the SI exponent (for example, -3 for milli), **not** the scale enumeration.
+  Positive precision specifies fractional digits; negative precision describes
+  accuracy. Check sensor type, units, and operational status separately.
+- `supplyState(level)` preserves Printer-MIB's other, unknown, and some-remaining
+  states. `supplyPercent(level, capacity, result)` requires known nonnegative
+  levels and positive capacity in the same units.
+- `formatMAC(value, buffer, capacity)` formats a six-byte OCTET STRING; allow 18
+  bytes including the terminator.
+- `formatAddress(addressType, value, buffer, capacity)` formats InetAddress
+  IPv4(1) or IPv6(2) values; allow 40 bytes for IPv6. IPv6 output is uncompressed.
+  Zone-indexed addresses and DNS names are not accepted; this adds no IPv6 transport.
+
+```cpp
+uint64_t bytes;
+if (units.status.ok() && blocks.status.ok() &&
+    SNMPMIB::storageBytes(units.value, blocks.value, bytes)) {
+    // bytes now contains the storage size without 32-bit multiplication overflow.
+}
+```
+
+These are explicit value helpers, not a MIB loader or automatic table schema.
+DateAndTime, BITS, enumerations, and vendor-specific conventions still require
+application interpretation. Tables retain the full numeric index suffix, including
+sparse and compound indices; the application decides how columns and indices relate.
+The default OID capacity accommodates the tested TCP-MIB IPv6 connection indices,
+but does not cover every legal SNMP OID. Increase global limits when required.
+
+Definitions: [HOST-RESOURCES-MIB](https://www.rfc-editor.org/rfc/rfc2790.html),
+[ENTITY-SENSOR-MIB](https://www.rfc-editor.org/rfc/rfc3433.html),
+[Printer-MIB](https://www.rfc-editor.org/rfc/rfc3805.html),
+[textual conventions](https://www.rfc-editor.org/rfc/rfc2579.html), and
+[INET-ADDRESS-MIB](https://www.rfc-editor.org/rfc/rfc4001.html).

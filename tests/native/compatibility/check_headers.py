@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix='snmp-headers-') as directory:
     config = str(root / 'src/SNMPConfig.cpp')
     run('-c', config, '-o', str(work / 'default.o'))
     for macro, value in [('SNMP_PACKET_LENGTH', '768'), ('SNMP_OCTETSTRING_MAX_LENGTH', '512'),
-                         ('MAX_OID_LENGTH', '192'), ('SNMP_MAX_PENDING_REQUESTS', '2'),
+                         ('MAX_OID_LENGTH', '192'), ('SNMP_VALUE_MAX_LENGTH', '512'), ('SNMP_MAX_PENDING_REQUESTS', '2'),
                          ('DEBUG', '1'), ('DEBUG_BER', '1'), ('SUPPRESS_ERROR_FAILED_PARSE', '1')]:
         define = '-D' + macro + '=' + value
         run(define, '-c', str(client), '-o', str(work / 'client.o'))

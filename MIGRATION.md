@@ -25,7 +25,7 @@ build_flags =
     -DDEBUG
 ```
 
-The configurable capacity macros are `SNMP_PACKET_LENGTH`, `SNMP_OCTETSTRING_MAX_LENGTH`, `MAX_OID_LENGTH`, and `SNMP_MAX_PENDING_REQUESTS`. Logging uses `DEBUG` and `DEBUG_BER`; parse-error logging uses `SUPPRESS_ERROR_FAILED_PARSE`. `SNMP_CONFIG_HEADER` can name a shared configuration header. A link error mentioning `snmp_detail::BuildConfiguration` means the application and library were compiled with different settings.
+The configurable capacity macros are `SNMP_PACKET_LENGTH`, `SNMP_OCTETSTRING_MAX_LENGTH`, `MAX_OID_LENGTH`, `SNMP_MAX_PENDING_REQUESTS`, and `SNMP_VALUE_MAX_LENGTH`. Logging uses `DEBUG` and `DEBUG_BER`; parse-error logging uses `SUPPRESS_ERROR_FAILED_PARSE`. `SNMP_CONFIG_HEADER` can name a shared configuration header. A link error mentioning `snmp_detail::BuildConfiguration` means the application and library were compiled with different settings.
 
 `SUPPRESS_ERROR_SHORT_PACKET` has been removed because short packets are now accepted or rejected through structural validation.
 
@@ -119,3 +119,15 @@ Results belong to their operation and include individual status. See the
 returns bool. Do not run both engines on the same UDP instance. `SNMPSet` does not
 split or automatically retry writes. Notification handling supports v1/v2c traps
 and v2c INFORM acknowledgement; SNMPv3 remains unsupported.
+
+
+## Query value storage
+
+The new query API defaults to 256 bytes for dotted OIDs (`MAX_OID_LENGTH`, including
+termination) and 1024 bytes per retained value (`SNMP_VALUE_MAX_LENGTH`, excluding
+termination). Packet and decoder limits remain separate. Configure macros consistently
+for all compilation units. Numeric values do not allocate payload storage; variable
+values use bounded heap storage and report retention failures as `AllocationFailure`.
+`SNMPValue::bytes` is read-only: use `setBytes()` and check its status instead of
+writing into the payload. Copies retain shared ownership across subsequent polls.
+See [query values and MIB helpers](docs/QUERY_API.md#common-mib-values).

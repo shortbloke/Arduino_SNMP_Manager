@@ -7,6 +7,7 @@
 #include <WiFiUdp.h>
 #include <Arduino_SNMP_Manager.h>
 #include <SNMPTable.h>
+#include <SNMPMIB.h>
 
 WiFiUDP queryUDP;
 SNMPClient client(queryUDP);
@@ -23,6 +24,7 @@ SNMPManager manager("public");
 SNMPGet request("public", SNMPVersion::Version2c);
 int32_t integerValue;
 float floatValue;
+double sensorReading;
 uint32_t counterValue;
 uint64_t counter64Value;
 char text[64];
@@ -52,6 +54,8 @@ void setup()
     request.build();
     // Compile the real UDP send/receive path; no Wi-Fi credentials are configured.
     request.sendTo(peer);
+    SNMPMIB::fixedPoint(SNMPValue::integer32(125), 0, 1, sensorReading);
+    SNMPMIB::storageBytes(SNMPValue::integer32(4096), SNMPValue::integer32(1024), counter64Value);
     client.begin();
     uptime.start();
     table.addColumn(".1.3.6.1.2.1.2.2.1.10");

@@ -6,7 +6,7 @@ LIB_SOURCES := $(wildcard ../../src/*.cpp)
 LIB_OBJECTS := $(patsubst ../../src/%.cpp,$(BUILD)/lib/%.o,$(LIB_SOURCES))
 SHARED_SOURCES := $(wildcard cases/*.cpp support/*.cpp) stubs/Arduino.cpp
 TEST_OBJECTS := $(patsubst %.cpp,$(BUILD)/native/%.o,$(SHARED_SOURCES) runner.cpp)
-LIFECYCLE_SOURCES := lifecycle/main.cpp cases/ownership_tests.cpp cases/responses_tests.cpp support/fixtures.cpp support/allocations.cpp stubs/Arduino.cpp
+LIFECYCLE_SOURCES := lifecycle/main.cpp cases/ownership_tests.cpp cases/responses_tests.cpp cases/mib_tests.cpp support/mock_agent.cpp support/fixtures.cpp support/allocations.cpp stubs/Arduino.cpp
 LIFECYCLE_OBJECTS := $(patsubst %.cpp,$(BUILD)/native/%.o,$(LIFECYCLE_SOURCES))
 COMPAT_OBJECTS := $(patsubst %.cpp,$(BUILD)/native/%.o,compatibility/main.cpp compatibility/other.cpp stubs/Arduino.cpp)
 
@@ -44,12 +44,13 @@ clean:
 
 .PHONY: configuration configuration-run
 configuration:
-	$(MAKE) BUILD=$(BUILD)-config-small CPPFLAGS='$(CPPFLAGS) -DSNMP_PACKET_LENGTH=256 -DSNMP_OCTETSTRING_MAX_LENGTH=512 -DMAX_OID_LENGTH=64 -DSNMP_MAX_PENDING_REQUESTS=2' configuration-run
-	$(MAKE) BUILD=$(BUILD)-config-large CPPFLAGS='$(CPPFLAGS) -DSNMP_PACKET_LENGTH=768 -DSNMP_OCTETSTRING_MAX_LENGTH=2048 -DMAX_OID_LENGTH=192 -DSNMP_MAX_PENDING_REQUESTS=6' configuration-run
+	$(MAKE) BUILD=$(BUILD)-config-small CPPFLAGS='$(CPPFLAGS) -DSNMP_PACKET_LENGTH=256 -DSNMP_OCTETSTRING_MAX_LENGTH=512 -DMAX_OID_LENGTH=64 -DSNMP_MAX_PENDING_REQUESTS=2 -DSNMP_VALUE_MAX_LENGTH=512' configuration-run
+	$(MAKE) BUILD=$(BUILD)-config-large CPPFLAGS='$(CPPFLAGS) -DSNMP_PACKET_LENGTH=768 -DSNMP_OCTETSTRING_MAX_LENGTH=2048 -DMAX_OID_LENGTH=192 -DSNMP_MAX_PENDING_REQUESTS=6 -DSNMP_VALUE_MAX_LENGTH=2048' configuration-run
 configuration-run: $(BUILD)/tests
 	./$(BUILD)/tests --group Configuration
 	./$(BUILD)/tests --group Client
 	./$(BUILD)/tests --group Agent
+	./$(BUILD)/tests --group MIB
 
 .PHONY: lifecycle leaks
 $(BUILD)/lifecycle: $(LIFECYCLE_OBJECTS) $(BUILD)/libsnmp.a
