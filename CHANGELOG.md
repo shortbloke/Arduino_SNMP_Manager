@@ -50,6 +50,8 @@ First preview of the 2.x API (unpublished draft). Existing 1.x projects should r
 
 ### Validation and release tooling
 
+- Cover large sparse NAS storage tables, wide size conversions, invalid allocation
+  units, bounded table overflow, and streaming in independent mock-agent regressions.
 - Add modular native regressions, independent mock agents, sparse-table fixtures,
   low-heap failure tests, sanitizer and lifecycle/leak checks.
 - Build examples and library configurations for the supported ESP targets, and

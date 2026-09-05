@@ -1,6 +1,7 @@
 #include "mock_agent.h"
 #include "registry.h"
 #include <SNMPTable.h>
+#include <SNMPMIB.h>
 #include <algorithm>
 
 namespace
@@ -103,6 +104,63 @@ void registerAgentTests(std::vector<Test> &tests)
             for (const auto &row : table)
                 CHECK(row[0].ok() && row[1].ok() && row[2].ok() && row[1].value.unsigned64() == 7 &&
                       row[2].value.unsigned64() == 9);
+        });
+    add("large sparse storage tables retain wide sizes and isolate invalid units",
+        []
+        {
+            UDP udp;
+            MockAgent agent;
+            SNMPClient client(udp);
+            SNMPDevice device(client, udp.peer, "public");
+            const std::string root = ".1.3.6.1.2.1.25.2.3.1.";
+            for (unsigned row = 0; row < 103; ++row)
+            {
+                const std::string index = "." + std::to_string(row * 3 + 1);
+                agent.put((root + "3" + index).c_str(), tlv(4, {'d', 'i', 's', 'k'}));
+                agent.put((root + "4" + index).c_str(), MockAgent::integer(row == 54 ? 0 : 4096));
+                agent.put((root + "5" + index).c_str(), MockAgent::integer(2000000000));
+                agent.put((root + "6" + index).c_str(), MockAgent::integer(1500000000));
+            }
+            SNMPTableRead<128, 4, 16> table(device);
+            for (unsigned column = 3; column <= 6; ++column)
+                CHECK(table
+                          .addColumn((root + std::to_string(column)).c_str(),
+                                     column == 3 ? STRING : INTEGER)
+                          .ok());
+            CHECK(client.begin().ok() && table.start().ok());
+            complete(client, agent, udp, table);
+            CHECK(table.status().ok() && table.size() == 103);
+            for (size_t row = 0; row < table.size(); ++row)
+            {
+                CHECK(std::string(table[row].index) == std::to_string(row * 3 + 1));
+                CHECK(table[row][0].ok() && table[row][1].ok() && table[row][2].ok() &&
+                      table[row][3].ok());
+                uint64_t bytes = 123;
+                CHECK(SNMPMIB::storageBytes(table[row][1].value, table[row][2].value, bytes) ==
+                      (row != 54));
+                CHECK(bytes == (row == 54 ? 123ULL : 8192000000000ULL));
+            }
+            SNMPTableRead<16, 1, 16> small(device);
+            CHECK(small.addColumn((root + "3").c_str(), STRING).ok() && small.start().ok());
+            complete(client, agent, udp, small);
+            CHECK(small.status().code() == SNMPStatus::CapacityExceeded && small.size() == 16);
+            CHECK(small[0][0].ok() && small[15][0].ok());
+            SNMPWalk<1> stream(device);
+            size_t received = 0;
+            CHECK(stream.configure((root + "3").c_str()).ok());
+            CHECK(stream
+                      .stream(
+                          [](const SNMPResult &result, void *context)
+                          {
+                              CHECK(result.ok());
+                              ++*static_cast<size_t *>(context);
+                              return true;
+                          },
+                          &received)
+                      .ok());
+            CHECK(stream.start().ok());
+            complete(client, agent, udp, stream);
+            CHECK(stream.status().ok() && received == 103 && stream.size() == 0);
         });
     add("mock numeric ordering and bulk repetition semantics have independent expectations",
         []

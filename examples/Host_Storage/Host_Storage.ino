@@ -15,6 +15,9 @@ WiFiUDP udp;
 SNMPClient client(udp);
 // A NAS/server with HOST-RESOURCES-MIB enabled. Indices are discovered, not assumed.
 SNMPDevice host(client, "192.168.1.20", "public");
+// Counts all exposed storage entries, including memory, mounts, and datasets.
+// Large NAS agents can exceed this capacity. Increase only within your RAM budget;
+// stream the storage subtree (see Walk_Values) if you cannot retain the full table.
 SNMPTableRead<16, 4, 16> storage(host);
 bool ready = false;
 void setup()

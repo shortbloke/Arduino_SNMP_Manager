@@ -49,6 +49,22 @@ These capacities include termination; longer indices cause `CapacityExceeded`. M
 and capacity errors leave collected rows inspectable. Table columns are queried
 sequentially, so their readings are not an atomic snapshot.
 
+### Large NAS storage tables
+
+`Host_Storage` retains up to 16 entries. HOST-RESOURCES-MIB can expose memory,
+virtual filesystems, and datasets as well as disks, so a NAS can exceed this limit.
+`CapacityExceeded` means the retained table is incomplete; later columns may not
+have been read. Increase the template capacity only within the board's RAM budget.
+For bounded streaming, use `Walk_Values` with root `.1.3.6.1.2.1.25.2.3.1`;
+it prints individual bindings rather than joining them into storage rows.
+
+Storage bytes are allocation units multiplied by block counts using 64-bit
+arithmetic. Some agents expose entries with zero allocation units. The helper
+rejects those conversions and leaves the output unchanged; the example reports
+an unavailable size rather than treating it as a valid zero-byte disk. Other
+rows remain usable. Columns are read sequentially and usage can change between
+reads, so the results are not an atomic snapshot.
+
 ## Value primitives
 
 `Walk_Values::printValue` handles every supported value tag without assuming its
