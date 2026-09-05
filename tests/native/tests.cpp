@@ -285,6 +285,85 @@ int main(int argc, char **argv)
             oidManager.loop();
             CHECK(std::string(result) == ".1.3.6");
         });
+    add("repeated registrations dispatch to the callback associated with each request",
+        []
+        {
+            Manager manager;
+            UDP udp;
+            manager.setUDP(&udp);
+            uint32_t value = 0;
+            Request request;
+            request.setUDP(&udp);
+            for (int cycle = 1; cycle <= 12; ++cycle)
+            {
+                auto *callback = manager.addTimestampHandler(udp.peer, oid, &value);
+                request.addOIDPointer(callback);
+                request.setRequestID(cycle);
+                CHECK(request.sendTo(udp.peer));
+                request.clearOIDList();
+                udp.incoming = message(binding({0x43, 1, static_cast<unsigned char>(cycle)}), 1,
+                                       "public", 0xa2, cycle);
+                manager.loop();
+                CHECK(value == static_cast<uint32_t>(cycle));
+                CHECK(callback->updateCount() == 1);
+            }
+        });
+    add("duplicate OID registrations keep concurrent destinations and freshness separate",
+        []
+        {
+            Manager manager;
+            UDP udp;
+            manager.setUDP(&udp);
+            int one = 0, two = 0;
+            auto *a = manager.addIntegerHandler(udp.peer, oid, &one);
+            auto *b = manager.addIntegerHandler(udp.peer, oid, &two);
+            Request first, second;
+            first.setUDP(&udp);
+            second.setUDP(&udp);
+            first.addOIDPointer(a);
+            second.addOIDPointer(b);
+            first.setRequestID(1);
+            second.setRequestID(2);
+            CHECK(first.sendTo(udp.peer) && second.sendTo(udp.peer));
+            udp.incoming = message(binding({2, 1, 42}), 1, "public", 0xa2, 2);
+            manager.loop();
+            CHECK(one == 0 && two == 42 && a->updateCount() == 0 && b->updateCount() == 1);
+            udp.incoming = message(binding({2, 1, 7}), 1, "public", 0xa2, 1);
+            manager.loop();
+            CHECK(one == 7 && a->updateCount() == 1);
+            udp.incoming = message(binding({2, 1, 9}), 1, "public", 0xa2, 2);
+            manager.loop();
+            CHECK(two == 42 && b->updateCount() == 1);
+            second.setRequestID(3);
+            CHECK(second.sendTo(udp.peer));
+            udp.incoming = message(binding({2, 1, 42}), 1, "public", 0xa2, 3);
+            manager.loop();
+            CHECK(two == 42 && b->updateCount() == 2); // Unchanged values are still fresh.
+        });
+    add("rejected and error bindings never mark a destination fresh",
+        []
+        {
+            Manager manager;
+            UDP udp;
+            manager.setUDP(&udp);
+            char text[4] = "old";
+            char *ptr = text;
+            auto *callback = manager.addStringHandler(udp.peer, oid, &ptr, sizeof(text));
+            Request request;
+            request.setUDP(&udp);
+            request.addOIDPointer(callback);
+            const std::vector<Bytes> values = {
+                tlv(4, {'l', 'o', 'n', 'g'}), {0x81, 0}, {2, 1, 9}, tlv(4, {'o', 'l', 'd'})};
+            for (size_t i = 0; i < values.size(); ++i)
+            {
+                request.setRequestID(i + 1);
+                CHECK(request.sendTo(udp.peer));
+                udp.incoming =
+                    message(binding(values[i]), 1, "public", 0xa2, i + 1, i == 3 ? 2 : 0);
+                manager.loop();
+                CHECK(callback->updateCount() == 0 && std::string(text) == "old");
+            }
+        });
     add("legacy custom BER children serialize without null-buffer measurement",
         []
         {

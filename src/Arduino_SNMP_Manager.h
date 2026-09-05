@@ -49,6 +49,12 @@ public:
     {
         return false;
     }
+    // Changes only after a valid response value has been written successfully.
+    // Compare with a saved count to detect fresh data, even if its value is unchanged.
+    uint32_t updateCount() const
+    {
+        return updateSerial;
+    }
     void retain()
     {
         ++references;
@@ -80,12 +86,15 @@ public:
         requestPeer = other.requestPeer;
         strictTracking = other.strictTracking;
         replacementCursor = other.replacementCursor;
+        updateSerial = other.updateSerial;
         for (size_t i = 0; i < SNMP_MAX_PENDING_REQUESTS; ++i)
             pending[i] = other.pending[i];
         return *this;
     }
 
 private:
+    friend class SNMPManager;
+    uint32_t updateSerial = 0;
     size_t references = 1;
     char *ownedOID = nullptr;
 
@@ -605,23 +614,38 @@ inline bool SNMPManager::parsePacket(size_t length)
                 Serial.print(F(" - OID: "));
                 Serial.println(responseOID);
 #endif
-                ValueCallback *callback = findCallback(responseIP, responseOID);
-                if (!callback)
+                // Several registrations may share an IP/OID. Select the one that
+                // actually sent this request rather than always using the oldest.
+                ValueCallback *callback = nullptr, *untracked = nullptr;
+                bool hasTracked = false;
+                for (ValueCallbacks *entry = callbacks; entry; entry = entry->next)
                 {
-                    Serial.print(F(
-                        "Matching callback not found for received SNMP response. Response OID: "));
-                    Serial.print(responseOID);
-                    Serial.print(F(" - From IP Address: "));
-                    Serial.println(responseIP);
-                    delete snmpgetresponse;
-                    return false;
+                    ValueCallback *candidate = entry->value;
+                    if (!candidate || !candidate->OID || !(candidate->ip == responseIP) ||
+                        strcmp(candidate->OID, responseOID))
+                        continue;
+                    if (!candidate->requestTracked)
+                    {
+                        if (!untracked)
+                            untracked = candidate;
+                        continue;
+                    }
+                    hasTracked = true;
+                    for (const auto &pending : candidate->pending)
+                        if (!callback && pending.active &&
+                            pending.id == snmpgetresponse->requestID && pending.udp == _udp &&
+                            pending.peer == responseIP)
+                            callback = candidate;
                 }
-                if (callback->requestTracked &&
-                    !callback->consume(snmpgetresponse->requestID, _udp, responseIP))
+                if (!callback && !hasTracked)
+                    callback = untracked;
+                if (!callback)
                 {
                     snmpgetresponse->varBindsCursor = snmpgetresponse->varBindsCursor->next;
                     continue;
                 }
+                if (callback->requestTracked)
+                    callback->consume(snmpgetresponse->requestID, _udp, responseIP);
                 // An exception belongs to this binding, not the whole response.
                 if (responseType == NOSUCHOBJECT || responseType == NOSUCHINSTANCE ||
                     responseType == ENDOFMIBVIEW)
@@ -652,6 +676,7 @@ inline bool SNMPManager::parsePacket(size_t length)
                             : static_cast<IntegerType *>(responseContainer)->_value;
                     if (callback->writeNumber(number))
                     {
+                        ++callback->updateSerial;
                         snmpgetresponse->varBindsCursor = snmpgetresponse->varBindsCursor->next;
                         continue;
                     }
@@ -674,6 +699,7 @@ inline bool SNMPManager::parsePacket(size_t length)
                             break;
                         memcpy(destination->bytes, source, length);
                         *destination->length = length;
+                        ++callback->updateSerial;
                     }
                     else
                     {
@@ -682,6 +708,7 @@ inline bool SNMPManager::parsePacket(size_t length)
                             break;
                         memcpy(*destination->value, source, length);
                         (*destination->value)[length] = 0;
+                        ++callback->updateSerial;
                     }
                 }
                 break;
@@ -693,6 +720,7 @@ inline bool SNMPManager::parsePacket(size_t length)
                     if (!destination->value || length >= destination->capacity)
                         break;
                     memcpy(destination->value, source, length + 1);
+                    ++callback->updateSerial;
                 }
                 break;
                 case INTEGER:
@@ -704,7 +732,11 @@ inline bool SNMPManager::parsePacket(size_t length)
                     const unsigned long raw = static_cast<IntegerType *>(responseContainer)->_value;
                     if (!callbackValue->isFloat)
                     {
-                        *callbackValue->value = raw;
+                        if (callbackValue->value)
+                        {
+                            *callbackValue->value = raw;
+                            ++callback->updateSerial;
+                        }
                     }
                     else
                     {
@@ -713,7 +745,10 @@ inline bool SNMPManager::parsePacket(size_t length)
                                                  ? callbackValue->floatValue
                                                  : reinterpret_cast<float *>(callbackValue->value);
                         if (destination)
+                        {
                             *destination = static_cast<float>(static_cast<int32_t>(raw)) / 10.0f;
+                            ++callback->updateSerial;
+                        }
                     }
                 }
                 break;
@@ -724,6 +759,7 @@ inline bool SNMPManager::parsePacket(size_t length)
 #endif
                     *(((Counter32Callback *)callback)->value) =
                         ((Counter32 *)responseContainer)->_value;
+                    ++callback->updateSerial;
                 }
                 break;
                 case COUNTER64:
@@ -733,6 +769,7 @@ inline bool SNMPManager::parsePacket(size_t length)
 #endif
                     *(((Counter64Callback *)callback)->value) =
                         ((Counter64 *)responseContainer)->_value;
+                    ++callback->updateSerial;
                 }
                 break;
                 case GAUGE32:
@@ -741,6 +778,7 @@ inline bool SNMPManager::parsePacket(size_t length)
                     Serial.println("[DEBUG] Type: Gauge32");
 #endif
                     *(((Gauge32Callback *)callback)->value) = ((Gauge *)responseContainer)->_value;
+                    ++callback->updateSerial;
                 }
                 break;
                 case TIMESTAMP:
@@ -750,6 +788,7 @@ inline bool SNMPManager::parsePacket(size_t length)
 #endif
                     *(((TimestampCallback *)callback)->value) =
                         ((TimestampType *)responseContainer)->_value;
+                    ++callback->updateSerial;
                 }
                 break;
                 default:

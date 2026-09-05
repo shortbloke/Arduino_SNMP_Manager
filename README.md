@@ -32,6 +32,8 @@ When a callback is included in a successful `SNMPGet::sendTo`, its responses mus
 
 The 1.x API remains header-only: numeric version arguments, `setIP()`, short request IDs/ports, and sketch-local configuration defines remain supported. New checked `tryAddOIDPointer`, `tryAddHandler`, and `tryAddValueToList` methods report allocation failures; the original void methods remain available.
 
+`callback->updateCount()` increments only when a response successfully writes that destination, including when the value is unchanged. Save the count before sending and compare afterwards to distinguish a fresh value from stale storage. Errors, exceptions, rejected values, and duplicate replies do not count as updates. Register handlers once and reuse them; repeated registration still creates additional manager-owned handlers, but replies are matched to the registration used by the request.
+
 ## Buffer safety and ownership
 
 Use `serialise(buffer, capacity)` and `fromBuffer(buffer, length)` when calling BER objects directly. `serialise(nullptr)` measures the encoded size; insufficient capacity returns a negative result. Decoding returns false for malformed or incomplete input. The legacy forms without sizes remain available and require sufficient storage or complete input. The original pointer-only BER virtual signatures remain supported. Custom subclasses can additionally override the bounded overloads; without that override bounded calls fail safely. Built-in BER classes support both forms.
