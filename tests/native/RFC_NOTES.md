@@ -1,6 +1,6 @@
 # RFC review for the native suite
 
-Scope: the project's SNMPv1 and community-based SNMPv2c GetRequest/response functionality. This is a specification cross-check, not a conformance certification. The subsequent suite extension implements selected checks below; production code remains unchanged.
+Scope: the project's SNMPv1 and community-based SNMPv2c GetRequest/response functionality. This is a specification cross-check, not a conformance certification. The suite implements selected checks below; subsequent library fixes are recorded in REVIEW.md.
 
 ## Message versions
 
@@ -12,7 +12,7 @@ SNMPv2c retains the community wrapper but uses version INTEGER 1. The project's 
 
 Get requests address exact object instances; NULL is an appropriate placeholder. Responses preserve request IDs for correlation. Nonzero error-status means binding values must be ignored. In v2c, `noSuchObject` and `noSuchInstance` are per-binding exceptions; `endOfMibView` belongs to GetNext/GetBulk traversal. A `tooBig` response has an empty binding list. [RFC 3416 §§4.1–4.2.4](https://www.rfc-editor.org/rfc/rfc3416.html#section-4.1)
 
-Consequences for this project: the `<= 30` response-size rejection can reject legitimate short messages. Empty lists are not inherently malformed. Tests should cover mixed successful/exception bindings, PDU-level errors without updates, request correlation, and short `tooBig` responses. The revised suite separates exception parsing and mixed exception/success dispatch.
+The former `<= 30` response-size rejection rejected legitimate short messages; it has been replaced with structural validation. Empty lists are not inherently malformed. Tests should cover mixed successful/exception bindings, PDU-level errors without updates, request correlation, and short `tooBig` responses. The revised suite separates exception parsing and mixed exception/success dispatch.
 
 ## Transport and BER
 

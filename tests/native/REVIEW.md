@@ -1,12 +1,20 @@
 # Review findings
 
-Reviewed the five library headers, package metadata, README, and example layout. Findings below distinguish executable failures from source inspection. The original review left production files unchanged; subsequent fixes are noted below.
+The original review covered the library headers, package metadata, README, and examples. The original failing regressions are now resolved and promoted to baseline. The sections below preserve historical findings and validation snapshots; later fix entries supersede their descriptions of failures.
+
+## Current scope and remaining limitations
+
+All previously failing regression checks pass. The final validation covers native Make and PlatformIO, with and without ASan/UBSan. This is not a board-compatibility or complete protocol-conformance certification.
+
+Remaining source-inspection concerns outside those regression fixes include default-manager initialization, manager/request allocation ownership, the incomplete OID callback API, and the absence of a bounded request serializer. Legacy pointer-only decoding still requires complete input. The bounded parser caps nesting at 32, and printable OID/string capacities impose limits below some protocol maxima. Callback destinations remain caller-owned and caller-sized. Request tracking allows one pending request per callback and relies on callers choosing distinct IDs while older responses may arrive.
+
+The historical source-inspection list below also contains issues subsequently fixed: bounded receive parsing, binary strings, safe response reuse, transport send-result checks, unsigned OID formatting, and request correlation. It is retained as review history, not a current defect inventory.
 
 ## Specification cross-check
 
 See [RFC review notes](RFC_NOTES.md) for official sources and corrections to the interpretation of this suite. In particular, empty varbind lists can be valid, v2c exceptions are per binding, binary strings need length-aware handling, and float scaling is a library convention. The current suite is not a protocol-conformance suite.
 
-## Confirmed by regression tests
+## Original findings confirmed by regression tests
 
 | Priority | Location | Finding / reproducible trigger |
 | --- | --- | --- |
@@ -35,7 +43,7 @@ The RFC extension added 15 failing cases, bringing the regression group to 22 be
 
 These cases assert desired behavior and remain failures. In particular, a crash is not an expected-pass condition. Sanitizers identify the empty-list null dereference at `src/SNMPGetResponse.h:184`; process isolation lets later cases execute.
 
-## Additional findings from source inspection
+## Original findings from source inspection
 
 These are not counted as executed regression cases.
 
@@ -179,3 +187,7 @@ noSuchObject, noSuchInstance, and endOfMibView skip only their binding, preservi
 ## Request correlation fix
 
 Successful SNMPGet sends record the request ID, peer, and transport per callback. Matching replies consume that pending request; mismatches, duplicates, and superseded replies cannot update it. Failed beginPacket/write/endPacket calls do not replace pending state. Matching PDU errors retire pending callbacks. Callbacks never sent by SNMPGet retain legacy direct-response behavior. One outstanding request per callback is supported; distinct callbacks remain independent. IDs must not be reused while an older reply could still arrive. Validation: 78 baseline passes normally and under ASan/UBSan; no failing regression cases remain.
+
+## Final validation of the remaining regression fixes
+
+All 78 cases pass through standalone Make and PlatformIO native. All 78 also pass with ASan/UBSan in both runners. The regression group is empty after promotion of the resolved cases. No board or live SNMP agent was used.
