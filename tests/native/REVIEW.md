@@ -11,7 +11,7 @@ See [RFC review notes](RFC_NOTES.md) for official sources and corrections to the
 | Priority | Location | Finding / reproducible trigger |
 | --- | --- | --- |
 | High | `src/BER.h`, `IntegerType::serialise` | Encoding 128 produces incorrect BER bytes rather than `02 02 00 80`. Multi-byte serialization also shifts `_value` itself, destroying the stored value. This affects request IDs and derived integer types. Two regression cases. |
-| High | `src/Arduino_SNMP_Manager.h`, `parsePacket` version condition | The version expression is always false, so an otherwise valid response with unsupported version updates registered values. |
+| High | `src/Arduino_SNMP_Manager.h`, `parsePacket` version condition | **Fixed:** responses with versions other than v1/v2c are rejected before callback dispatch. The baseline checks unsupported wire values and subsequent valid responses. |
 | High | `src/Arduino_SNMP_Manager.h`, INTEGER float branch | Integer division discards tenths and the result is written through an `int*` pointing at float storage. An integer response of 123 does not produce 12.3. |
 | Medium | `src/Arduino_SNMP_Manager.h`, STRING branch | Copying only the incoming string length omits the terminator. Updating `previous value` with `new` retains the old suffix. |
 | Medium | `src/BER.h`, `OctetType::serialise` | **Fixed:** the length header now uses two octets at exactly 256 bytes. The regression check is promoted to baseline. |
@@ -109,3 +109,9 @@ Validation: `make -C tests/native check` reports 36 baseline passes and 33 remai
 `SNMPManager::begin()` now returns false when the transport fails to bind, instead of unconditionally reporting success. Its regression check is promoted to baseline and also verifies a successful retry on port 162.
 
 Validation: `make -C tests/native check` reports 37 baseline passes and 32 remaining regression failures. `make -C tests/native sanitize` reports 37 baseline passes with ASan/UBSan. The complete check still returns nonzero for the remaining defects.
+
+## Unsupported-version rejection fix
+
+`parsePacket()` now rejects a response when its decoded version is neither v1 nor v2c. Previously the version rejection expression was always false. The existing regression is promoted to baseline and expanded to reject wire values 2, 3, and 127, then accept valid v1/v2c responses after each rejection.
+
+Validation: `make -C tests/native check` reports 38 baseline passes and 31 remaining regression failures. `make -C tests/native sanitize` reports 38 baseline passes with ASan/UBSan. The complete check still returns nonzero for the remaining defects.

@@ -117,7 +117,25 @@ int main(int argc,char** argv) {
     add("integer serialization preserves value",[]{IntegerType v(256); encode(v); CHECK(v._value==256);},true);
     add("octet 256 length encoding",[]{OctetType v; memset(v._value,0,sizeof(v._value)); memset(v._value,'x',256); CHECK(encode(v)==tlv(4,Bytes(256,'x')));});
     add("OID base128 boundary 16384",[]{char s[]=".1.3.16384"; OIDType v(s); CHECK(encode(v)==Bytes({6,4,43,0x81,0x80,0}));},true);
-    add("manager rejects unsupported version",[]{Manager m; UDP u; m.setUDP(&u); int n=99; m.addIntegerHandler(u.peer,oid,&n); u.incoming=message(binding({2,1,42}),2); m.loop(); CHECK(n==99);},true);
+    add("manager rejects unsupported version", [] {
+        for (int version : {2, 3, 127}) {
+            Manager manager;
+            UDP udp;
+            manager.setUDP(&udp);
+            int value=99;
+            manager.addIntegerHandler(udp.peer,oid,&value);
+            udp.incoming=message(binding({2,1,42}),version);
+            manager.loop();
+            CHECK(value==99);
+            // Rejection must leave the manager able to process v1 and v2c.
+            for (int supported : {0, 1}) {
+                value=99;
+                udp.incoming=message(binding({2,1,42}),supported);
+                manager.loop();
+                CHECK(value==42);
+            }
+        }
+    });
     add("library convention: float callback preserves fractional tenths",[]{Manager m; UDP u; m.setUDP(&u); float n=0; m.addFloatHandler(u.peer,oid,&n); u.incoming=message(binding({2,1,123})); m.loop(); CHECK(std::abs(n-12.3f)<0.001f);},true);
     add("library convention: shorter string response terminates old value",[]{Manager m; UDP u; m.setUDP(&u); char storage[32]="previous value"; char* p=storage; m.addStringHandler(u.peer,oid,&p); u.incoming=message(binding({4,3,'n','e','w'})); m.loop(); CHECK(std::string(p)=="new");},true);
     // RFC 3417 section 8 permits nonminimal definite-length fields.

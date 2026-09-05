@@ -223,7 +223,7 @@ bool SNMPManager::parsePacket()
     {
         if (snmpgetresponse->requestType == GetResponsePDU)
         {
-            if (!(snmpgetresponse->version != 1 || snmpgetresponse->version != 2) || strcmp(_community, snmpgetresponse->communityString) != 0)
+            if ((snmpgetresponse->version != 1 && snmpgetresponse->version != 2) || strcmp(_community, snmpgetresponse->communityString) != 0)
             {
                 Serial.print(F("Invalid community or version - Community: "));
                 Serial.print(snmpgetresponse->communityString);
