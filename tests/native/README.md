@@ -46,3 +46,11 @@ Those are compile checks only; neither command uploads firmware.
 The suite also exercises each example’s local `Polling.h` against mocked UDP
 responses: fresh and unchanged values, incomplete samples, late replies, timeout
 wraparound, and Counter32 rate calculation boundaries.
+
+## Markdown checks
+
+Run `npx --yes markdownlint-cli@0.45.0 $(git ls-files '*.md')` from the repository
+root. CI checks every tracked Markdown file using `.markdownlint.json`.
+The standard rules apply except the line-length rule: prose and URLs may remain
+on long source lines. Headings, lists, fenced code blocks, and whitespace are
+checked consistently.

@@ -9,13 +9,13 @@ A robustness and test-coverage release that retains the header-only 1.x API and 
 - Correct string termination and fractional float callbacks, manage registration ownership, and handle allocation failures without leaking partial trees.
 - Correlate replies with successful sends while retaining rolling request tracking for existing polling loops; strict capacity enforcement is opt-in.
 - Retain the header-only 1.x API, numeric versions, short request fields, setIP(), capacity-free text calls, original BER virtual methods, and safe copying; add bounded/checked alternatives and portable numeric destination overloads.
-- Fix OID callback registration and returned OID handling (#32).
-- Match repeated IP/OID registrations to their pending requests and expose successful-update counts for reliable freshness checks.
-- Add native regression/sanitizer tests (#13), source-compatibility checks, and ESP8266, ESP32, ESP32-C3, and Nano ESP32 compilation checks, including the maintained examples.
-
+- Fix OID callback registration and returned OID handling ([#32](https://github.com/shortbloke/Arduino_SNMP_Manager/issues/32)).
+- Match repeated IP/OID registrations to their pending requests and expose successful-update counts for reliable freshness checks (related to [#21](https://github.com/shortbloke/Arduino_SNMP_Manager/issues/21); this does not add an `onReceive()` callback).
+- Add native regression/sanitizer tests ([#13](https://github.com/shortbloke/Arduino_SNMP_Manager/issues/13)), source-compatibility checks, and ESP8266, ESP32, ESP32-C3, and Nano ESP32 compilation checks, including the maintained examples.
 - Improve examples with reusable registrations, bounded names, fresh-response checks, checked setup/send failures, wrap-safe polling, and overflow-safe bandwidth calculations.
 
 ## 1.1.13
+
 - Fix crash when using OIDs with 10 digits. Contributor: [AlphaArslan](https://github.com/AlphaArslan)
 
 ## 1.1.12
