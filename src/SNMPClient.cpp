@@ -733,6 +733,15 @@ void SNMPClient::receive()
             }
             if (!any)
             {
+                // RFC 3416 permits an empty successful bulk response. It does
+                // not establish end-of-view; try one successor without bulk.
+                if (op->mode_ == GetBulkRequestPDU)
+                {
+                    op->mode_ = GetNextRequestPDU;
+                    op->sent_ = false;
+                    op->attempts_ = 0;
+                    return;
+                }
                 op->finish(SNMPStatus::ProtocolError);
                 return;
             }
@@ -918,6 +927,9 @@ void SNMPClient::notify(size_t size, IPAddress peer, uint16_t port)
             return;
         ValuesList *f = static_cast<ComplexType *>(b->value)->_values;
         if (!f || !f->next || f->next->next || f->value->_type != OID)
+            return;
+        const auto valueType = f->next->value->_type;
+        if (!snmp_detail::isValidBindingType(valueType, version == 1))
             return;
     }
     notification.bindings = bindings;

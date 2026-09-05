@@ -5,6 +5,51 @@ void registerResponsesTests(std::vector<Test> &tests)
 {
     auto add = [&](const char *name, std::function<void()> run)
     { tests.push_back({"Responses", name, run}); };
+    add("RFC 3416 verified erratum permits full signed request ID range",
+        []
+        {
+            for (int32_t id : {INT32_MIN, INT32_MAX})
+                for (int pdu : {GetResponsePDU, GetBulkRequestPDU})
+                {
+                    Bytes wireID = id == INT32_MIN ? Bytes{2, 4, 0x80, 0, 0, 0}
+                                                   : Bytes{2, 4, 0x7f, 0xff, 0xff, 0xff};
+                    Bytes packet = tlv(0x30, join({{2, 1, 1},
+                                                   tlv(4, {'p', 'u', 'b', 'l', 'i', 'c'}),
+                                                   tlv(pdu, join({wireID,
+                                                                  {2, 1, 0},
+                                                                  {2, 1, 0},
+                                                                  tlv(0x30, binding({5, 0}))}))}));
+                    SNMPGetResponse response;
+                    CHECK(response.parseFrom(packet.data(), packet.size()));
+                    CHECK(response.requestID == id);
+                }
+        });
+    add("RFC version PDU and value combinations are enforced",
+        []
+        {
+            SNMPGetResponse response;
+            Bytes nested = message(binding(tlv(STRUCTURE, {5, 0})));
+            CHECK(!response.parseFrom(nested.data(), nested.size()));
+            for (int version : {-1, 2, 3})
+            {
+                Bytes packet = message(binding({2, 1, 1}), version);
+                CHECK(!response.parseFrom(packet.data(), packet.size()));
+            }
+            for (int pdu : {GetBulkRequestPDU, InformRequestPDU, Trapv2PDU})
+            {
+                Bytes packet = message(binding({5, 0}), 0, "public", pdu);
+                CHECK(!response.parseFrom(packet.data(), packet.size()));
+                packet = message(binding({5, 0}), 1, "public", pdu);
+                CHECK(response.parseFrom(packet.data(), packet.size()));
+            }
+            for (Bytes value : {Bytes{0x46, 1, 1}, Bytes{0x80, 0}, Bytes{0x81, 0}, Bytes{0x82, 0}})
+            {
+                Bytes packet = message(binding(value), 0);
+                CHECK(!response.parseFrom(packet.data(), packet.size()));
+                packet = message(binding(value), 1);
+                CHECK(response.parseFrom(packet.data(), packet.size()));
+            }
+        });
     add("response metadata and multiple bindings",
         []
         {

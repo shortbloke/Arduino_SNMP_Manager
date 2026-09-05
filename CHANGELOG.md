@@ -2,6 +2,9 @@
 
 ## 2.0.0
 
+- Enforce SNMP version/PDU/value combinations and the 128-subidentifier OID limit; recover from empty successful GETBULK replies with GETNEXT.
+- Add RFC-derived request-ID and full-size OID checks, and document the bounded v1/v2c standards scope.
+
 - Add low-heap allocation sweeps covering query/walk/table recovery, INFORM acknowledgement, payload preservation, and SET timeout behavior, including sanitizer and leak checks.
 
 - Release invalidated walk/table payloads on restart and add optional compact table index storage with checked bounds.

@@ -1,5 +1,29 @@
 #include "SNMPGetResponse.h"
 
+bool snmp_detail::isValidBindingType(ASN_TYPE type, bool version2)
+{
+    switch (type)
+    {
+    case INTEGER:
+    case STRING:
+    case OID:
+    case NULLTYPE:
+    case NETWORK_ADDRESS:
+    case COUNTER32:
+    case GAUGE32:
+    case TIMESTAMP:
+    case OPAQUE:
+        return true;
+    case COUNTER64:
+    case NOSUCHOBJECT:
+    case NOSUCHINSTANCE:
+    case ENDOFMIBVIEW:
+        return version2;
+    default:
+        return false;
+    }
+}
+
 bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
 {
     delete varBinds;
@@ -23,7 +47,13 @@ bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
     if (!versionField || !communityField || !pduField || pduField->next ||
         versionField->value->_type != INTEGER || communityField->value->_type != STRING)
         return false;
+    const auto wireVersion = static_cast<IntegerType *>(versionField->value)->_value;
+    if (wireVersion > 1)
+        return false;
     requestType = pduField->value->_type;
+    if (wireVersion == 0 && (requestType == GetBulkRequestPDU || requestType == InformRequestPDU ||
+                             requestType == Trapv2PDU))
+        return false;
     if (requestType != GetRequestPDU && requestType != GetNextRequestPDU &&
         requestType != GetResponsePDU && requestType != SetRequestPDU &&
         requestType != GetBulkRequestPDU && requestType != InformRequestPDU &&
@@ -54,6 +84,9 @@ bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
             return false;
         ValuesList *oid = static_cast<ComplexType *>(entry->value)->_values;
         if (!oid || oid->value->_type != OID || !oid->next || oid->next->next)
+            return false;
+        const auto valueType = oid->next->value->_type;
+        if (!snmp_detail::isValidBindingType(valueType, wireVersion == 1))
             return false;
         VarBind *binding = new (std::nothrow) VarBind();
         if (!binding)

@@ -17,6 +17,29 @@ void registerClientTests(std::vector<Test> &tests)
 {
     auto add = [&](const char *name, std::function<void()> run)
     { tests.push_back({"Client", name, run}); };
+    add("empty successful GETBULK falls back without inventing end of view",
+        []
+        {
+            UDP udp;
+            SNMPClient client(udp);
+            SNMPDevice device(client, udp.peer, "public");
+            SNMPWalk<2> walk(device);
+            CHECK(walk.configure(".1.3.6.1.2.1.1").ok());
+            CHECK(client.begin().ok() && walk.start().ok());
+            client.loop(0);
+            udp.incoming = reply(udp, {});
+            client.loop(1);
+            CHECK(walk.pending() && walk.size() == 0);
+            SNMPGetResponse request;
+            CHECK(request.parseFrom(udp.outgoing.data(), udp.outgoing.size()));
+            CHECK(request.requestType == GetNextRequestPDU);
+            udp.incoming = reply(udp, binding({2, 1, 7}));
+            client.loop(2);
+            CHECK(walk.pending() && walk.size() == 1 && walk[0].value.integer() == 7);
+            udp.incoming = reply(udp, binding({0x82, 0}));
+            client.loop(3);
+            CHECK(walk.status().ok() && walk.size() == 1);
+        });
     add("addresses and setup fail explicitly without sending",
         []
         {
@@ -359,6 +382,20 @@ void registerClientTests(std::vector<Test> &tests)
             client.loop(0);
             CHECK(calls == 1);
             CHECK(udp.packets == 0);
+            for (Bytes invalid :
+                 {Bytes{0x46, 1, 1}, Bytes{0x80, 0}, Bytes{0x81, 0}, Bytes{0x82, 0}})
+            {
+                udp.incoming = tlv(0x30, join({{2, 1, 0},
+                                               tlv(4, {'p', 'u', 'b', 'l', 'i', 'c'}),
+                                               tlv(0xa4, join({oidWire,
+                                                               {0x40, 4, 1, 2, 3, 4},
+                                                               {2, 1, 6},
+                                                               {2, 1, 5},
+                                                               {0x43, 1, 7},
+                                                               tlv(0x30, binding(invalid))}))}));
+                client.loop(1);
+                CHECK(calls == 1 && udp.packets == 0);
+            }
         });
     add("stream cancellation and queue exhaustion release pending slots",
         []

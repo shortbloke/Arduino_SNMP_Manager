@@ -4,6 +4,8 @@ Version 2.0 contains breaking API and build changes. Existing users should read 
 
 The new [device and query API](docs/QUERY_API.md) provides checked IPv4 strings, owned results, batched reads, table discovery, writes, and notification reception. Start with the [simple read](examples/Simple_Read/Simple_Read.ino) or [interface traffic](examples/Interface_Traffic/Interface_Traffic.ino) example. See the [example guide](examples/README.md) for every supported operation, value types, and server/NAS and printer examples. The existing handler API remains available.
 
+See the [standards coverage and limits](tests/native/RFC_NOTES.md#current-standards-and-scope-of-this-audit). This is a bounded v1/v2c manager, not a full STD 62/SNMPv3 implementation.
+
 An SNMP Manager for network-capable ESP8266 and ESP32 Arduino platforms, providing SNMPv1 and SNMPv2c manager operations.
 
 Validated build targets include NodeMCU ESP8266, ESP32, ESP32-C3, and Arduino Nano ESP32. Other modern 32-bit Arduino platforms can be added as tested targets; older AVR platforms are not supported. See [embedded compatibility builds](tests/embedded/README.md).

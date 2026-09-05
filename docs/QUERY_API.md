@@ -104,7 +104,7 @@ Copy anything that must outlive the call. Returning false stops with
 `CapacityExceeded`. A handler may cancel the walk; it must not destroy it.
 
 Walks use GETNEXT for v1 and GETBULK with four repetitions for v2c. A v2c `tooBig`
-response or exhausted GETBULK retries falls back to GETNEXT. They stop at the subtree boundary/end-of-view,
+response, an empty successful bulk response, or exhausted GETBULK retries falls back to GETNEXT. They stop at the subtree boundary/end-of-view,
 reject nonadvancing OIDs, and have a 60-second deadline per walk. A table walks
 its columns sequentially; the deadline applies separately to each column.
 

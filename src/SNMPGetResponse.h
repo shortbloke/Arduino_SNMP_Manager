@@ -5,6 +5,12 @@
 #include "VarBinds.h"
 #include "SNMPProtocol.h"
 
+namespace snmp_detail
+{
+// ASN.1 VarBind value alternatives, with SNMPv1 restrictions.
+bool isValidBindingType(ASN_TYPE type, bool version2);
+}
+
 class SNMPGetResponse
 {
 

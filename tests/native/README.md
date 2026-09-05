@@ -83,7 +83,7 @@ Tests use production initialization and destructors, and verify shared registrat
 
 All BER types expose capacity-aware serialization and bounded decoding. Tests exercise short buffers and oversized request rejection. Legacy calls without sizes retain caller responsibility; they cannot infer allocation sizes. Custom BER subclasses must implement the new capacity-aware virtual signatures.
 
-The default printable OID buffer remains smaller than the protocol's maximum possible OID representation. Full protocol-size OIDs, exhaustive boundary combinations, and target hardware behavior need further work. Allocation-failure injection checks partial-build cleanup and recovery; it does not reproduce every possible heap condition. C-string callbacks support explicit capacities; binary callbacks preserve OCTET STRING and Opaque payloads and report their lengths. The query client also covers trap reception and INFORM acknowledgement.
+The default printable OID buffer remains smaller than the protocol's maximum possible OID representation. A separate wide-OID codec target verifies the maximum legal OID; exhaustive boundary combinations and target hardware behavior need further work. Allocation-failure injection checks partial-build cleanup and recovery; it does not reproduce every possible heap condition. C-string callbacks support explicit capacities; binary callbacks preserve OCTET STRING and Opaque payloads and report their lengths. The query client also covers trap reception and INFORM acknowledgement.
 
 ## Compatibility checks
 
@@ -187,3 +187,8 @@ legacy C `malloc` failures, or reproduce Wi-Fi/RTOS allocation failures. The max
 block model exercises a fragmentation-related failure condition rather than a real
 fragmented ESP heap. Physical heap sampling and soak testing remain complementary;
 these tests cannot establish that every possible low-memory condition is crash-free.
+
+`make -C tests/native oid-limits` checks a full-size legal OID with a separately
+compiled 1408-byte OID configuration. It is included in `make check`; this does not
+increase the embedded defaults. See [RFC coverage](RFC_NOTES.md) for the standards
+baseline, verified erratum, tested restrictions, and remaining conformance limits.

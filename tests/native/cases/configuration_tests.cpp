@@ -1,4 +1,5 @@
 #include "fixtures.h"
+#include "mock_agent.h"
 #include "registry.h"
 
 namespace
@@ -28,6 +29,31 @@ void registerConfigurationTests(std::vector<Test> &tests)
 {
     auto add = [&](const char *name, std::function<void()> run)
     { tests.push_back({"Configuration", name, run}); };
+    add("RFC OID subidentifier limit is independent of printable capacity",
+        []
+        {
+            std::string name = ".1.3";
+            for (unsigned i = 2; i < 128; ++i)
+                name += ".0";
+            Bytes content(127, 0);
+            content[0] = 43;
+            Bytes packet = tlv(OID, content);
+            OIDType value;
+            if (name.size() < MAX_OID_LENGTH)
+            {
+                CHECK(value.fromBuffer(packet.data(), packet.size()));
+                CHECK(std::string(value._value) == name);
+                CHECK(encode(value) == packet);
+            }
+            else
+                CHECK(!value.fromBuffer(packet.data(), packet.size()));
+            content.push_back(0); // 129 arcs, despite a small BER representation.
+            packet = tlv(OID, content);
+            CHECK(!value.fromBuffer(packet.data(), packet.size()));
+            name += ".0";
+            OIDType tooLong(const_cast<char *>(name.c_str()));
+            CHECK(tooLong.serialise(nullptr) < 0);
+        });
     add("receive accepts packet limit and rejects the next byte before reading",
         []
         {
@@ -105,28 +131,26 @@ void registerConfigurationTests(std::vector<Test> &tests)
     add("OID text accepts capacity minus terminator and rejects the next character",
         []
         {
+            // Use long arcs so this buffer-boundary fixture stays within 128 arcs.
             std::string name = ".1.3";
-            Bytes arcs{43};
-            while (name.size() + 2 < MAX_OID_LENGTH)
+            while (name.size() < MAX_OID_LENGTH - 1)
             {
-                name += ".1";
-                arcs.push_back(1);
+                size_t remaining = MAX_OID_LENGTH - 1 - name.size();
+                size_t width = std::min<size_t>(11, remaining);
+                if (remaining - width == 1)
+                    --width;
+                CHECK(width >= 2);
+                name += "." + std::string(width - 1, '1');
             }
-            if (name.size() == MAX_OID_LENGTH - 2)
-            {
-                name += '0';
-                arcs.back() = 10;
-            }
-            CHECK(name.size() == MAX_OID_LENGTH - 1);
             OIDType encoded(const_cast<char *>(name.c_str()));
-            Bytes wire = tlv(6, arcs);
-            CHECK(encode(encoded) == wire);
+            Bytes wire = encode(encoded);
             OIDType decoded;
             CHECK(decoded.fromBuffer(wire.data(), wire.size()));
             CHECK(std::string(decoded._value) == name);
+            // Add a decimal digit to the last arc, preserving its uint32 range.
             name += '0';
-            arcs.back() *= 10;
-            wire = tlv(6, arcs);
+            // Build independent wire bytes through the mock agent's OID codec.
+            wire = MockAgent::wireOID(MockAgent::oid(name.c_str()));
             CHECK(!decoded.fromBuffer(wire.data(), wire.size()));
             OIDType oversized(const_cast<char *>(name.c_str()));
             CHECK(oversized.serialise(nullptr) < 0);

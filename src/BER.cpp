@@ -235,6 +235,8 @@ int OIDType::serialise(unsigned char *buf, size_t capacity)
         }
         if (cursor == digits)
             return -1;
+        if (arcs == 128)
+            return -1; // RFC 2578 / RFC 3416: at most 128 subidentifiers.
         if (arcs++ == 0)
         {
             if (arc > 2)
@@ -297,7 +299,7 @@ bool OIDType::fromBuffer(unsigned char *buf, size_t available)
     if (!readBERHeader(buf, available, header, length) || buf[0] != OID || length == 0)
         return false;
     char text[MAX_OID_LENGTH] = {};
-    size_t used = 0, offset = 0;
+    size_t used = 0, offset = 0, arcs = 0;
     bool first = true;
     while (offset < length)
     {
@@ -314,6 +316,9 @@ bool OIDType::fromBuffer(unsigned char *buf, size_t available)
             arc = (arc << 7) | (byte & 0x7f);
         } while (byte & 0x80);
         if (arc > static_cast<uint64_t>(UINT32_MAX) + (first ? 80 : 0))
+            return false;
+        arcs += first ? 2 : 1;
+        if (arcs > 128)
             return false;
         int written;
         if (first)
