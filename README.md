@@ -2,6 +2,8 @@
 
 Version 2.0 contains breaking API and build changes. Existing users should read the [migration guide](MIGRATION.md).
 
+A simpler device and query API is being designed. See the [API proposal and usage sketches](docs/API_PROPOSAL.md); these describe planned functionality, not the currently supported API.
+
 An SNMP Manager for network-capable ESP8266 and ESP32 Arduino platforms, providing SNMP GetRequest support for specified OIDs.
 
 Validated build targets include NodeMCU ESP8266, ESP32, ESP32-C3, and Arduino Nano ESP32. Other modern 32-bit Arduino platforms can be added as tested targets; older AVR platforms are not supported. See [embedded compatibility builds](tests/embedded/README.md).
