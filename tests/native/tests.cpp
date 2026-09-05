@@ -168,6 +168,26 @@ int main(int argc,char** argv) {
         udp.incoming=message(binding(oidWire)); oidManager.loop();
         CHECK(std::string(result)==".1.3.6");
     });
+    add("pending request capacity rejects excess sends and can be cleared", [] {
+        Manager manager; UDP udp; manager.setUDP(&udp);
+        int value=99;
+        auto* callback=manager.addIntegerHandler(udp.peer,oid,&value);
+        Request request; request.setUDP(&udp); request.addOIDPointer(callback);
+        for (int i=0;i<SNMP_MAX_PENDING_REQUESTS;++i) {
+            request.setRequestID(i+1); CHECK(request.sendTo(udp.peer));
+        }
+        int packets=udp.packets;
+        request.setRequestID(100);
+        CHECK(!request.sendTo(udp.peer) && udp.packets==packets);
+        udp.incoming=message(binding({2,1,42}),1,"public",0xa2,1);
+        manager.loop(); CHECK(value==42);
+        CHECK(request.sendTo(udp.peer));
+        callback->clearPendingRequests();
+        CHECK(!callback->requestPending);
+        udp.incoming=message(binding({2,1,7}),1,"public",0xa2,100);
+        manager.loop(); CHECK(value==42);
+        CHECK(request.sendTo(udp.peer));
+    });
     add("default manager starts without transport", [] {
         SNMPManager manager;
         CHECK(manager._udp==nullptr);
@@ -435,7 +455,7 @@ int main(int argc,char** argv) {
         manager.loop();
         CHECK(first==42 && second==7 && !b->requestPending);
     });
-    add("request tracking handles superseded failed and duplicate replies", [] {
+    add("request tracking handles concurrent failed and duplicate replies", [] {
         Manager manager;
         UDP udp;
         manager.setUDP(&udp);
@@ -454,8 +474,8 @@ int main(int argc,char** argv) {
             udp.incoming=message(binding({2,1,static_cast<unsigned char>(contents)}),1,"public",0xa2,id);
             manager.loop();
         };
-        reply(7,1); CHECK(value==99);
-        reply(9,2); CHECK(value==99);
+        reply(7,1); CHECK(value==1);
+        reply(9,2); CHECK(value==1);
         reply(8,42); CHECK(value==42);
         reply(8,3); CHECK(value==42);
         udp.endResult=1;

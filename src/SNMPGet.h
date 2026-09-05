@@ -93,6 +93,9 @@ public:
 		{
 			return false;
 		}
+        // Refuse a send before touching the transport if any callback has no free slot.
+        for (ValueCallbacks *entry=callbacks; entry && entry->value; entry=entry->next)
+            if (!entry->value->canTrack(static_cast<unsigned long>(requestID),_udp,ip)) return false;
 		if (!build())
 		{
 			Serial.println(F("Failed Building packet.."));
@@ -124,11 +127,7 @@ public:
         for (ValueCallbacks *entry = callbacks; entry && entry->value; entry = entry->next)
         {
             ValueCallback *callback = entry->value;
-            callback->requestTracked = true;
-            callback->requestPending = true;
-            callback->expectedRequestID = static_cast<unsigned long>(requestID);
-            callback->requestUDP = _udp;
-            callback->requestPeer = ip;
+            callback->track(static_cast<unsigned long>(requestID),_udp,ip);
         }
         return true;
 	}

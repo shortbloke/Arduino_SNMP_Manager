@@ -23,6 +23,11 @@
 #include "BER.h"
 #include "VarBinds.h"
 
+#ifndef SNMP_MAX_PENDING_REQUESTS
+#define SNMP_MAX_PENDING_REQUESTS 4
+#endif
+static_assert(SNMP_MAX_PENDING_REQUESTS > 0, "At least one pending request slot is required");
+
 class ValueCallback
 {
 public:
@@ -40,12 +45,57 @@ public:
     char *OID = nullptr;
     ASN_TYPE type;
     bool overwritePrefix = false;
-    // One outstanding request per callback; only successful sends replace it.
+    // Legacy summary fields describe the most recent send and whether any reply is pending.
     bool requestTracked = false;
     bool requestPending = false;
     unsigned long expectedRequestID = 0;
     UDP *requestUDP = nullptr;
     IPAddress requestPeer;
+
+    struct PendingRequest {
+        bool active = false;
+        unsigned long id = 0;
+        UDP *udp = nullptr;
+        IPAddress peer;
+    };
+    PendingRequest pending[SNMP_MAX_PENDING_REQUESTS];
+    bool canTrack(unsigned long id, UDP *udp, IPAddress peer) const
+    {
+        for (const auto& entry : pending)
+            if (!entry.active || (entry.id == id && entry.udp == udp && entry.peer == peer)) return true;
+        return false;
+    }
+    void track(unsigned long id, UDP *udp, IPAddress peer)
+    {
+        PendingRequest *slot = nullptr;
+        for (auto& entry : pending)
+        {
+            if (entry.active && entry.id == id && entry.udp == udp && entry.peer == peer) { slot=&entry; break; }
+            if (!entry.active && !slot) slot=&entry;
+        }
+        if (!slot) return;
+        slot->active=true; slot->id=id; slot->udp=udp; slot->peer=peer;
+        requestTracked=requestPending=true;
+        expectedRequestID=id; requestUDP=udp; requestPeer=peer;
+    }
+    bool consume(unsigned long id, UDP *udp, IPAddress peer)
+    {
+        bool found=false;
+        requestPending=false;
+        for (auto& entry : pending)
+        {
+            if (entry.active && entry.id == id && entry.udp == udp && entry.peer == peer)
+            { entry.active=false; found=true; }
+            requestPending=requestPending || entry.active;
+        }
+        return found;
+    }
+    // Explicitly abandon lost/timed-out requests; tracked callbacks still reject unsolicited replies.
+    void clearPendingRequests()
+    {
+        for (auto& entry : pending) entry.active=false;
+        requestPending=false;
+    }
 
 };
 
@@ -289,10 +339,7 @@ bool SNMPManager::parsePacket(size_t length)
                 for (ValueCallbacks *entry = callbacks; entry && entry->value; entry = entry->next)
                 {
                     ValueCallback *callback = entry->value;
-                    if (callback->requestPending && callback->requestUDP == _udp &&
-                        callback->requestPeer == _udp->remoteIP() &&
-                        callback->expectedRequestID == snmpgetresponse->requestID)
-                        callback->requestPending = false;
+                    callback->consume(snmpgetresponse->requestID,_udp,_udp->remoteIP());
                 }
                 delete snmpgetresponse;
                 return false;
@@ -321,17 +368,11 @@ bool SNMPManager::parsePacket(size_t length)
                     delete snmpgetresponse;
                     return false;
                 }
-                if (callback->requestTracked)
+                if (callback->requestTracked && !callback->consume(snmpgetresponse->requestID,_udp,responseIP))
                 {
-                    if (!callback->requestPending || callback->requestUDP != _udp ||
-                        !(callback->requestPeer == responseIP) ||
-                        callback->expectedRequestID != snmpgetresponse->requestID)
-                    {
-                        snmpgetresponse->varBindsCursor = snmpgetresponse->varBindsCursor->next;
-                        ++varBindIndex;
-                        continue;
-                    }
-                    callback->requestPending = false;
+                    snmpgetresponse->varBindsCursor = snmpgetresponse->varBindsCursor->next;
+                    ++varBindIndex;
+                    continue;
                 }
                 // An exception belongs to this binding, not the whole response.
                 if (responseType == NOSUCHOBJECT || responseType == NOSUCHINSTANCE || responseType == ENDOFMIBVIEW)
