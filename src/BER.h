@@ -54,7 +54,7 @@ typedef enum ASN_TYPE_WITH_VALUE
 // The legacy pointer-only entry points cannot validate the allocation size.
 inline bool readBERHeader(const unsigned char *buf, size_t available, size_t &header, size_t &length)
 {
-    if (available < 2) return false;
+    if (!buf || available < 2) return false;
     header = 2;
     length = buf[1];
     if (length & 0x80)
@@ -78,9 +78,9 @@ public:
     virtual ~BER_CONTAINER(){};
     bool _isPrimitive;
     ASN_TYPE _type;
-    unsigned short _length;
-    virtual int serialise(unsigned char *buf) = 0;
-    virtual bool fromBuffer(unsigned char *buf) = 0;
+    unsigned short _length = 0;
+    virtual int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1)) = 0;
+    virtual bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) = 0;
     virtual int getLength() = 0;
 };
 
@@ -91,11 +91,13 @@ public:
     NetworkAddress(IPAddress ip) : _value(ip), BER_CONTAINER(true, NETWORK_ADDRESS){};
     ~NetworkAddress(){};
     IPAddress _value;
-    int serialise(unsigned char *buf)
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NetworkAddress:serialise");
 #endif
+        if (capacity < 6) return -1;
+        if (!buf) return 6;
         unsigned char *ptr = buf;
         *ptr++ = _type;
 
@@ -108,14 +110,15 @@ public:
         *ptr++ = _value[3];
         return _length + 2;
     }
-    bool fromBuffer(unsigned char *buf)
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NetworkAddress:fromBuffer");
 #endif
-        buf++; // skip Type
-        _length = *buf;
-        buf++;
+        size_t header, length;
+        if (!readBERHeader(buf, available, header, length) || buf[0] != NETWORK_ADDRESS || length != 4) return false;
+        _length = length;
+        buf += header;
         byte tempAddress[4];
         tempAddress[0] = *buf++;
         tempAddress[1] = *buf++;
@@ -137,7 +140,7 @@ public:
     IntegerType(unsigned long value) : _value(value), BER_CONTAINER(true, INTEGER){};
     ~IntegerType(){};
     unsigned long _value;
-    int serialise(unsigned char *buf)
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] IntegerType:serialise");
@@ -160,33 +163,21 @@ public:
             ++start;
         }
         _length = sizeof(contents) - start;
+        if (capacity < static_cast<size_t>(_length) + 2) return -1;
+        if (!buf) return _length + 2;
         buf[0] = _type;
         buf[1] = _length;
         memcpy(buf + 2, contents + start, _length);
         return _length + 2;
     }
-    bool fromBuffer(unsigned char *buf)
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Integer:fromBuffer");
 #endif
-        // The caller must provide the complete TLV to this pointer-only API.
-        if (*buf++ != _type)
-            return false;
-        unsigned int length = *buf++;
-        if (length & 0x80)
-        {
-            const unsigned int octets = length & 0x7f;
-            if (octets == 0 || octets == 127)
-                return false;
-            length = 0;
-            for (unsigned int i = 0; i < octets; ++i)
-            {
-                length = (length << 8) | *buf++;
-                if (length > 5)
-                    return false;
-            }
-        }
+        size_t header, length;
+        if (!readBERHeader(buf, available, header, length) || buf[0] != _type) return false;
+        buf += header;
         const bool isSigned = _type == INTEGER;
         if (length == 0 || length > (isSigned ? 4u : 5u))
             return false;
@@ -234,7 +225,7 @@ public:
         if (valid) memcpy(_value, value, length + 1);
     }
     char _value[SNMP_OCTETSTRING_MAX_LENGTH] = {};
-    int serialise(unsigned char *buf)
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
     {
         if (!valid) return -1;
         // Decoded strings retain their binary length. Directly populated legacy
@@ -246,7 +237,9 @@ public:
             while (length < sizeof(_value) && _value[length]) ++length;
             if (length == sizeof(_value)) return -1;
         }
-        size_t header = 2;
+        size_t header = length < 128 ? 2 : (length < 256 ? 3 : 4);
+        if (header + length > capacity) return -1;
+        if (!buf) return header + length;
         buf[0] = _type;
         if (length < 128) buf[1] = length;
         else if (length < 256) { buf[1] = 0x81; buf[2] = length; header = 3; }
@@ -255,10 +248,10 @@ public:
         _length = length;
         return header + length;
     }
-    bool fromBuffer(unsigned char *buf)
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
     {
         size_t header, length;
-        if (buf[0] != STRING || !readBERHeader(buf, static_cast<size_t>(-1), header, length) ||
+        if (!readBERHeader(buf, available, header, length) || buf[0] != STRING ||
             length >= sizeof(_value)) return false;
         memcpy(_value, buf + header, length);
         _value[length] = 0;
@@ -283,7 +276,7 @@ public:
         if (strlen(value) < sizeof(_value)) strcpy(_value, value);
     }
     char _value[MAX_OID_LENGTH] = {};
-    int serialise(unsigned char *buf)
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
     {
         size_t textLength = 0;
         while (textLength < sizeof(_value) && _value[textLength]) ++textLength;
@@ -327,7 +320,9 @@ public:
             }
         }
         if (arcs < 2) return -1;
-        size_t header = 2;
+        size_t header = length < 128 ? 2 : (length < 256 ? 3 : 4);
+        if (header + length > capacity) return -1;
+        if (!buf) return header + length;
         buf[0] = OID;
         if (length < 128) buf[1] = length;
         else if (length < 256) { buf[1] = 0x81; buf[2] = length; header = 3; }
@@ -336,10 +331,10 @@ public:
         _length = length;
         return header + length;
     }
-    bool fromBuffer(unsigned char *buf)
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
     {
         size_t header, length;
-        if (buf[0] != OID || !readBERHeader(buf, static_cast<size_t>(-1), header, length) || length == 0) return false;
+        if (!readBERHeader(buf, available, header, length) || buf[0] != OID || length == 0) return false;
         char text[MAX_OID_LENGTH] = {};
         size_t used = 0, offset = 0;
         bool first = true;
@@ -382,11 +377,13 @@ public:
     NullType() : BER_CONTAINER(true, NULLTYPE){};
     ~NullType(){};
     char _value = 0;
-    int serialise(unsigned char *buf)
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NullType:serialise");
 #endif
+        if (capacity < 2) return -1;
+        if (!buf) return 2;
         // NULL has a zero-length value, so its TLV contains only the tag and length.
         char *ptr = (char *)buf;
         *ptr = _type;
@@ -394,11 +391,13 @@ public:
         *ptr = 0;
         return 2;
     }
-    bool fromBuffer(unsigned char *buf)
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] NullType:fromBuffer");
 #endif
+        size_t header, length;
+        if (!readBERHeader(buf, available, header, length) || buf[0] != NULLTYPE || length != 0) return false;
         _length = 0;
         return true;
     }
@@ -416,7 +415,7 @@ public:
     Counter64(uint64_t value) : _value(value), BER_CONTAINER(true, COUNTER64){};
     ~Counter64(){};
     uint64_t _value;
-    int serialise(unsigned char *buf)
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Counter64:serialise");
@@ -435,35 +434,22 @@ public:
             contents[--start] = 0;
         }
         _length = sizeof(contents) - start;
+        if (capacity < static_cast<size_t>(_length) + 2) return -1;
+        if (!buf) return _length + 2;
         buf[0] = _type;
         buf[1] = _length;
         memcpy(buf + 2, contents + start, _length);
         return _length + 2;
     }
 
-    bool fromBuffer(unsigned char *buf)
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1))
     {
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Counter64:fromBuffer");
 #endif
-        // This pointer-only API requires the caller to supply the complete TLV.
-        if (*buf++ != COUNTER64)
-            return false;
-        unsigned int length = *buf++;
-        if (length & 0x80)
-        {
-            const unsigned int lengthOctets = length & 0x7f;
-            if (lengthOctets == 0 || lengthOctets == 127)
-                return false;
-            length = 0;
-            for (unsigned int i = 0; i < lengthOctets; ++i)
-            {
-                length = (length << 8) | *buf++;
-                // Counter64 needs at most eight value octets and a sign octet.
-                if (length > 9)
-                    return false;
-            }
-        }
+        size_t header, length;
+        if (!readBERHeader(buf, available, header, length) || buf[0] != _type) return false;
+        buf += header;
         if (length == 0 || length > 9 || (buf[0] & 0x80))
             return false;
         if (length == 9 && buf[0] != 0)
@@ -534,11 +520,11 @@ public:
         delete _values;
     }
     ValuesList *_values = 0;
-    bool fromBuffer(unsigned char *buf)
+    bool fromBuffer(unsigned char *buf, size_t available = static_cast<size_t>(-1)) override
     {
-        return fromBuffer(buf, static_cast<size_t>(-1));
+        return decode(buf, available, 0);
     }
-    bool fromBuffer(unsigned char *buf, size_t available, unsigned int depth = 0)
+    bool decode(unsigned char *buf, size_t available, unsigned int depth)
     {
         delete _values;
         _values = nullptr;
@@ -555,7 +541,7 @@ public:
             // Primitive fixed-width types must be checked before their legacy decoders.
             if ((valueType == NULLTYPE || valueType == NOSUCHOBJECT ||
                  valueType == NOSUCHINSTANCE || valueType == ENDOFMIBVIEW) && valueLength != 0) return false;
-            if (valueType == NETWORK_ADDRESS && (valueLength != 4 || childHeader != 2)) return false;
+            if (valueType == NETWORK_ADDRESS && valueLength != 4) return false;
             BER_CONTAINER *newObj;
             switch (valueType)
             {
@@ -609,9 +595,9 @@ public:
             }
             bool valid;
             if (!newObj->_isPrimitive)
-                valid = static_cast<ComplexType *>(newObj)->fromBuffer(buf + offset, childHeader + valueLength, depth + 1);
+                valid = static_cast<ComplexType *>(newObj)->decode(buf + offset, childHeader + valueLength, depth + 1);
             else
-                valid = newObj->fromBuffer(buf + offset);
+                valid = newObj->fromBuffer(buf + offset, childHeader + valueLength);
             if (!valid)
             {
                 delete newObj;
@@ -623,72 +609,32 @@ public:
         return true;
     }
 
-    int serialise(unsigned char *buf)
+    int serialise(unsigned char *buf, size_t capacity = static_cast<size_t>(-1))
     {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] ComplexType:serialise");
-#endif
-        int actualLength = 0;
-        unsigned char *ptr = buf;
-        *ptr = _type;
-        ptr++;
-        unsigned char *lengthPtr = ptr++;
-        *lengthPtr = 0;
-        ValuesList *conductor = _values;
-        int tempLength = 0;
-        while (conductor)
+        // Measure before writing, so insufficient capacity leaves the buffer unchanged.
+        size_t length = 0;
+        for (ValuesList *entry=_values; entry; entry=entry->next)
         {
-            delay(0);
-
-            int length = conductor->value->serialise(ptr);
-            if (length < 0) return -1;
-            ptr += length;
-            actualLength += length;
-            conductor = conductor->next;
+            int child = entry->value->serialise(nullptr);
+            if (child < 0 || static_cast<size_t>(child) > 65535u - length) return -1;
+            length += child;
         }
-        if (actualLength > 127)
+        size_t header = length < 128 ? 2 : (length < 256 ? 3 : 4);
+        if (header + length > capacity) return -1;
+        if (!buf) return header + length;
+        buf[0] = _type;
+        if (header == 2) buf[1] = length;
+        else if (header == 3) { buf[1]=0x81; buf[2]=length; }
+        else { buf[1]=0x82; buf[2]=length >> 8; buf[3]=length; }
+        size_t offset = header;
+        for (ValuesList *entry=_values; entry; entry=entry->next)
         {
-#ifdef DEBUG_BER
-            Serial.println("TOO BIG - Adding extra byte");
-#endif
-            // Use 0x81 for one length octet or 0x82 for two length octets.
-            // Shift the serialized contents to make room for the expanded header.
-            int tempVal = 1;
-            if (actualLength >= 256)
-            {
-                *lengthPtr++ = (2 | 0x80) & 0xFF; // Two length octets, most significant first.
-
-                tempLength += 1;
-                unsigned char *endPtrPos = ++ptr;
-                for (unsigned char *i = endPtrPos; i > buf + 1; i--)
-                {
-                    // Copy backward so overlapping contents are preserved.
-                    *i = *(i - 1);
-                }
-                tempVal = 2;
-                *lengthPtr++ = actualLength / 256;
-            }
-            else
-            {
-                *lengthPtr++ = (1 | 0x80) & 0xFF;
-            }
-
-            // Make room for the final length octet, copying from the end.
-            unsigned char *endPtrPos = ptr + 1;
-            for (unsigned char *i = endPtrPos; i > buf + tempVal; i--)
-            {
-                // Copy backward so overlapping contents are preserved.
-                *i = *(i - 1);
-            }
-            *lengthPtr++ = actualLength % 256;
-
-            tempLength += 1; // Account for the additional length octet.
+            int child = entry->value->serialise(buf + offset, capacity - offset);
+            if (child < 0) return -1;
+            offset += child;
         }
-        else
-        {
-            *lengthPtr = actualLength;
-        }
-        return actualLength + 2 + tempLength;
+        _length = length;
+        return offset;
     }
 
     int getLength()

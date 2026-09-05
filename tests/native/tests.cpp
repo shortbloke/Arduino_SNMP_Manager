@@ -10,7 +10,7 @@
 #include <csignal>
 using Bytes = std::vector<unsigned char>;
 #define CHECK(x) do { if (!(x)) throw std::runtime_error(#x); } while(0)
-Bytes encode(BER_CONTAINER& value) { unsigned char b[8192]{}; int n=value.serialise(b); CHECK(n>=0 && n<=8192); return Bytes(b,b+n); }
+Bytes encode(BER_CONTAINER& value) { unsigned char b[8192]{}; int n=value.serialise(b,sizeof(b)); CHECK(n>=0 && n<=8192); return Bytes(b,b+n); }
 // Independent fixture builder: never uses the library's serializer.
 Bytes tlv(unsigned char tag, Bytes value) {
     Bytes out{tag};
@@ -96,6 +96,37 @@ int main(int argc,char** argv) {
         Manager moved=Manager("private");
         Manager destination(std::move(moved));
         CHECK(std::string(destination._community)=="private");
+    });
+    add("bounded primitive decoding and serialization reject short buffers", [] {
+        IntegerType integer(128);
+        Counter64 counter(UINT64_MAX);
+        NetworkAddress address(IPAddress(1,2,3,4));
+        NullType null;
+        char text[]="hello", name[]=".1.3.6";
+        OctetType string(text);
+        OIDType oidValue(name);
+        ComplexType sequence(STRUCTURE);
+        sequence.addValueToList(new IntegerType(42));
+        for (BER_CONTAINER* value : std::vector<BER_CONTAINER*>{&integer,&counter,&address,&null,&string,&oidValue,&sequence}) {
+            auto wire=encode(*value);
+            for (size_t size=0;size<wire.size();++size) {
+                Bytes output(wire.size(),0xaa);
+                CHECK(value->serialise(output.data(),size)<0);
+                CHECK(output==Bytes(wire.size(),0xaa));
+            }
+            for (size_t size=0;size<wire.size();++size)
+                CHECK(!value->fromBuffer(wire.data(),size));
+            CHECK(value->fromBuffer(wire.data(),wire.size()));
+        }
+        Manager manager;
+        int destination=0;
+        UDP udp;
+        Request request;
+        request.setUDP(&udp);
+        auto* callback=manager.addIntegerHandler(udp.peer,oid,&destination);
+        for (int i=0;i<200;++i) request.addOIDPointer(callback);
+        CHECK(!request.sendTo(udp.peer));
+        CHECK(udp.packets==0);
     });
     add("default manager starts without transport", [] {
         SNMPManager manager;

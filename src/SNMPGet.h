@@ -102,7 +102,7 @@ public:
 		}
 		unsigned char _packetBuffer[SNMP_PACKET_LENGTH * 3];
 		memset(_packetBuffer, 0, SNMP_PACKET_LENGTH * 3);
-		int length = packet->serialise(_packetBuffer);
+		int length = packet->serialise(_packetBuffer, sizeof(_packetBuffer));
 		delete packet;
 		packet = 0;
         if (length < 0) return false;
