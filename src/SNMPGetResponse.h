@@ -6,6 +6,8 @@ class SNMPGetResponse
 
 public:
 	SNMPGetResponse(){};
+    SNMPGetResponse(const SNMPGetResponse&) = delete;
+    SNMPGetResponse& operator=(const SNMPGetResponse&) = delete;
 	~SNMPGetResponse()
 	{
 		delete varBinds;

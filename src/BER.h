@@ -545,6 +545,8 @@ class ComplexType : public BER_CONTAINER
 {
 public:
     ComplexType(ASN_TYPE type) : BER_CONTAINER(false, type){};
+    ComplexType(const ComplexType&) = delete;
+    ComplexType& operator=(const ComplexType&) = delete;
     ~ComplexType()
     {
         delete _values;

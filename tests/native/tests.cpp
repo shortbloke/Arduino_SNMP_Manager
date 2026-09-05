@@ -188,6 +188,27 @@ int main(int argc,char** argv) {
         manager.loop(); CHECK(value==42);
         CHECK(request.sendTo(udp.peer));
     });
+    add("owning packet objects cannot be shallow-copied", [] {
+        CHECK(!std::is_copy_constructible<SNMPManager>::value);
+        CHECK(!std::is_copy_constructible<SNMPGet>::value);
+        CHECK(!std::is_copy_constructible<SNMPGetResponse>::value);
+        CHECK(!std::is_copy_constructible<ComplexType>::value);
+        struct Tracked : ComplexType {
+            int& destroyed;
+            Tracked(int& n):ComplexType(STRUCTURE),destroyed(n) {}
+            ~Tracked() override { ++destroyed; }
+        };
+        int destroyed=0;
+        {
+            Request request;
+            request.packet=new Tracked(destroyed);
+            CHECK(request.build());
+            CHECK(destroyed==1);
+            Request moved(std::move(request));
+            CHECK(moved.build());
+        }
+        CHECK(destroyed==1);
+    });
     add("default manager starts without transport", [] {
         SNMPManager manager;
         CHECK(manager._udp==nullptr);
