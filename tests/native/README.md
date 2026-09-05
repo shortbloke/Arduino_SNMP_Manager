@@ -27,7 +27,7 @@ Requirements: a POSIX host (macOS or Linux), Make, and a C++11 compiler (Clang o
 ```sh
 make -C tests/native test          # baseline tests
 make -C tests/native regressions   # regression tests
-make -C tests/native check         # both groups
+make -C tests/native check         # normal/debug groups and strict C++11 multi-file check
 make -C tests/native sanitize      # baseline with ASan + UBSan, fatal diagnostics
 make -C tests/native sanitize-regressions # regressions with ASan + UBSan
 make -C tests/native clean
@@ -71,12 +71,22 @@ Additional cases in `tests.cpp` cover sequence length boundaries and sibling ali
 
 ## Boundaries and limitations
 
-The stubs implement only the Arduino/UDP methods used by the headers. They cannot validate board compilation, real UDP delivery, fragmentation, Wi-Fi behavior, timing, or device interoperability. GNU C++11 mode accommodates the existing variable-length array in `testParsePacket`.
+The stubs implement only the Arduino/UDP methods used by the headers. They cannot validate board compilation, real UDP delivery, fragmentation, Wi-Fi behavior, timing, or device interoperability. The hex parser uses no input-sized stack array. Strict C++11 compatibility is checked separately, with exceptions and RTTI disabled.
 
-Native `unsigned long` may be 64 bits while Arduino targets commonly use 32 bits; these tests do not establish AVR/ESP integer-width compatibility. The fake transport supports bind, beginPacket, short-write, and endPacket failure injection.
+Native `unsigned long` may be 64 bits while Arduino targets commonly use 32 bits; protocol-facing APIs use fixed-width types. Real ESP builds complement the native checks; AVR is outside the supported scope. The fake transport supports bind, beginPacket, short-write, and endPacket failure injection.
 
 Tests use production initialization and destructors, and verify shared registration lifetime, request rebuilding, and move construction. Caller-owned destinations and transports must remain valid while operations use them. Child-process execution still limits leak-checking coverage.
 
 All BER types expose capacity-aware serialization and bounded decoding. Tests exercise short buffers and oversized request rejection. Legacy calls without sizes retain caller responsibility; they cannot infer allocation sizes. Custom BER subclasses must implement the new capacity-aware virtual signatures.
 
-The default printable OID buffer remains smaller than the protocol's maximum possible OID representation. Full protocol-size OIDs, exhaustive boundary combinations, allocation-failure handling, and target hardware behavior need further work. C-string callbacks support explicit capacities; binary callbacks preserve OCTET STRING and Opaque payloads and report their lengths. Trap dispatch remains outside this Get-oriented manager's scope.
+The default printable OID buffer remains smaller than the protocol's maximum possible OID representation. Full protocol-size OIDs, exhaustive boundary combinations, and target hardware behavior need further work. Allocation-failure injection checks partial-build cleanup and recovery; it does not reproduce every possible heap condition. C-string callbacks support explicit capacities; binary callbacks preserve OCTET STRING and Opaque payloads and report their lengths. Trap dispatch remains outside this Get-oriented manager's scope.
+
+## Compatibility checks
+
+`make -C tests/native compatibility` compiles separate source files with strict C++11, warnings as errors, and exceptions/RTTI disabled. `make -C tests/native debug` runs the shared suite with DEBUG and DEBUG_BER. To run both normal and debug suites under sanitizers:
+
+```sh
+make -C tests/native BUILD=build-sanitize CXXFLAGS='-std=c++11 -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all' check
+```
+
+See [embedded builds](../embedded/README.md) for real ESP8266, ESP32, ESP32-C3, and Arduino Nano ESP32 compile/link checks. These do not require attached hardware.

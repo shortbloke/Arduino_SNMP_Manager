@@ -1,6 +1,8 @@
 # SNMP Manager For ESP8266/ESP32/Arduino (and more)
 
-An SNMP Manager for ESP, Arduino and similar MCU. Providing simple SNMP Get-Request support for specified OIDs.
+An SNMP Manager for network-capable ESP8266 and ESP32 Arduino platforms, providing SNMP GetRequest support for specified OIDs.
+
+Validated build targets include NodeMCU ESP8266, ESP32, ESP32-C3, and Arduino Nano ESP32. Other modern 32-bit Arduino platforms can be added as tested targets; older AVR platforms are not supported. See [embedded compatibility builds](tests/embedded/README.md).
 
 The library supports:
 
@@ -11,12 +13,12 @@ The library supports:
   - GetRequest (sending query to a SNMP Agent for a specified OID)
   - GetResponse (Decoding the response to the SNMP GetRequest)
 - SNMP Data Types:
-  - Integer (Arduino data type: int)
+  - Integer32 (`int32_t`; float callbacks scale integer tenths)
   - String (Arduino data type: char*)
-  - Counter32 (Arduino data type: unsigned int)
-  - Counter64 (Arduino data type: long long unsigned int)
-  - Gauge32 (Arduino data type: unsigned int)
-  - Timestamp (Arduino data type: unsigned int)
+  - Counter32 (`uint32_t`)
+  - Counter64 (`uint64_t`)
+  - Gauge32 (`uint32_t`)
+  - Timestamp (`uint32_t`)
 
 If you find this useful, consider providing some support:
 
@@ -217,3 +219,11 @@ I'd love to hear about projects that find this library useful.
 ## Acknowledgements
 
 This project a derived from an [SNMP Agent project](https://github.com/fusionps/Arduino_SNMP). With Manager functionality adapted from work by [Niich's fork](https://github.com/Niich/Arduino_SNMP).
+
+## Embedded development
+
+Use `make -C tests/native check` for normal/debug regressions and strict C++11 multi-file compatibility. The compatibility executable builds with exceptions and RTTI disabled. `pio run -d tests/embedded` builds the real board toolchains; CI runs the same checks.
+
+Source formatting uses clang-format 19.1.7 and the checked-in `.clang-format`. Public names are retained for source compatibility. Internal pending-request state is private; legacy request summary fields are informational.
+
+Packet buffers use `SNMP_PACKET_LENGTH` directly (512 bytes by default, 1500 on ESP32). Adjust this macro consistently across translation units if the application requires another limit. Registration APIs return null on allocation failure; `addOIDPointer`, `addHandler`, and request building return false on failure. `addHandler` adopts a supplied callback only on success; `addValueToList` consumes a supplied BER child even on failure. Pending sends are not registered until transmission succeeds. Constructors can remain empty after allocation failure, and subsequent operations report failure or retry allocation safely.

@@ -8,7 +8,7 @@ All previously failing regression checks pass. The final validation covers nativ
 
 The additional source-review fixes now cover safe initialization, registration/request ownership, bounded primitive decoding and request serialization, OID callbacks, binary callback delivery, Opaque decoding, and concurrent request tracking. Legacy APIs without buffer sizes still require caller-provided sufficient storage. Destination buffers, community strings, and transports remain borrowed. Pending-request slots are finite and require explicit clearing when requests time out.
 
-The bounded parser caps nesting at 32, and printable OID/string capacities impose limits below some protocol maxima. Hardware behavior, exhaustive conformance, and allocation-failure handling remain outside the validated scope. Historical findings below are preserved as review history, not a current defect inventory.
+The bounded parser caps nesting at 32, and printable OID/string capacities impose limits below some protocol maxima. Hardware behavior and exhaustive conformance remain outside the validated scope; allocation-failure injection and real target compile/link checks are now included. Historical findings below are preserved as review history, not a current defect inventory.
 
 ## Specification cross-check
 
@@ -203,3 +203,11 @@ All 78 cases pass through standalone Make and PlatformIO native. All 78 also pas
 - `756db44`: prevent shallow copies of owning packets; test request rebuild and move lifetime behavior.
 
 Validation: all 85 tests pass in both Make and PlatformIO, normally and with ASan/UBSan. These changes do not add trap dispatch, which remains outside the manager's scope.
+
+## Modern-platform portability and C++ review fixes
+
+The supported scope is now ESP8266/ESP32 and tested modern Arduino variants, not AVR. Fixed debug hex overreads, removed variable-length stack arrays, made header definitions inline across translation units, and added a strict warning-clean C++11 check without exceptions/RTTI. Protocol IDs, ports, and callback values have explicit widths; floats have their own destination pointer. Packet buffers no longer reserve triple capacity, and dispatch no longer allocates throwaway counter objects.
+
+Library object allocations use nothrow allocation with checked failure paths; OID allocation is checked, partially built request trees use temporary unique ownership, and linked-list teardown is iterative. An allocation-failure test sweeps request/parser failure positions and recovery. Internal pending records are private. The undefined response serialization declaration and unused MIN macro were removed. clang-format standardizes source and test style in a separate formatting commit.
+
+Validation: all 89 native cases pass normally and with debug logging, with and without ASan/UBSan. Strict multi-file C++11 passes with warnings as errors and exceptions/RTTI disabled. Both PlatformIO native configurations pass. NodeMCU ESP8266, ESP32, ESP32-C3, and Arduino Nano ESP32 smoke builds compile and link using real Arduino cores. These results are not a hardware runtime or live-agent certification. CI configuration reproduces these checks; hosted CI itself has not been run in this session.
