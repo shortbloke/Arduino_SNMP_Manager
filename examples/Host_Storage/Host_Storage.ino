@@ -1,3 +1,6 @@
+// New to SNMP (Simple Network Management Protocol)? Read docs/GETTING_STARTED.md.
+// Wi-Fi name/password connect the board; the community string grants device access.
+// For terms such as OID (a reading's numeric address), see docs/TERMS.md.
 #if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #else
@@ -9,14 +12,14 @@
 #include <SNMPTable.h>
 #include <SNMPMIB.h>
 
-const char *ssid = "YOUR_SSID";
-const char *password = "YOUR_PASSWORD";
+const char *ssid = "YOUR_SSID";         // Your Wi-Fi network name (SSID).
+const char *password = "YOUR_PASSWORD"; // Your Wi-Fi password, not the device community.
 WiFiUDP udp;
 SNMPClient client(udp);
 // A NAS/server with HOST-RESOURCES-MIB enabled. Indices are discovered, not assumed.
 SNMPDevice host(client, "192.168.1.20", "public");
 // Counts all exposed storage entries, including memory, mounts, and datasets.
-// Large NAS agents can exceed this capacity. Increase only within your RAM budget;
+// Large NAS agents can exceed this capacity. Increase only within your working-memory budget;
 // stream the storage subtree (see Walk_Values) if you cannot retain the full table.
 constexpr size_t MaxStorageRows = 16;    // Maximum rows retained; edit, rebuild, upload.
 constexpr size_t StorageIndexBytes = 16; // Index text bytes, including its terminating zero.
@@ -57,7 +60,8 @@ void loop()
         Serial.print(storage.size());
         Serial.print(" / ");
         Serial.println(MaxStorageRows);
-        Serial.println("If full, increase MaxStorageRows only if RAM allows; rebuild and upload.");
+        Serial.println(
+            "If full, increase MaxStorageRows only if working memory allows; rebuild and upload.");
         Serial.println("Otherwise check index/value/packet limits. See docs/TROUBLESHOOTING.md.");
         Serial.println("Use Walk_Values to stream without retaining a complete table.");
     }

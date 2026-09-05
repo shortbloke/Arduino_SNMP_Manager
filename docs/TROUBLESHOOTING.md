@@ -1,5 +1,7 @@
 # Setup, memory limits, and error recovery
 
+Unfamiliar terminology? See [terms explained](TERMS.md).
+
 ## Before uploading an example
 
 1. Install the 2.x library source and select your ESP8266 or ESP32 board. A sketch
@@ -20,6 +22,9 @@
 
 The sketches call `client.loop()` to process replies and timeouts. Keep calling it
 frequently; long delays or blocking application work delay every pending query.
+
+RAM (Random Access Memory) is the board's working memory. The heap is the part
+requested while the program runs; it needs room for Wi-Fi and returned values.
 
 ## What does capacity mean?
 

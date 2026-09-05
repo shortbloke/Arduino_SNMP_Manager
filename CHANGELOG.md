@@ -1,5 +1,7 @@
 # SNMP Manager 2.x changelog
 
+Unfamiliar terminology? See [terms explained](docs/TERMS.md).
+
 This file records the 2.x release line. The maintained
 [1.x changelog](https://github.com/shortbloke/Arduino_SNMP_Manager/blob/release/1.x/CHANGELOG.md)
 contains the earlier releases and ongoing backward-compatible fixes.
@@ -11,6 +13,8 @@ First preview of the 2.x API (unpublished draft). Existing 1.x projects should r
 
 ### Friendly query API
 
+- Explain protocol acronyms, networking, and memory terminology in a plain-language
+  reference, with beginner guidance directly in the examples.
 - Explain setup, memory limits, and error recovery with editable example capacity
   constants and actionable messages for incomplete tables.
 

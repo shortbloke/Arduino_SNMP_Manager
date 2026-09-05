@@ -2,13 +2,18 @@
 
 Start with [your first device reading](GETTING_STARTED.md) if SNMP is new to you.
 This reference explains how to adapt a working sketch; you do not need to learn
-all the operations below to read one value. An API is the set of C++ classes and
+all the operations below to read one value. An API (Application Programming Interface) is the set of C++ classes and
 methods your sketch calls.
 
 Include `SNMPClient.h` for reads, writes, walks, and notifications, or `SNMPTable.h`
 for selected-column tables and interface traffic. This API is implemented alongside
 the existing `SNMPManager`/`SNMPGet` API. SNMPv3, DNS, runtime MIB parsing, and sending
 traps/informs are outside this implementation.
+
+The library uses UDP (User Datagram Protocol) to send and receive individual
+network messages. `WiFiUDP` supplies that connection; you do not build or decode
+messages yourself. [Terms explained](TERMS.md) covers OIDs, MIBs, memory, ownership,
+and other terminology used in this reference.
 
 ## Start with an example
 
@@ -36,16 +41,16 @@ SNMPRead<SystemUptime> uptime(router);
 
 Call `client.begin()` after connecting the network. Check its returned status.
 Call `uptime.start()` to schedule a read and service `client.loop()` regularly.
-`start()` does not send synchronously. On `takeCompleted()`, check
+`start()` queues work and returns immediately; later `loop()` calls send and receive messages. On `takeCompleted()`, check
 `uptime.result().ok()` before reading `uptime.result().value.unsigned32()`.
 TimeTicks are hundredths of a second. `takeCompleted()` consumes the event, not
 its result. A rejected start preserves the previous results; an accepted start
 invalidates them until new responses arrive.
 
-`SNMPDevice` accepts either `IPAddress` or four decimal IPv4 octets in a string.
+`SNMPDevice` accepts either `IPAddress` or four decimal IPv4 numbers in a string.
 It copies the address and community; invalid configuration is reported by
 `device.status()` and `start()`. Communities have room for 63 bytes plus the
-terminator. Hostnames, IPv6, trailing text, and octets greater than 255 are rejected.
+terminator. Hostnames, IPv6, trailing text, and numbers greater than 255 are rejected.
 Set `device.port`, `timeoutMs`, and `retries` before starting work. Do not modify
 these settings while that device has pending operations.
 
@@ -182,6 +187,10 @@ unbounded notification queue. An acknowledgement send failure is left for the
 sender's retry mechanism to recover.
 
 ## Resource and compatibility contract
+
+This section explains how long data remains valid and how much working memory it
+uses. “Owns” means an object keeps data alive; “borrows” means it relies on another
+object remaining alive. “Heap allocation” means requesting memory while running.
 
 The UDP object must outlive the client, the client its devices, and devices their
 operations. Owners are noncopyable. Use stable instances as in the examples.

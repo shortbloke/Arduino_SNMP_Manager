@@ -1,3 +1,6 @@
+// New to SNMP (Simple Network Management Protocol)? Read docs/GETTING_STARTED.md.
+// This example uses wired Ethernet; the community string grants device access.
+// For terms such as OID (a reading's numeric address), see docs/TERMS.md.
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 #include <Arduino_SNMP_Manager.h>

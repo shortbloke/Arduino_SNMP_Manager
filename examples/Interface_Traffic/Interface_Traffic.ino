@@ -1,3 +1,6 @@
+// New to SNMP (Simple Network Management Protocol)? Read docs/GETTING_STARTED.md.
+// Wi-Fi name/password connect the board; the community string grants device access.
+// For terms such as OID (a reading's numeric address), see docs/TERMS.md.
 #if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #else
@@ -7,13 +10,13 @@
 #include <SNMPClient.h>
 #include <SNMPTable.h>
 
-const char *ssid = "YOUR_SSID";
-const char *password = "YOUR_PASSWORD";
+const char *ssid = "YOUR_SSID";         // Your Wi-Fi network name (SSID).
+const char *password = "YOUR_PASSWORD"; // Your Wi-Fi password, not the device community.
 WiFiUDP udp;
 SNMPClient client(udp);
 SNMPDevice networkSwitch(client, "192.168.1.10", "public");
 // Capacity counts logical interfaces, not physical ports. A 24-port switch can
-// expose more than 48 rows. Reduce this if the rest of the sketch needs more RAM.
+// expose more than 48 rows. Reduce this if the rest of the sketch needs more working memory.
 constexpr size_t MaxInterfaces = 64;       // Maximum rows retained; edit, rebuild, upload.
 constexpr size_t InterfaceIndexBytes = 16; // Index text bytes, including its terminating zero.
 SNMPInterfaceRead<MaxInterfaces, InterfaceIndexBytes> interfaces(networkSwitch);
@@ -59,7 +62,7 @@ void loop()
             Serial.print(" / ");
             Serial.println(MaxInterfaces);
             Serial.println(
-                "If full, increase MaxInterfaces only if RAM allows; rebuild and upload.");
+                "If full, increase MaxInterfaces only if working memory allows; rebuild and upload.");
             Serial.println(
                 "Otherwise check index/value/packet limits. See docs/TROUBLESHOOTING.md.");
             Serial.println("Use Walk_Values to stream without retaining a complete table.");

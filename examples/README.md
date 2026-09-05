@@ -1,5 +1,7 @@
 # Examples
 
+Unfamiliar terminology? See [terms explained](../docs/TERMS.md).
+
 Open the `.ino` matching its directory name in the Arduino IDE. Select an ESP8266
 or ESP32 board, install this library, and set Wi-Fi credentials, target IPv4 address,
 and community. The target device must have SNMP enabled and expose the selected MIB.

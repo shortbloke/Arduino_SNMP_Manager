@@ -1,3 +1,6 @@
+// New to SNMP (Simple Network Management Protocol)? Read docs/GETTING_STARTED.md.
+// Wi-Fi name/password connect the board; the community string grants device access.
+// For terms such as OID (a reading's numeric address), see docs/TERMS.md.
 #if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #else
@@ -8,8 +11,8 @@
 #include <SNMPTable.h>
 #include <SNMPMIB.h>
 
-const char *ssid = "YOUR_SSID";
-const char *password = "YOUR_PASSWORD";
+const char *ssid = "YOUR_SSID";         // Your Wi-Fi network name (SSID).
+const char *password = "YOUR_PASSWORD"; // Your Wi-Fi password, not the device community.
 WiFiUDP udp;
 SNMPClient client(udp);
 // Printer-MIB rows have a compound device/supply index; keep the full suffix.
@@ -51,7 +54,8 @@ void loop()
         Serial.print(supplies.size());
         Serial.print(" / ");
         Serial.println(MaxSupplyRows);
-        Serial.println("If full, increase MaxSupplyRows only if RAM allows; rebuild and upload.");
+        Serial.println(
+            "If full, increase MaxSupplyRows only if working memory allows; rebuild and upload.");
         Serial.println("Otherwise check index/value/packet limits. See docs/TROUBLESHOOTING.md.");
         Serial.println("Use Walk_Values to stream without retaining a complete table.");
     }

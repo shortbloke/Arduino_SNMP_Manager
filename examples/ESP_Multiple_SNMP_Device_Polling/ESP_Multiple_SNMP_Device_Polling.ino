@@ -1,3 +1,6 @@
+// New to SNMP (Simple Network Management Protocol)? Read docs/GETTING_STARTED.md.
+// Wi-Fi name/password connect the board; the community string grants device access.
+// For terms such as OID (a reading's numeric address), see docs/TERMS.md.
 #if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #else

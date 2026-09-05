@@ -1,9 +1,11 @@
 # Get your first reading from a device
 
-SNMP lets a device answer questions such as “How long have you been running?” or
-“How many bytes has this interface received?” This library lets an ESP8266 or
+SNMP (Simple Network Management Protocol) lets a device answer questions such as “How long have you been running?” or
+“How many bytes has this interface received?” This library lets your Arduino program (called a sketch) on an ESP8266 or
 ESP32 ask those questions. You do not need to write network packets or manage
 callbacks to read values.
+
+See [terms explained](TERMS.md) whenever an acronym or programming term is unfamiliar.
 
 ## Can I use SNMP with my device?
 
@@ -86,12 +88,12 @@ query guide before adapting counters into a bandwidth display.
 
 ## How do I ask for a different reading?
 
-An **OID** is a numeric address for a piece of information. For example,
+An **OID (Object Identifier)** is a numeric address for a piece of information. For example,
 `.1.3.6.1.2.1.1.3.0` identifies the standard uptime reading. You cannot invent an
 OID by guessing a device setting's name.
 
 Look in your device manufacturer's SNMP documentation or MIB files for the object
-you need. A **MIB** is a catalogue explaining object names, numeric OIDs, data types,
+you need. A **MIB (Management Information Base)** is a catalogue explaining object names, numeric OIDs, data types,
 and units. The library uses the numeric OIDs; it does not load the MIB file or
 translate symbolic names on the board.
 

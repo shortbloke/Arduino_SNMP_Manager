@@ -1,14 +1,17 @@
 # SNMP Manager for ESP8266 and ESP32
 
-Version 2.0.0-alpha.1 is under development on `main`. It introduces a friendly query API
-and intentional API/build changes. Stable 1.x releases remain supported on
+SNMP (Simple Network Management Protocol) lets your program request readings from
+a device over a network. This library handles the message exchange for you.
+
+Version 2.0.0-alpha.1 is under development on `main`. It introduces a simpler programming interface for reading data
+and requires changes to existing 1.x sketches. Stable 1.x releases remain supported on
 [`release/1.x`](https://github.com/shortbloke/Arduino_SNMP_Manager/tree/release/1.x).
 Read [MIGRATION.md](MIGRATION.md) before moving an existing sketch to 2.x.
 
 ## Is this library for me?
 
 Use an ESP8266 or ESP32 to read information from a router, switch, access point,
-NAS/server, or printer that supports SNMP. Examples include uptime, network traffic
+network storage device (NAS), server, or printer that supports SNMP. Examples include uptime, network traffic
 counters, storage usage, and printer supply levels. The device must have SNMPv1
 or SNMPv2c enabled; the library cannot add SNMP support to the device.
 
@@ -16,56 +19,61 @@ or SNMPv2c enabled; the library cannot add SNMP support to the device.
 It explains how to check device support, install this 2.x preview, configure access,
 and run a complete sketch. Then choose an example by the data you want to read.
 
+Unfamiliar word? See the [plain-language terms guide](docs/TERMS.md).
+
 ## Start with a device and a query
 
-```cpp
-#include <SNMPClient.h>
-#include <SNMPTable.h>
+This fragment shows the objects involved; it is not a complete sketch. Use the
+linked Simple_Read example below for a program you can upload.
 
-// udp is your WiFiUDP or EthernetUDP object, initialized by your sketch.
+```cpp
+#include <WiFiUdp.h>
+#include <SNMPClient.h>
+
+// The network message sender/receiver; the complete example connects Wi-Fi first.
+WiFiUDP udp;
 SNMPClient client(udp);
 SNMPDevice router(client, "192.168.1.1", "public", SNMPVersion::Version2c);
 SNMPRead<SystemUptime> uptime(router);
 ```
 
 Configure your Wi-Fi credentials, device address, community and SNMP version.
-After bringing up the network, check `client.begin()`, call `client.loop()` often,
+After your sketch connects to the network, check `client.begin()`, call `client.loop()` often,
 and check query status before using returned values. The complete
-[Simple Read sketch](examples/Simple_Read/Simple_Read.ino) shows the lifecycle;
+[Simple Read sketch](examples/Simple_Read/Simple_Read.ino) includes the `setup()` and `loop()` functions needed to run it;
 the [query API guide](docs/QUERY_API.md) documents exact methods and ownership.
 
-The library supports SNMPv1 and SNMPv2c GET, GETNEXT, GETBULK (v2c), SET, bounded
-walks/tables, and receiving traps and v2c INFORMs with acknowledgement. It does not
-implement SNMPv3, DNS resolution, runtime MIB parsing, or sending traps/INFORMs.
-The [example guide](examples/README.md) maps each supported operation to a sketch.
+You can read individual values, discover tables, write permitted values, and receive
+events sent by devices. This library supports SNMP versions 1 and 2c; it does not
+support version 3. Supply a numeric device address, not a hostname. The
+[example guide](examples/README.md) helps you choose by the data you want.
 
-## Configuration and memory
+## Settings and memory
 
-Arduino and PlatformIO compile the implementation in `src/*.cpp`; 2.x is not
-header-only. Apply configuration macros to the application and library together
-through build flags. Sketch-local defines are not sufficient. See
-[configuration migration](MIGRATION.md#compile-and-link-the-implementation-files).
+Start with the example's default limits. If an error says a limit was exceeded,
+follow [capacity guidance](docs/TROUBLESHOOTING.md#what-does-capacity-mean) to identify
+which setting to change. More reserved rows use more of the board's working memory.
+Do not increase every limit together.
 
-Use numeric OIDs with the appropriate instance suffix. Interface indices need not
-match physical port numbers; scalar instances end in `.0`. Match handler types to
-the agent's MIB. Limit packet sizes, outstanding operations and table/walk storage
-to suit the board; this is a bounded embedded implementation. See the
-[resource limits](docs/QUERY_API.md#resource-and-compatibility-contract) and
-[capacity guidance](docs/TROUBLESHOOTING.md#what-does-capacity-mean).
+An OID (Object Identifier) is a numeric address for a reading. The device's MIB
+(Management Information Base) describes its available readings and units. Table row
+numbers can have gaps and need not match the sockets on a switch. The examples
+discover them for you. See [finding another reading](docs/GETTING_STARTED.md#how-do-i-ask-for-a-different-reading).
 
-The examples mark SSID/password, address, community, OID and timing settings.
-Counter32 calculations require fresh samples, account for one rollover, and reset
-on backwards uptime. They cannot detect multiple wraps or an interface reset that
-does not change uptime; use suitable Counter64/discontinuity objects where needed.
+Traffic counters are cumulative totals, not current speeds. Calculating a rate
+requires two successful samples and elapsed time. Resets and counters wrapping
+back to zero can invalidate that calculation. Start by displaying the raw totals
+before building a bandwidth display.
 
 ## Pin your project's library version
 
-Use an exact release for reproducible builds, or a major-version range if you want
+Pinning means choosing which library version your project uses.
+Use an exact release so rebuilding uses the same library code, or a major-version range if you want
 compatible updates. Avoid an unversioned Git URL or a moving branch such as `main`
 when your project must remain on the 1.x API. The default `main` branch develops 2.x; `release/1.x` maintains 1.x.
 2.0.0 is under development and has not been released.
 
-### Arduino IDE and Arduino CLI
+### Arduino IDE (editor) and Arduino CLI (command-line tool)
 
 Install **SNMP Manager** from Arduino's community Library Manager. In Arduino IDE,
 open **Tools > Manage Libraries**, search for **SNMP Manager**, and select the
@@ -142,7 +150,8 @@ This project is derived from an [SNMP Agent project](https://github.com/fusionps
 
 ## Advanced: low-level value handlers
 
-The friendly API owns returned values. A lower-level `SNMPManager`/`SNMPGet` API
+The friendly interface keeps its returned data alive for you. You do not need the
+older handler interface below to use the read/table examples. A lower-level `SNMPManager`/`SNMPGet` API
 also remains, with these SNMP type names:
 
 | SNMP type | Low-level handler | Destination |
@@ -169,6 +178,11 @@ See [setup and troubleshooting](docs/TROUBLESHOOTING.md) for what to configure,
 what capacity means, and the next step for each error.
 
 ## Advanced: library configuration
+
+You can skip this section unless changing memory settings or integrating a custom
+build. A buffer is memory for message bytes; compiling and linking means building
+the library and sketch into the program you upload. Other terms are explained in
+the [reference glossary](docs/TERMS.md).
 
 Packet buffers use `SNMP_PACKET_LENGTH` directly (512 bytes by default, 1500 on ESP32). Configure this limit as described below if the application requires another value. Registration APIs return null on allocation failure; `addOIDPointer`, `addHandler`, and request building return false on failure. `addHandler` adopts a supplied callback only on success; `addValueToList` consumes a supplied BER child even on failure. Pending sends are not registered until transmission succeeds. Constructors can remain empty after allocation failure, and subsequent operations report failure or retry allocation safely.
 
