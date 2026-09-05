@@ -28,7 +28,7 @@ If you find this useful, consider providing some support:
 
 ## Native tests
 
-Run `pio test -e native` to execute all native tests through PlatformIO, or `pio test -e native -a "--gtest_filter=Ber.*"` for BER tests. The suite includes checks for previously reported defects. No Arduino board is required. The standalone Make runner is also retained. See [native test documentation](tests/native/README.md) for coverage, sanitizer checks, and behavior groups. The [project review](tests/native/REVIEW.md) records the defects found while adding tests.
+Run `pio test -e native` to execute all native tests through PlatformIO, or `pio test -e native -a "--gtest_filter=Ber.*"` for BER tests. The suite includes checks for previously reported defects. No Arduino board is required. The standalone Make runner is also retained. See [native test documentation](tests/native/README.md) for coverage, sanitizer checks, and behavior groups.
 
 When a callback is included in a successful `SNMPGet::sendTo`, its responses must match a pending request ID, peer, and UDP transport. Each callback supports `SNMP_MAX_PENDING_REQUESTS` outstanding requests (default 4). A send that needs another slot fails before transmission when the slots are full. Retransmission with the same ID reuses its slot; matching replies consume it. Call `callback->clearPendingRequests()` to abandon timed-out requests. Use distinct IDs while earlier replies may still arrive. Callbacks never included in a successful send retain legacy direct-response handling.
 

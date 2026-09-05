@@ -48,7 +48,7 @@ The Make build compiles sources into separate object files, links the library as
 
 PlatformIO compiles the same case, support, and stub sources through `../platformio/build_shared.py`. Neither runner includes implementation `.cpp` files.
 
-See [RFC review notes](RFC_NOTES.md) for the standards basis and additional coverage needed for protocol conformance.
+See [protocol references](RFC_NOTES.md) for the standards behind test expectations and the distinction between protocol requirements and library conventions.
 
 ## Coverage
 
@@ -58,7 +58,6 @@ See [RFC review notes](RFC_NOTES.md) for the standards basis and additional cove
 - Exact GetRequest bytes for v1 and v2, default/custom destination ports, missing UDP, endPacket failure, and callback list order/clearing.
 - Manager UDP replacement, idle polling, packet reads/flushes, IP/OID matching, integer/counter/gauge/timestamp updates, and rejection of wrong community, peer, and callback type. Exceptions are parsed as valid per-binding results; endOfMibView has a separate traversal test.
 - Long OIDs (52 and 124 characters) through request/response dispatch, same-OID routing across devices, and recovery after an unregistered OID response. Four-octet and ten-digit OID checks cover encoding and decoding boundaries.
-- Historical findings and fixes are described in [REVIEW.md](REVIEW.md).
 
 `support/fixtures.cpp` provides an independent TLV fixture builder rather than the production serializer to construct responses and expected request bytes. This prevents matching encoder/decoder bugs from making packet comparisons pass. Each case runs in a separate child process with a five-second alarm. Assertions, signals, sanitizer aborts, and timeouts count as failures; the parent continues with the next case. Child processes use `_exit`, so this runner does not perform exit-time leak checking. ASan/UBSan still check executed memory accesses and undefined behavior.
 
@@ -72,7 +71,7 @@ See [RFC review notes](RFC_NOTES.md) for the standards basis and additional cove
 
 The lifecycle, float scaling, and C-string termination tests are explicitly labeled as library conventions. Exact wire comparisons specify this encoder’s chosen output, not the only BER representation a decoder may accept. Request tracking covers concurrent requests per callback, successful-send registration, duplicate replies, independent callbacks, capacity exhaustion, and explicit cancellation. Callbacks never included in a successful send retain legacy direct-response handling.
 
-Additional cases in `cases/` cover sequence length boundaries and sibling alignment, Counter64 long-form lengths, malformed child lengths, signed callbacks, UDP bind failures, community matching, incomplete responses, and destruction behavior. These are part of the normal behavior groups. The [review notes](REVIEW.md#issue-66-comparison) record the upstream comparison that suggested this coverage.
+Additional cases in `cases/` cover sequence length boundaries and sibling alignment, Counter64 long-form lengths, malformed child lengths, signed callbacks, UDP bind failures, community matching, incomplete responses, and destruction behavior. These are part of the normal behavior groups.
 
 ## Boundaries and limitations
 
