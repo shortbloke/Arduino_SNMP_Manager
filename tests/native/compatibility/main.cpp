@@ -1,6 +1,7 @@
 #include <Arduino_SNMP_Manager.h>
 int compatibilityValue();
-int main() {
+int main()
+{
     SNMPManager manager;
     SNMPGet request("public", 1);
     manager.setUDP(nullptr);
