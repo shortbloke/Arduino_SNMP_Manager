@@ -1,34 +1,41 @@
 CXX ?= c++
-CPPFLAGS += -Istubs -I../../src
+CPPFLAGS += -Istubs -I../../src -Isupport
 CXXFLAGS ?= -std=gnu++11 -g -O0
 BUILD := build
-LIB_SOURCES := $(wildcard ../../src/*.cpp) stubs/Arduino.cpp
-.PHONY: test check regressions debug sanitize sanitize-regressions clean
-$(BUILD)/tests: Makefile tests.cpp $(wildcard stubs/*.h) $(wildcard ../../src/*.h) $(LIB_SOURCES)
-	@mkdir -p $(BUILD)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests.cpp $(LIB_SOURCES) -o $@
+LIB_SOURCES := $(wildcard ../../src/*.cpp)
+LIB_OBJECTS := $(patsubst ../../src/%.cpp,$(BUILD)/lib/%.o,$(LIB_SOURCES))
+SHARED_SOURCES := $(wildcard cases/*.cpp support/*.cpp) stubs/Arduino.cpp
+TEST_OBJECTS := $(patsubst %.cpp,$(BUILD)/native/%.o,$(SHARED_SOURCES) runner.cpp)
+COMPAT_OBJECTS := $(patsubst %.cpp,$(BUILD)/native/%.o,compatibility/main.cpp compatibility/other.cpp stubs/Arduino.cpp)
+
+.PHONY: test check debug sanitize clean compatibility compatibility-run headers
+.DEFAULT_GOAL := test
+$(BUILD)/lib/%.o: ../../src/%.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
+$(BUILD)/native/%.o: %.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
+$(BUILD)/libsnmp.a: $(LIB_OBJECTS)
+	$(AR) rcs $@ $^
+$(BUILD)/tests: $(TEST_OBJECTS) $(BUILD)/libsnmp.a
+	$(CXX) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
 test: $(BUILD)/tests
 	./$(BUILD)/tests
-check: test regressions debug compatibility headers
-regressions: $(BUILD)/tests
-	./$(BUILD)/tests --regressions
+check: test debug compatibility headers
 sanitize:
-	$(MAKE) BUILD=build-sanitize CXXFLAGS='-std=gnu++11 -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer' test
-sanitize-regressions:
-	$(MAKE) BUILD=build-sanitize CXXFLAGS='-std=gnu++11 -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer' regressions
-clean:
-	rm -rf build build-debug build-sanitize build-sanitize-debug
-
+	$(MAKE) BUILD=build-sanitize CXXFLAGS='-std=c++11 -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer' test
 debug:
-	$(MAKE) BUILD=$(BUILD)-debug CPPFLAGS='-Istubs -I../../src -DDEBUG -DDEBUG_BER' test
-
-.PHONY: compatibility
-$(BUILD)/compatibility: Makefile compatibility/main.cpp compatibility/other.cpp $(wildcard ../../src/*.h) $(LIB_SOURCES) $(wildcard stubs/*.h)
-	@mkdir -p $(BUILD)
-	$(CXX) $(CPPFLAGS) -std=c++11 -pedantic-errors -Wall -Wextra -Werror -fno-exceptions -fno-rtti compatibility/main.cpp compatibility/other.cpp $(LIB_SOURCES) -o $@
-compatibility: $(BUILD)/compatibility
+	$(MAKE) BUILD=$(BUILD)-debug CPPFLAGS='$(CPPFLAGS) -DDEBUG -DDEBUG_BER' test
+compatibility:
+	$(MAKE) BUILD=$(BUILD)-compat CXXFLAGS='-std=c++11 -pedantic-errors -Wall -Wextra -Werror -fno-exceptions -fno-rtti' compatibility-run
+$(BUILD)/compatibility: $(COMPAT_OBJECTS) $(BUILD)/libsnmp.a
+	$(CXX) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
+compatibility-run: $(BUILD)/compatibility
 	./$(BUILD)/compatibility
-
-.PHONY: headers
 headers:
 	CXX="$(CXX)" python3 compatibility/check_headers.py
+clean:
+	rm -rf build build-*
+
+-include $(LIB_OBJECTS:.o=.d) $(TEST_OBJECTS:.o=.d) $(COMPAT_OBJECTS:.o=.d)

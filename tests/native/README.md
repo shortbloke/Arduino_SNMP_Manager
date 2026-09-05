@@ -6,8 +6,7 @@ Requires PlatformIO Core (or the PlatformIO VS Code extension), a POSIX host (ma
 
 ```sh
 pio test -e native                                      # all tests
-pio test -e native -a "--gtest_filter=Baseline.*"         # passing baseline
-pio test -e native -a "--gtest_filter=Regression.*"       # known regressions
+pio test -e native -a "--gtest_filter=Ber.*"              # BER cases only
 pio test -e native-sanitize                             # all cases with ASan/UBSan
 pio test -e native --without-testing                    # build only
 ```
@@ -16,32 +15,37 @@ ASan (AddressSanitizer) detects memory errors such as out-of-bounds accesses and
 
 In VS Code, use the integrated terminal or PlatformIO Project Tasks → native → Advanced → Test. This step adds PlatformIO testing only; it does not configure the VS Code Testing sidebar.
 
-PlatformIO reports each case under `Baseline` or `Regression`. Use `-v` for full assertion diagnostics. Names replace spaces/punctuation with underscores; pass an exact `--gtest_filter=Group.case_name` to run one case. The same cases and fixtures are shared with the Make runner below, including child-process crash/timeout isolation. Crashes must remain failures, not successful death tests.
+PlatformIO reports each case under `Ber`, `Requests`, `Responses`, `Manager`, `Tracking`, or `Ownership`. Use `-v` for full assertion diagnostics. Names replace spaces/punctuation with underscores; pass an exact `--gtest_filter=Group.case_name` to run one case. The same cases and fixtures are shared with the Make runner below, including child-process crash/timeout isolation. Crashes must remain failures, not successful death tests.
 
 Use `pio test` for the exit status: the GoogleTest executable returns zero as required by PlatformIO’s result parser, while PlatformIO itself returns nonzero for test failures. The build-only command compiles without executing tests. Neither environment runs on an ESP board; POSIX process isolation remains host-only.
 
 ## Standalone Make (retained)
 
-Requirements: a POSIX host (macOS or Linux), Make, and a C++11 compiler (Clang or GCC). No downloads, Arduino SDK, physical devices, sockets, or third-party test framework are needed. Run from the repository root:
+Requirements: a POSIX host (macOS or Linux), Make, Python 3 for header checks, and a C++11 compiler (Clang or GCC). No downloads, Arduino SDK, physical devices, sockets, or third-party test framework are needed. Run from the repository root:
 
 ```sh
-make -C tests/native test          # baseline tests
-make -C tests/native regressions   # regression tests
-make -C tests/native check         # normal/debug groups and strict C++11 multi-file check
-make -C tests/native sanitize      # baseline with ASan + UBSan, fatal diagnostics
-make -C tests/native sanitize-regressions # regressions with ASan + UBSan
+make -C tests/native test          # all behavior groups
+make -C tests/native check         # normal/debug suites, strict C++11 and header checks
+make -C tests/native sanitize      # all groups with ASan + UBSan
 make -C tests/native clean
 ```
 
-Override `CXX` to select a compiler. Sanitizers require compiler/runtime support. To run regressions under sanitizers after building the sanitizer target:
+Override `CXX` to select a compiler. Sanitizers require compiler/runtime support. Fixed bugs remain ordinary regression tests in their behavior group; there is no separate baseline or unresolved-defect group. The obsolete `regressions` and `sanitize-regressions` targets have been removed.
 
-```sh
-tests/native/build-sanitize/tests --regressions
-```
+The Make build compiles sources into separate object files, links the library as an archive, and tracks included headers with generated dependencies. Use a separate `BUILD` directory when changing compiler flags; normal, debug, sanitizer, and strict compatibility builds already use separate directories.
 
-The regression target returns a nonzero status when defects remain. Failures are not converted into passes or skipped automatically. A passing baseline alone does **not** indicate the library is defect-free. When fixing a defect, remove its `true` regression flag to promote the test to the baseline.
+## Source organization
 
-The previously failing cases have been promoted to baseline. The regression group is retained for future unresolved defects and may be empty.
+- `cases/`: BER, requests, responses, manager integration, tracking, and ownership tests.
+- `support/fixtures.*`: independent wire fixtures and shared test helpers.
+- `support/allocations.cpp`: shared allocation-failure injection.
+- `support/registry.*`: registers all behavior groups for either runner.
+- `support/isolation.*`: shared child-process execution and failure diagnostics.
+- `runner.cpp`: standalone reporting; `../platformio/test_snmp/test_main.cpp`: GoogleTest adapter.
+- `stubs/`: host Arduino, IPAddress, and UDP implementations.
+- `compatibility/`: strict multi-file compilation and header/configuration link checks.
+
+PlatformIO compiles the same case, support, and stub sources through `../platformio/build_shared.py`. Neither runner includes implementation `.cpp` files.
 
 See [RFC review notes](RFC_NOTES.md) for the standards basis and additional coverage needed for protocol conformance.
 
@@ -55,7 +59,7 @@ See [RFC review notes](RFC_NOTES.md) for the standards basis and additional cove
 - Long OIDs (52 and 124 characters) through request/response dispatch, same-OID routing across devices, and recovery after an unregistered OID response. Four-octet and ten-digit OID checks cover encoding and decoding boundaries.
 - Historical findings and fixes are described in [REVIEW.md](REVIEW.md).
 
-`tests.cpp` uses an independent TLV fixture builder rather than the production serializer to construct responses and expected request bytes. This prevents matching encoder/decoder bugs from making packet comparisons pass. Each case runs in a separate child process with a five-second alarm. Assertions, signals, sanitizer aborts, and timeouts count as failures; the parent continues with the next case. Child processes use `_exit`, so this runner does not perform exit-time leak checking. ASan/UBSan still check executed memory accesses and undefined behavior.
+`support/fixtures.cpp` provides an independent TLV fixture builder rather than the production serializer to construct responses and expected request bytes. This prevents matching encoder/decoder bugs from making packet comparisons pass. Each case runs in a separate child process with a five-second alarm. Assertions, signals, sanitizer aborts, and timeouts count as failures; the parent continues with the next case. Child processes use `_exit`, so this runner does not perform exit-time leak checking. ASan/UBSan still check executed memory accesses and undefined behavior.
 
 ## RFC-based additions
 
@@ -67,7 +71,7 @@ See [RFC review notes](RFC_NOTES.md) for the standards basis and additional cove
 
 The lifecycle, float scaling, and C-string termination tests are explicitly labeled as library conventions. Exact wire comparisons specify this encoder’s chosen output, not the only BER representation a decoder may accept. Request tracking covers concurrent requests per callback, successful-send registration, duplicate replies, independent callbacks, capacity exhaustion, and explicit cancellation. Callbacks never included in a successful send retain legacy direct-response handling.
 
-Additional cases in `tests.cpp` cover sequence length boundaries and sibling alignment, Counter64 long-form lengths, malformed child lengths, signed callbacks, UDP bind failures, community matching, incomplete responses, and destruction behavior. These use the standard baseline and regression groups. The [review notes](REVIEW.md#issue-66-comparison) record the upstream comparison that suggested this coverage.
+Additional cases in `cases/` cover sequence length boundaries and sibling alignment, Counter64 long-form lengths, malformed child lengths, signed callbacks, UDP bind failures, community matching, incomplete responses, and destruction behavior. These are part of the normal behavior groups. The [review notes](REVIEW.md#issue-66-comparison) record the upstream comparison that suggested this coverage.
 
 ## Boundaries and limitations
 
