@@ -1,4 +1,5 @@
 #include "SNMPClient.h"
+#include "SNMPUDP.h"
 #include <cstring>
 #include <cstdio>
 #include <limits.h>
@@ -596,15 +597,17 @@ void SNMPClient::receive()
         return;
     if (static_cast<size_t>(size) > sizeof(buffer_))
     {
-        udp_.flush();
+        snmp_detail::discardDatagram(udp_, size, buffer_, sizeof(buffer_));
         return;
     }
     IPAddress peer = udp_.remoteIP();
     uint16_t port = udp_.remotePort();
     int read = udp_.read(buffer_, size);
-    udp_.flush();
     if (read != size)
+    {
+        snmp_detail::discardDatagram(udp_, size - (read > 0 ? read : 0), buffer_, sizeof(buffer_));
         return;
+    }
     size_t header, length;
     if (!readBERHeader(buffer_, size, header, length) ||
         header + length != static_cast<size_t>(size))

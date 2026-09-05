@@ -17,6 +17,35 @@ void registerClientTests(std::vector<Test> &tests)
 {
     auto add = [&](const char *name, std::function<void()> run)
     { tests.push_back({"Client", name, run}); };
+    add("receive drains rejected datagrams without transmitting and recovers",
+        []
+        {
+            UDP udp;
+            SNMPClient client(udp);
+            SNMPDevice device(client, udp.peer, "public");
+            SNMPQuery<1> query(device);
+            CHECK(client.begin().ok() && query.addOID(oid, INTEGER).ok());
+            CHECK(query.start().ok());
+            client.loop(0);
+            CHECK(udp.transmissions == 1);
+            const Bytes good = reply(udp, binding({2, 1, 42}));
+            udp.incoming.assign(SNMP_PACKET_LENGTH * 3 + 1, 0);
+            client.loop(1);
+            CHECK(query.pending() && udp.incoming.empty());
+            udp.readLimit = 3;
+            udp.incoming = good;
+            client.loop(2);
+            CHECK(query.pending() && udp.incoming.empty());
+            udp.readLimit = 0;
+            udp.incoming = good;
+            client.loop(3);
+            CHECK(query.pending());
+            udp.readLimit = static_cast<size_t>(-1);
+            udp.incoming = good;
+            client.loop(4);
+            CHECK(query.status().ok() && query[0].value.integer() == 42);
+            CHECK(udp.incoming.empty() && udp.flushes == 0 && udp.transmissions == 1);
+        });
     add("SET owned OID and address values encode their actual wire primitives",
         []
         {
@@ -312,7 +341,7 @@ void registerClientTests(std::vector<Test> &tests)
             udp.incoming = message(values, 1, "public", InformRequestPDU, 55);
             client.loop(0);
             CHECK(calls == 1);
-            CHECK(udp.packets == 1);
+            CHECK(udp.packets == 1 && udp.transmissions == 1 && udp.flushes == 0);
             SNMPGetResponse ack;
             CHECK(ack.parseFrom(udp.outgoing.data(), udp.outgoing.size()));
             CHECK(ack.requestType == GetResponsePDU);
@@ -323,7 +352,7 @@ void registerClientTests(std::vector<Test> &tests)
             udp.incoming = message(values, 1, "public", Trapv2PDU);
             client.loop(2);
             CHECK(calls == 2);
-            CHECK(udp.packets == 1);
+            CHECK(udp.packets == 1 && udp.transmissions == 1 && udp.flushes == 0);
         });
 
     add("table uses Counter32 fallback when high capacity column is absent",

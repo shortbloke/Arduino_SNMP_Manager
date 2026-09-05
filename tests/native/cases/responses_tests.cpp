@@ -141,7 +141,8 @@ void registerResponsesTests(std::vector<Test> &tests)
             manager.addIntegerHandler(udp.peer, oid, &value);
             udp.incoming = Bytes(SNMP_PACKET_LENGTH * 3 + 1, 0);
             manager.loop();
-            CHECK(value == 99 && udp.reads == 0);
+            CHECK(value == 99 && udp.incoming.empty() && udp.transmissions == 0 &&
+                  udp.flushes == 0);
         });
     add("response parser safely handles empty and missing fields on reuse",
         []

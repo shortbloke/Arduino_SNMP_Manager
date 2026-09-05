@@ -52,6 +52,31 @@ void registerManagerTests(std::vector<Test> &tests)
             oidManager.loop();
             CHECK(std::string(result) == ".1.3.6");
         });
+    add("receive drains rejected datagrams without transmitting and recovers",
+        []
+        {
+            Manager manager;
+            UDP udp;
+            manager.setUDP(&udp);
+            int value = 99;
+            manager.addIntegerHandler(udp.peer, oid, &value);
+            udp.incoming.assign(SNMP_PACKET_LENGTH * 3 + 1, 0);
+            manager.loop();
+            CHECK(udp.incoming.empty() && value == 99);
+            udp.readLimit = 3;
+            udp.incoming = message(binding({2, 1, 42}));
+            manager.loop();
+            CHECK(udp.incoming.empty() && value == 99);
+            udp.readLimit = 0; // A stalled read must terminate cleanup, not spin.
+            udp.incoming = message(binding({2, 1, 42}));
+            manager.loop();
+            CHECK(value == 99);
+            udp.readLimit = static_cast<size_t>(-1);
+            udp.incoming = message(binding({2, 1, 42}));
+            manager.loop();
+            CHECK(value == 42 && udp.incoming.empty());
+            CHECK(udp.flushes == 0 && udp.transmissions == 0);
+        });
     add("default manager starts without transport",
         []
         {
@@ -93,7 +118,7 @@ void registerManagerTests(std::vector<Test> &tests)
             b.incoming = message(binding({2, 1, 42}));
             CHECK(m.loop());
             CHECK(v == 42);
-            CHECK(b.reads == 1 && b.flushes == 1);
+            CHECK(b.reads == 1 && b.flushes == 0 && b.transmissions == 0);
         });
     add("manager unsigned typed dispatch",
         []

@@ -142,8 +142,8 @@ def main():
                           empty_datagrams=empty_datagrams, initial_unique=initial_unique,
                           initial_acknowledged=initial_acknowledged, retry_packets=retry_packets, **stats)
             record(result)
-            if stats['invalid'] or bad_ack:
-                raise RuntimeError('Malformed data or missing acknowledgements')
+            if stats['invalid'] or bad_ack or empty_datagrams:
+                raise RuntimeError('Invalid payload or unexpected UDP response')
             if name == 'recovery' and (stats['unique'] != count or len(acknowledgements) != count):
                 raise RuntimeError('Recovery failed')
 

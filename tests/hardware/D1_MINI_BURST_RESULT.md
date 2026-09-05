@@ -1,5 +1,7 @@
 # D1 Mini notification burst test
 
+The baseline below predates the flush fix. See the final section for its hardware retest.
+
 Physical-board run on 2026-09-05, using unchanged library commit `6da6ec6` and
 this change's burst harness. This evaluates real WiFiUDP reception and INFORM
 acknowledgements, not an AsyncUDP implementation. The display firmware was replaced
@@ -113,3 +115,29 @@ Both D1 Mini hardware environments compiled successfully. The host encoding/ACK
 comparison tests and existing read/walk log-validator tests passed, as did formatting
 and whitespace checks. CI now runs the host burst tests and compiles the new burst
 environment with the existing hardware profiles. No library implementation changed.
+
+## Flush fix retest
+
+Repeated the short back-to-back matrix on 2026-09-05 with the receive-side flush
+fix applied. All burst and recovery cases reported **zero empty datagrams**, zero
+invalid payloads, and zero unexpected nonempty replies. Every recovery probe
+received and acknowledged all INFORMs; one recovery probe needed one retry.
+The host harness now fails on empty datagrams to retain this hardware regression check.
+
+| Sent | Traps received | INFORMs received | INFORMs acknowledged |
+| --- | --- | --- | --- |
+| 5 | 5 | 5 | 5 |
+| 10 | 10 | 6 | 6 |
+| 20 | 8 | 9 | 9 |
+
+The extra transmissions are fixed; short-burst loss still occurs. These individual
+runs do not establish a throughput improvement. The full pacing/delay matrix was
+not repeated for this focused fix. No AsyncUDP or receive scheduling change was made.
+
+Local log: `burst-flush-fixed.log` (ignored). SHA-256:
+`740167dd4d1cbff4fb7eee72621b67521cfa0b1c9405d3b6b49488d6acb02d81`.
+
+After the retest, the original full-flash image was restored and a separate
+`verify-flash` confirmed its digest before resetting the board. Native regression,
+ASan/UBSan, standalone-header/configuration checks, and all five embedded build
+profiles passed for the fix.

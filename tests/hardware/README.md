@@ -104,12 +104,12 @@ counts and retry traffic separately; an isolated UDP loss does not prove a stuck
 is logged because host scheduling makes requested pacing approximate.
 
 Missing traps/acknowledgements under overload are measurements, not automatic test
-failures. Invalid decoded data, unexpected nonempty replies, missing serial replies,
-or incomplete recovery reception/acknowledgement after retries stop the run. A final `done` record is required for a
-complete matrix. Inspect acknowledgement counts as well as firmware receipt counts;
-one does not imply the other. Unexpected empty datagrams are recorded separately,
-not accepted as INFORM acknowledgements. The test discovered these on ESP8266 with
-the current library's receive-side `flush()` calls.
+failures. Invalid decoded data, unexpected replies (including empty datagrams),
+missing serial replies, or incomplete recovery reception/acknowledgement after
+retries stop the run. A final `done` record is required for a complete matrix. Inspect acknowledgement counts as well as firmware receipt counts;
+one does not imply the other. Unexpected empty datagrams are recorded separately
+and fail the run. The baseline test discovered these on ESP8266 with receive-side `flush()` calls; the library now
+uses bounded reads for receive cleanup.
 
 This isolates notification reception; it does not run the display, simultaneous
 queries, v1 traps, or an AsyncUDP comparison. Simulated delays yield to Wi-Fi and do

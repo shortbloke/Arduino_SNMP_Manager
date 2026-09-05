@@ -15,6 +15,8 @@ public:
         return peerPort;
     }
     int stops = 0, flushes = 0, reads = 0, packets = 0;
+    int transmissions = 0;
+    size_t readLimit = static_cast<size_t>(-1);
     int endResult = 1;
     int beginPacketResult = 1;
     size_t writeLimit = static_cast<size_t>(-1);
@@ -35,14 +37,16 @@ public:
     int read(unsigned char *p, size_t n)
     {
         ++reads;
-        n = std::min(n, incoming.size());
+        n = std::min(std::min(n, incoming.size()), readLimit);
         std::copy_n(incoming.begin(), n, p);
+        incoming.erase(incoming.begin(), incoming.begin() + n);
         return static_cast<int>(n);
     }
     void flush()
     {
         ++flushes;
-        incoming.clear();
+        // Model ESP8266: flush sends, rather than discarding received bytes.
+        endPacket();
     }
     IPAddress remoteIP()
     {
@@ -64,6 +68,7 @@ public:
     }
     int endPacket()
     {
+        ++transmissions;
         return endResult;
     }
 };

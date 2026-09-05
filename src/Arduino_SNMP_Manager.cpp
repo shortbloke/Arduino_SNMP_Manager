@@ -1,4 +1,5 @@
 #include "Arduino_SNMP_Manager.h"
+#include "SNMPUDP.h"
 
 #include <utility>
 
@@ -102,7 +103,7 @@ bool SNMPManager::receivePacket(int packetLength)
         return false;
     if (packetLength < 0 || packetLength > SNMP_PACKET_LENGTH)
     {
-        _udp->flush();
+        snmp_detail::discardDatagram(*_udp, packetLength, _packetBuffer, sizeof(_packetBuffer));
         return false;
     }
 #ifdef DEBUG
@@ -115,9 +116,12 @@ bool SNMPManager::receivePacket(int packetLength)
     memset(_packetBuffer, 0, SNMP_PACKET_LENGTH);
     int len = packetLength;
     const int received = _udp->read(_packetBuffer, len);
-    _udp->flush();
     if (received != len)
+    {
+        snmp_detail::discardDatagram(*_udp, len - (received > 0 ? received : 0), _packetBuffer,
+                                     sizeof(_packetBuffer));
         return false;
+    }
 
 #ifdef DEBUG
     printPacket(len);

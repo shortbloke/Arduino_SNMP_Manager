@@ -54,7 +54,7 @@ void registerConfigurationTests(std::vector<Test> &tests)
             OIDType tooLong(const_cast<char *>(name.c_str()));
             CHECK(tooLong.serialise(nullptr) < 0);
         });
-    add("receive accepts packet limit and rejects the next byte before reading",
+    add("receive accepts packet limit and discards the next byte without dispatch",
         []
         {
             UDP udp;
@@ -69,7 +69,7 @@ void registerConfigurationTests(std::vector<Test> &tests)
             strcpy(text, "unchanged");
             udp.incoming = responseOfSize(SNMP_PACKET_LENGTH + 1);
             CHECK(manager.loop());
-            CHECK(udp.reads == 1 && udp.flushes == 2);
+            CHECK(udp.incoming.empty() && udp.flushes == 0 && udp.transmissions == 0);
             CHECK(std::string(text) == "unchanged");
         });
     add("send rejects an oversized request before starting a UDP packet",
