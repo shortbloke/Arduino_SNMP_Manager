@@ -27,27 +27,8 @@ Bytes message(Bytes bindings, int version=1, const char* community="public", int
     Bytes c(community,community+strlen(community));
     return tlv(0x30,join({tlv(2,{static_cast<unsigned char>(version)}),tlv(4,c),tlv(pdu,join({tlv(2,{static_cast<unsigned char>(requestId)}),tlv(2,{static_cast<unsigned char>(errorStatus)}),tlv(2,{static_cast<unsigned char>(errorIndex)}),tlv(0x30,bindings)}))}));
 }
-// Production has no manager/request destructors. Release test-owned registrations explicitly.
-struct Manager : SNMPManager {
-    Manager() : SNMPManager("public") {}
-    ~Manager() {
-        for(auto* p=callbacks;p;p=p->next) if(p->value) {
-            auto* v=p->value; free(v->OID);
-            switch(v->type) {
-            case INTEGER: delete static_cast<IntegerCallback*>(v); break;
-            case STRING: delete static_cast<StringCallback*>(v); break;
-            case OID: delete static_cast<OIDCallback*>(v); break;
-            case COUNTER32: delete static_cast<Counter32Callback*>(v); break;
-            case COUNTER64: delete static_cast<Counter64Callback*>(v); break;
-            case GAUGE32: delete static_cast<Gauge32Callback*>(v); break;
-            case TIMESTAMP: delete static_cast<TimestampCallback*>(v); break;
-            default: break;
-            }
-        }
-        delete callbacks;
-    }
-};
-struct Request : SNMPGet { Request(int v=1): SNMPGet("public",v) {setRequestID(7);} ~Request(){delete callbacks; delete packet;} };
+using Manager = SNMPManager;
+struct Request : SNMPGet { Request(int v=1): SNMPGet("public",v) {setRequestID(7);} };
 struct Test { const char* name; bool regression; std::function<void()> run; };
 #ifdef SNMP_GOOGLETEST
 #include <gtest/gtest.h>
@@ -91,6 +72,31 @@ int main(int argc,char** argv) {
     bool regressions=argc>1 && std::string(argv[1])=="--regressions";
     std::vector<Test> tests;
     auto add=[&](const char* name,std::function<void()> f,bool regression=false){tests.push_back({name,regression,f});};
+    add("manager and requests share registration lifetime", [] {
+        struct Tracked : IntegerCallback {
+            int& destroyed;
+            Tracked(int& n):destroyed(n) {}
+            ~Tracked() override { ++destroyed; }
+        };
+        int destroyed=0;
+        Request request;
+        {
+            Manager manager;
+            auto* callback=new Tracked(destroyed);
+            callback->OID=strdup(oid);
+            manager.addHandler(callback);
+            request.addOIDPointer(callback);
+            CHECK(request.build());
+            CHECK(request.build());
+        }
+        CHECK(destroyed==0);
+        CHECK(std::string(request.callbacks->value->OID)==oid);
+        request.clearOIDList();
+        CHECK(destroyed==1);
+        Manager moved=Manager("private");
+        Manager destination(std::move(moved));
+        CHECK(std::string(destination._community)=="private");
+    });
     add("default manager starts without transport", [] {
         SNMPManager manager;
         CHECK(manager._udp==nullptr);
@@ -99,8 +105,6 @@ int main(int argc,char** argv) {
         UDP udp;
         manager.setUDP(&udp);
         CHECK(udp.stops==0 && manager.begin());
-        delete manager.callbacks; // Removed once production ownership is added.
-        manager.callbacks=nullptr;
     });
     add("integer small wire values",[]{for(unsigned long n: {0UL,1UL,127UL}){IntegerType v(n); CHECK(encode(v)==Bytes({2,1,static_cast<unsigned char>(n)}));}});
     add("integer big endian decode",[]{Bytes b{2,4,0x12,0x34,0x56,0x78}; IntegerType v; CHECK(v.fromBuffer(b.data())); CHECK(v._value==0x12345678UL);});

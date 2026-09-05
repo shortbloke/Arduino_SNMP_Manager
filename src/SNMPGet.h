@@ -29,6 +29,29 @@ public:
 			version2 = true;
 		}
 	};
+    ~SNMPGet() { releaseCallbacks(); delete packet; }
+    SNMPGet(const SNMPGet&) = delete;
+    SNMPGet& operator=(const SNMPGet&) = delete;
+    SNMPGet(SNMPGet&& other) : SNMPGet(other._community, other._version)
+    {
+        std::swap(callbacks,other.callbacks);
+        std::swap(packet,other.packet);
+        callbacksCursor=callbacks;
+        other.callbacksCursor=other.callbacks;
+        _udp=other._udp;
+        agentIP=other.agentIP;
+        port=other.port;
+        requestID=other.requestID;
+        errorID=other.errorID;
+        errorIndex=other.errorIndex;
+    }
+    void releaseCallbacks()
+    {
+        for (ValueCallbacks *entry=callbacks; entry; entry=entry->next)
+            if (entry->value) entry->value->release();
+        delete callbacks;
+        callbacks=callbacksCursor=nullptr;
+    }
 	const char *_community;
 	short _version;
 	IPAddress agentIP;
@@ -117,9 +140,8 @@ public:
 	bool version2 = false;
 
 	void clearOIDList()
-	{ // Remove list nodes without deleting the borrowed callbacks.
-		callbacksCursor = callbacks;
-		delete callbacksCursor;
+    { // Release this request's references; registrations may still belong to a manager.
+        releaseCallbacks();
 		callbacks = new ValueCallbacks();
 		callbacksCursor = callbacks;
 	}
@@ -128,10 +150,8 @@ public:
 bool SNMPGet::build()
 {
 	// Build the community wrapper and GetRequest PDU.
-	if (packet)
-	{
-		packet = 0;
-	}
+    delete packet;
+    packet = nullptr;
 	packet = new ComplexType(STRUCTURE);
 	packet->addValueToList(new IntegerType((int)_version));
 	packet->addValueToList(new OctetType((char *)_community));
@@ -171,6 +191,8 @@ bool SNMPGet::build()
 
 void SNMPGet::addOIDPointer(ValueCallback *callback)
 {
+    if (!callback) return;
+    callback->retain();
 	callbacksCursor = callbacks;
 	if (callbacksCursor->value)
 	{

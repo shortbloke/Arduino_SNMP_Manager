@@ -18,6 +18,7 @@
 #define MIN(X, Y) ((X < Y) ? X : Y)
 
 #include <Udp.h>
+#include <utility>
 
 #include "BER.h"
 #include "VarBinds.h"
@@ -26,8 +27,15 @@ class ValueCallback
 {
 public:
     ValueCallback(ASN_TYPE atype) : type(atype){};
-    // Allows deletion through the base pointer; does not free OID or destination storage.
-    virtual ~ValueCallback() = default;
+    // Registrations own their OID; destinations and transports remain caller-owned.
+    virtual ~ValueCallback() { free(OID); }
+    void retain() { ++references; }
+    void release() { if (--references == 0) delete this; }
+    ValueCallback(const ValueCallback&) = delete;
+    ValueCallback& operator=(const ValueCallback&) = delete;
+private:
+    size_t references = 1;
+public:
     IPAddress ip;
     char *OID = nullptr;
     ASN_TYPE type;
@@ -109,6 +117,22 @@ class SNMPManager
 public:
     SNMPManager(){};
     SNMPManager(const char *community) : _community(community ? community : "public"){};
+    ~SNMPManager()
+    {
+        for (ValueCallbacks *entry=callbacks; entry; entry=entry->next)
+            if (entry->value) entry->value->release();
+        delete callbacks;
+    }
+    SNMPManager(const SNMPManager&) = delete;
+    SNMPManager& operator=(const SNMPManager&) = delete;
+    SNMPManager(SNMPManager&& other) : SNMPManager()
+    {
+        std::swap(_community,other._community);
+        std::swap(_udp,other._udp);
+        std::swap(callbacks,other.callbacks);
+        callbacksCursor=callbacks;
+        other.callbacksCursor=other.callbacks;
+    }
     const char *_community = "public";
 
     ValueCallbacks *callbacks = new ValueCallbacks();
