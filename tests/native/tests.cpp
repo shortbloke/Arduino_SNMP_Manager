@@ -138,7 +138,7 @@ int main(int argc,char** argv) {
     add("integer 128 minimal signed BER encoding",[]{IntegerType v(128); CHECK(encode(v)==Bytes({2,2,0,128}));});
     add("integer serialization preserves value",[]{IntegerType v(256); encode(v); CHECK(v._value==256);});
     add("octet 256 length encoding",[]{OctetType v; memset(v._value,0,sizeof(v._value)); memset(v._value,'x',256); CHECK(encode(v)==tlv(4,Bytes(256,'x')));});
-    add("OID base128 boundary 16384",[]{char s[]=".1.3.16384"; OIDType v(s); CHECK(encode(v)==Bytes({6,4,43,0x81,0x80,0}));},true);
+    add("OID base128 boundary 16384",[]{char s[]=".1.3.16384"; OIDType v(s); CHECK(encode(v)==Bytes({6,4,43,0x81,0x80,0}));});
     add("manager rejects unsupported version", [] {
         for (int version : {2, 3, 127}) {
             Manager manager;
@@ -241,8 +241,29 @@ int main(int argc,char** argv) {
     });
     add("binary OCTET STRING preserves embedded zero",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(v.getLength()==3); CHECK(memcmp(v._value,"a\0b",3)==0);});
     add("binary OCTET STRING re-encoding preserves length",[]{auto b=tlv(4,{'a',0,'b'}); OctetType v; CHECK(v.fromBuffer(b.data())); CHECK(encode(v)==b);});
-    add("OID first arcs are decoded rather than assumed",[]{Bytes b{6,3,0x88,0x37,3}; OIDType v; CHECK(v.fromBuffer(b.data())); CHECK(std::string(v._value)==".2.999.3");},true);
-    add("OID maximum subidentifier encodes five base128 octets",[]{char oid[]=".1.3.4294967295"; OIDType v(oid); CHECK(encode(v)==Bytes({6,6,43,0x8f,0xff,0xff,0xff,0x7f}));},true);
+    add("OID roots and malformed subidentifiers", [] {
+        const std::vector<std::pair<std::string,Bytes>> fixtures{
+            {".0.0",{0}}, {".1.39.0",{79,0}}, {".2.0.0",{80,0}},
+            {".2.4294967295.0",{0x90,0x80,0x80,0x80,0x4f,0}}
+        };
+        for (auto fixture : fixtures) {
+            OIDType value(&fixture.first[0]);
+            const auto wire=tlv(6,fixture.second);
+            CHECK(encode(value)==wire);
+            auto input=wire;
+            OIDType decoded;
+            CHECK(decoded.fromBuffer(input.data()));
+            CHECK(input==wire);
+            CHECK(std::string(decoded._value)==fixture.first);
+        }
+        for (Bytes bytes : {Bytes{6,0}, Bytes{6,1,0x81}, Bytes{6,2,0x80,0},
+                            Bytes{6,6,43,0x90,0x80,0x80,0x80,0}}) {
+            OIDType value;
+            CHECK(!value.fromBuffer(bytes.data()));
+        }
+    });
+    add("OID first arcs are decoded rather than assumed",[]{Bytes b{6,3,0x88,0x37,3}; OIDType v; CHECK(v.fromBuffer(b.data())); CHECK(std::string(v._value)==".2.999.3");});
+    add("OID maximum subidentifier encodes five base128 octets",[]{char oid[]=".1.3.4294967295"; OIDType v(oid); CHECK(encode(v)==Bytes({6,6,43,0x8f,0xff,0xff,0xff,0x7f}));});
     add("bounded response parser rejects every truncated prefix", [] {
         const auto packet=message(binding({2,1,42}));
         for (size_t length=0; length<packet.size(); ++length) {
@@ -550,19 +571,19 @@ int main(int argc,char** argv) {
         char name[]=".1.3.2097152.0";
         OIDType value(name);
         CHECK(encode(value)==Bytes({6,6,43,0x81,0x80,0x80,0,0}));
-    }, true);
+    });
     add("OID ten-digit segment encoding preserves following arc", [] {
         // A nonterminal segment also exercises copying the trailing dot.
         char name[]=".1.3.1000000000.0";
         OIDType value(name);
         CHECK(encode(value)==Bytes({6,7,43,0x83,0xdc,0xeb,0x94,0,0}));
-    }, true);
+    });
     add("OID unsigned ten-digit segment decoding", [] {
         Bytes bytes{6,7,43,0x8f,0xff,0xff,0xff,0x7f,0};
         OIDType value;
         CHECK(value.fromBuffer(bytes.data()));
         CHECK(std::string(value._value)==".1.3.4294967295.0");
-    }, true);
+    });
 
 #ifdef SNMP_GOOGLETEST
     testing::InitGoogleTest(&argc, argv);

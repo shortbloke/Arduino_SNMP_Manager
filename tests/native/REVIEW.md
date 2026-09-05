@@ -167,3 +167,7 @@ Replaced the packet-size heuristic and unchecked traversal with explicit message
 ## Binary strings and exact community matching
 
 OCTET STRING decoding preserves binary data and its length; re-encoding uses that length. Oversized strings are rejected rather than truncated, constructor termination is in bounds, and serialization errors propagate to request sending. Community comparison checks both length and bytes. Legacy direct C-string population remains supported; string callbacks still expose the existing C-string API. Four regressions are promoted and oversized construction/decoding checks added. Validation: 67 baseline passes normally and under ASan/UBSan; eight remaining failures.
+
+## OID encoding and decoding fix
+
+Replaced fixed-width OID arithmetic with integer base-128 loops, including five-octet subidentifiers and the combined first arcs. Decimal formatting is unsigned and bounded, input buffers are unchanged, and malformed/oversized OIDs are rejected. Six regressions are promoted and root/overflow/truncated-subidentifier fixtures added. Validation: 74 baseline passes normally and under ASan/UBSan; two remaining failures.

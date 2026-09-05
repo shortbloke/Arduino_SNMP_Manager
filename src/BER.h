@@ -275,138 +275,104 @@ private:
 class OIDType : public BER_CONTAINER
 {
 public:
-    OIDType() : BER_CONTAINER(true, OID){};
+    OIDType() : BER_CONTAINER(true, OID) { _length = 0; }
     OIDType(char *value) : BER_CONTAINER(true, OID)
     {
-        strncpy(_value, value, MAX_OID_LENGTH);
-    };
-    ~OIDType(){};
-    char _value[MAX_OID_LENGTH];
+        _length = 0;
+        if (strlen(value) < sizeof(_value)) strcpy(_value, value);
+    }
+    char _value[MAX_OID_LENGTH] = {};
     int serialise(unsigned char *buf)
     {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] OIDType:serialise");
-#endif
-        // here we print out the BER encoded ASN.1 bytes, which includes type, length and value.
-        char *ptr = (char *)buf;
-        *ptr = _type;
-        ptr++;
-        char *lengthPtr = ptr;
-        ptr++;
-        *ptr = 0x2b;
-        char *internalPtr = ++ptr;
-        char *valuePtr = &_value[5];
-        _length = 3;
-        bool toBreak = false;
-        while (true)
+        size_t textLength = 0;
+        while (textLength < sizeof(_value) && _value[textLength]) ++textLength;
+        if (textLength == sizeof(_value)) return -1;
+        const char *cursor = _value;
+        const char *end = _value + textLength;
+        unsigned char contents[MAX_OID_LENGTH];
+        size_t length = 0, arcs = 0;
+        uint64_t first = 0;
+        while (cursor < end)
         {
-            char *start = valuePtr;
-            char *end = strchr(start, '.');
-
-            if (!end)
+            if (*cursor++ != '.' || cursor == end) return -1;
+            uint64_t arc = 0;
+            const char *digits = cursor;
+            while (cursor < end && *cursor != '.')
             {
-                end = strchr(start, 0);
-                toBreak = true;
+                if (*cursor < '0' || *cursor > '9') return -1;
+                arc = arc * 10 + (*cursor++ - '0');
+                if (arc > UINT32_MAX) return -1;
             }
-            char tempBuf[12];
-            memset(tempBuf, 0, 12);
-            //            char* tempBuf = (char*) malloc(sizeof(char) * (end-start));
-            strncpy(tempBuf, start, end - start + 1);
-            long tempVal;
-            char *pEnd;
-            tempVal = (uint32_t)strtoul(tempBuf, &pEnd, 10);
-            if (tempVal < 128)
+            if (cursor == digits) return -1;
+            if (arcs++ == 0)
             {
-                _length += 1;
-                *ptr++ = (char)tempVal;
+                if (arc > 2) return -1;
+                first = arc;
+                continue;
             }
-            else
+            if (arcs == 2)
             {
-                // Serial.print("large num: ");Serial.println(tempVal);
-                // FIXME: This will only encode integers upto 4 bytes. Ideally this should be a loop.
-                if (tempVal / 128 / 128 > 128)
-                {
-                    *ptr++ = ((tempVal / 128 / 128 / 128 ) | 0x80) & 0xFF;
-                    _length += 1;
-                }
-                if (tempVal / 128 > 128)
-                {
-                    *ptr++ = ((tempVal / 128 / 128) | 0x80) & 0xFF;
-                    _length += 1;
-                }
-                *ptr++ = ((tempVal / 128) | 0x80) & 0xFF;
-
-                *ptr++ = tempVal % 128 & 0xFF;
-                _length += 2;
+                if (first < 2 && arc > 39) return -1;
+                arc += first * 40;
             }
-
-            valuePtr = end + 1;
-
-            //            free(tempBuf);
-            if (toBreak)
-                break;
-            // delay(1);
+            unsigned char encoded[5];
+            size_t start = sizeof(encoded);
+            do { encoded[--start] = arc & 0x7f; arc >>= 7; } while (arc);
+            if (length + sizeof(encoded) - start > sizeof(contents)) return -1;
+            while (start < sizeof(encoded))
+            {
+                contents[length++] = encoded[start] | (start + 1 < sizeof(encoded) ? 0x80 : 0);
+                ++start;
+            }
         }
-        *lengthPtr = _length - 2;
-
-        return _length;
+        if (arcs < 2) return -1;
+        size_t header = 2;
+        buf[0] = OID;
+        if (length < 128) buf[1] = length;
+        else if (length < 256) { buf[1] = 0x81; buf[2] = length; header = 3; }
+        else { buf[1] = 0x82; buf[2] = length >> 8; buf[3] = length; header = 4; }
+        memcpy(buf + header, contents, length);
+        _length = length;
+        return header + length;
     }
     bool fromBuffer(unsigned char *buf)
     {
-#ifdef DEBUG_BER
-        Serial.println("[DEBUG_BER] OIDType:fromBuffer");
-#endif
-        buf++; // skip Type
-        _length = *buf;
-        buf++;
-        buf++;
-        memset(_value, 0, 128);
-        _value[0] = '.';
-        _value[1] = '1';
-        _value[2] = '.';
-        _value[3] = '3'; // we fill in the first two bytes already
-        char *ptr = &_value[4];
-        char i = _length - 1;
-        while (i > 0)
+        size_t header, length;
+        if (buf[0] != OID || !readBERHeader(buf, static_cast<size_t>(-1), header, length) || length == 0) return false;
+        char text[MAX_OID_LENGTH] = {};
+        size_t used = 0, offset = 0;
+        bool first = true;
+        while (offset < length)
         {
-            if (*buf < 128)
-            { // we can keep raw
-                ptr += sprintf(ptr, ".%d", *buf);
-                i--;
-                buf++;
+            uint64_t arc = 0;
+            unsigned char byte;
+            unsigned int octets = 0;
+            do
+            {
+                if (offset == length || ++octets > 5) return false;
+                byte = buf[header + offset++];
+                if (octets == 1 && byte == 0x80) return false;
+                arc = (arc << 7) | (byte & 0x7f);
+            } while (byte & 0x80);
+            if (arc > static_cast<uint64_t>(UINT32_MAX) + (first ? 80 : 0)) return false;
+            int written;
+            if (first)
+            {
+                unsigned long root = arc < 40 ? 0 : (arc < 80 ? 1 : 2);
+                written = snprintf(text + used, sizeof(text) - used, ".%lu.%lu", root,
+                                   static_cast<unsigned long>(arc - root * 40));
+                first = false;
             }
             else
-            {                                   // we have to do the special >128 thing
-                long value = 0;                 // keep track of the actual thing
-                unsigned char n = 0;            // count how many large bits have been set
-                unsigned char tempBuf[6] = {0}; // no bigger than 4 bytes
-                while (*buf > 127)
-                {
-                    i--;
-                    *buf &= 0x7F;
-                    tempBuf[n] = *buf;
-                    n++;
-                    buf++;
-                }
-                value = *buf;
-                buf++;
-                i--;
-                for (unsigned char k = 0; k < n; k++)
-                {
-                    value += (pow(128, (n - k))) * tempBuf[k];
-                }
-                ptr += sprintf(ptr, ".%d", value);
-            }
+                written = snprintf(text + used, sizeof(text) - used, ".%lu", static_cast<unsigned long>(arc));
+            if (written < 0 || static_cast<size_t>(written) >= sizeof(text) - used) return false;
+            used += written;
         }
-        // Serial.print("OID: " );Serial.println(_value);
-        //        memcpy(_value, buf, _length);
+        memcpy(_value, text, used + 1);
+        _length = length;
         return true;
     }
-
-    int getLength()
-    {
-        return _length;
-    }
+    int getLength() { return _length; }
 };
 
 class NullType : public BER_CONTAINER
