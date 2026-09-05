@@ -47,6 +47,10 @@ jobs:
       - run: pio run -d tests/embedded -e ${{ matrix.target }}
   examples:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [legacy, query_esp8266, query_esp32]
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-python@v7.0.0
@@ -56,9 +60,18 @@ jobs:
       - uses: actions/cache@v6.1.0
         with:
           path: ~/.platformio
-          key: pio-${{ runner.os }}-examples-${{ hashFiles('tests/examples/platformio.ini') }}
-      - run: pio run -d tests/examples
-      - run: pio run -d tests/hardware
+          key: pio-${{ runner.os }}-examples-${{ matrix.group }}-${{ hashFiles('tests/examples/platformio.ini') }}
+      - name: Compile example group
+        env:
+          EXAMPLE_GROUP: ${{ matrix.group }}
+        run: python3 scripts/build_examples.py "$EXAMPLE_GROUP"
+      - if: matrix.group == 'legacy'
+        run: pio run -d tests/hardware
+      - uses: actions/upload-artifact@v4
+        with:
+          name: examples-${{ matrix.group }}
+          path: tests/examples/.pio/build/**/firmware.bin
+          retention-days: 7
 
   wire_interoperability:
     runs-on: ubuntu-latest
