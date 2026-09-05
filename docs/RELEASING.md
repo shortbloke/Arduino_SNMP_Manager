@@ -4,7 +4,7 @@
 
 - `main`: 2.x development and releases; this is the default branch.
 - `release/1.x`: backward-compatible 1.x fixes and releases.
-- `master`: preserved historical 1.x branch; use `release/1.x` for new maintenance work.
+- Historical branches are preserved as `archive/*` tags; use `release/1.x` for new maintenance work.
 
 Fix defects on the relevant line and port them to the other line when applicable.
 The implementation and public APIs differ; do not merge the entire 2.x tree into
