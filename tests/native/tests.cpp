@@ -280,6 +280,15 @@ int main(int argc,char** argv) {
         }
         CHECK(empty.addIntegerHandler(udp.peer,oid,&value));
     });
+    add("legacy request summary cannot disable response matching", [] {
+        Manager manager; UDP udp; manager.setUDP(&udp); int32_t value=99;
+        auto* callback=manager.addIntegerHandler(udp.peer,oid,&value);
+        Request request; request.setUDP(&udp); CHECK(request.addOIDPointer(callback));
+        CHECK(request.sendTo(udp.peer));
+        callback->requestTracked=false;
+        udp.incoming=message(binding({2,1,42}),1,"public",0xa2,8);
+        manager.loop(); CHECK(value==99);
+    });
     add("default manager starts without transport", [] {
         SNMPManager manager;
         CHECK(manager._udp==nullptr);

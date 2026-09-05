@@ -13,13 +13,13 @@ public:
 		delete varBinds;
 		delete SNMPPacket;
 	};
-	char *communityString;
+	char *communityString = nullptr;
     size_t communityLength = 0;
-	int version;
-	ASN_TYPE requestType;
-	unsigned long requestID;
-	int errorStatus;
-	int errorIndex;
+	int version = 0;
+	ASN_TYPE requestType = STRUCTURE;
+	unsigned long requestID = 0;
+	int errorStatus = 0;
+	int errorIndex = 0;
 	VarBindList *varBinds = 0;
 	VarBindList *varBindsCursor = 0;
 

@@ -52,6 +52,8 @@ public:
     UDP *requestUDP = nullptr;
     IPAddress requestPeer;
 
+private:
+    bool trackingEnabled = false;
     struct PendingRequest {
         bool active = false;
         unsigned long id = 0;
@@ -59,6 +61,8 @@ public:
         IPAddress peer;
     };
     PendingRequest pending[SNMP_MAX_PENDING_REQUESTS];
+public:
+    bool hasTrackedRequests() const { return trackingEnabled; }
     bool canTrack(unsigned long id, UDP *udp, IPAddress peer) const
     {
         for (const auto& entry : pending)
@@ -75,6 +79,7 @@ public:
         }
         if (!slot) return;
         slot->active=true; slot->id=id; slot->udp=udp; slot->peer=peer;
+        trackingEnabled=true;
         requestTracked=requestPending=true;
         expectedRequestID=id; requestUDP=udp; requestPeer=peer;
     }
@@ -380,7 +385,7 @@ inline bool SNMPManager::parsePacket(size_t length)
                     delete snmpgetresponse;
                     return false;
                 }
-                if (callback->requestTracked && !callback->consume(snmpgetresponse->requestID,_udp,responseIP))
+                if (callback->hasTrackedRequests() && !callback->consume(snmpgetresponse->requestID,_udp,responseIP))
                 {
                     snmpgetresponse->varBindsCursor = snmpgetresponse->varBindsCursor->next;
                     continue;
