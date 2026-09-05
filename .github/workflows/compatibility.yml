@@ -67,11 +67,12 @@ jobs:
         run: python3 scripts/build_examples.py "$EXAMPLE_GROUP"
       - if: matrix.group == 'legacy'
         run: pio run -d tests/hardware
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.1
         with:
           name: examples-${{ matrix.group }}
           path: tests/examples/.pio/build/**/firmware.bin
           retention-days: 7
+          include-hidden-files: true
 
   wire_interoperability:
     runs-on: ubuntu-latest
