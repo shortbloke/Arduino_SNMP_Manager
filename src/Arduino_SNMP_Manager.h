@@ -320,18 +320,17 @@ bool SNMPManager::parsePacket()
 #ifdef DEBUG
                     Serial.println("[DEBUG] Type: Integer");
 #endif
-                    IntegerType *value = new IntegerType();
-                    if (!((IntegerCallback *)callback)->isFloat)
+                    IntegerCallback *callbackValue = static_cast<IntegerCallback *>(callback);
+                    const unsigned long raw = static_cast<IntegerType *>(responseContainer)->_value;
+                    if (!callbackValue->isFloat)
                     {
-                        *(((IntegerCallback *)callback)->value) = ((IntegerType *)responseContainer)->_value;
-                        value->_value = *(((IntegerCallback *)callback)->value);
+                        *callbackValue->value = raw;
                     }
                     else
                     {
-                        *(((IntegerCallback *)callback)->value) = (float)(((IntegerType *)responseContainer)->_value / 10);
-                        value->_value = *(float *)(((IntegerCallback *)callback)->value) * 10;
+                        // addFloatHandler stores the caller's float pointer in value.
+                        *reinterpret_cast<float *>(callbackValue->value) = static_cast<float>(raw) / 10.0f;
                     }
-                    delete value;
                 }
                 break;
                 case COUNTER32:

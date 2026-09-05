@@ -12,7 +12,7 @@ See [RFC review notes](RFC_NOTES.md) for official sources and corrections to the
 | --- | --- | --- |
 | High | `src/BER.h`, `IntegerType::serialise` | Encoding 128 produces incorrect BER bytes rather than `02 02 00 80`. Multi-byte serialization also shifts `_value` itself, destroying the stored value. This affects request IDs and derived integer types. Two regression cases. |
 | High | `src/Arduino_SNMP_Manager.h`, `parsePacket` version condition | **Fixed:** responses with versions other than v1/v2c are rejected before callback dispatch. The baseline checks unsupported wire values and subsequent valid responses. |
-| High | `src/Arduino_SNMP_Manager.h`, INTEGER float branch | Integer division discards tenths and the result is written through an `int*` pointing at float storage. An integer response of 123 does not produce 12.3. |
+| High | `src/Arduino_SNMP_Manager.h`, INTEGER float branch | **Fixed:** float callbacks write through a float pointer and divide by 10.0f, preserving fractional tenths. |
 | Medium | `src/Arduino_SNMP_Manager.h`, STRING branch | **Fixed:** string dispatch copies the terminator and no longer constructs an unused temporary OctetType. Baseline checks cover shorter, empty, and growing strings. |
 | Medium | `src/BER.h`, `OctetType::serialise` | **Fixed:** the length header now uses two octets at exactly 256 bytes. The regression check is promoted to baseline. |
 | Medium | `src/BER.h`, `OIDType::serialise` | Strict greater-than comparisons lose a base-128 group at subidentifier 16384. |
@@ -125,3 +125,7 @@ Validation: `make -C tests/native check` reports 39 baseline passes and 30 remai
 ## String callback termination fix
 
 String callbacks now copy the terminating NUL, including for empty responses. Removed the unused temporary OctetType allocation from this dispatch path. Caller-provided storage must still be large enough. Normal checks report 40 baseline passes and 29 remaining failures; the sanitizer baseline also passes all 40 cases.
+
+## Float callback fix
+
+Float callback dispatch restores the registered float pointer before writing and uses floating-point division. The unused temporary IntegerType is removed. Baseline checks cover zero, fractional, integral, and repeated updates. Normal checks report 41 baseline passes and 28 remaining failures; the sanitizer baseline also passes all 41 cases. Signed INTEGER decoding remains a separate defect.

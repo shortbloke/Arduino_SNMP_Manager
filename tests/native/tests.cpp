@@ -136,7 +136,18 @@ int main(int argc,char** argv) {
             }
         }
     });
-    add("library convention: float callback preserves fractional tenths",[]{Manager m; UDP u; m.setUDP(&u); float n=0; m.addFloatHandler(u.peer,oid,&n); u.incoming=message(binding({2,1,123})); m.loop(); CHECK(std::abs(n-12.3f)<0.001f);},true);
+    add("library convention: float callback preserves fractional tenths", [] {
+        Manager manager;
+        UDP udp;
+        manager.setUDP(&udp);
+        float value=99;
+        manager.addFloatHandler(udp.peer,oid,&value);
+        for (unsigned char raw : {0, 1, 10, 123}) {
+            udp.incoming=message(binding({2,1,raw}));
+            manager.loop();
+            CHECK(std::abs(value-static_cast<float>(raw)/10.0f)<0.001f);
+        }
+    });
     add("library convention: shorter string response terminates old value", [] {
         Manager manager;
         UDP udp;
