@@ -1,22 +1,29 @@
 # SNMP Manager For ESP8266/ESP32/Arduino (and more)
 
-An SNMP Manager for ESP, Arduino and similar MCU. Providing simple SNMP Get-Request support for specified OIDs.
+Version 1.2.0 is a header-only SNMP manager for ESP8266, ESP32, and compatible
+network-capable Arduino platforms. It sends GetRequest queries for exact OIDs
+and processes their responses. GetNext, GetBulk, walks, Set, notifications, and
+SNMPv3 are not implemented by this version.
 
 The library supports:
 
 - SNMP Versions:
   - v1 (protocol version 0)
-  - v2 (protocol version 1)
+  - v2c (protocol version 1)
 - SNMP PDUs
   - GetRequest (sending query to a SNMP Agent for a specified OID)
   - GetResponse (Decoding the response to the SNMP GetRequest)
-- SNMP Data Types:
-  - Integer (Arduino data type: int)
-  - String (Arduino data type: char*)
-  - Counter32 (Arduino data type: unsigned int)
-  - Counter64 (Arduino data type: long long unsigned int)
-  - Gauge32 (Arduino data type: unsigned int)
-  - Timestamp (Arduino data type: unsigned int)
+- Value handlers:
+  - Integer32: `int32_t` (or a compatible signed integer destination)
+  - OCTET STRING text: caller-owned `char` buffer, passed through `char**`
+  - Counter32, Gauge32, and TimeTicks: `uint32_t`
+  - Counter64: `uint64_t` (SNMPv2c only)
+  - OBJECT IDENTIFIER: caller-owned `char` buffer
+  - Binary OCTET STRING and Opaque: byte buffer and returned length
+
+`addFloatHandler` retains the legacy convention of converting an Integer32 to a
+`float` divided by ten. Use it only when that scale matches the queried object;
+it is not a general SNMP floating-point decoder.
 
 If you find this useful, consider providing some support:
 
@@ -45,7 +52,11 @@ Before uploading, edit the configuration near the top of your sketch:
 
 ## 1.x compatibility and tests
 
-Run `pio test -e native` to execute all native tests through PlatformIO, or `pio test -e native -a "--gtest_filter=Baseline.*"` for the passing baseline. The suite includes checks for previously reported defects. No Arduino board is required. The standalone Make runner is also retained. See [native test documentation](tests/native/README.md) for coverage, sanitizer checks, and the regression group. The suite also checks the 1.x API, including maintained examples and sketch-local configuration.
+Run `pio test -e native` or `make -C tests/native check` for the normal regression
+suite. No Arduino board is required. `make -C tests/native sanitize` runs
+AddressSanitizer and UndefinedBehaviorSanitizer checks. See the
+[native test documentation](tests/native/README.md) for requirements and coverage.
+The suite also checks the 1.x API, maintained examples, and sketch-local configuration.
 
 When a callback is included in a successful `SNMPGet::sendTo`, its responses must match a pending request ID, peer, and UDP transport. Each callback supports `SNMP_MAX_PENDING_REQUESTS` outstanding requests (default 4). By default a full window replaces an older pending slot so lost replies do not stop existing polling loops. Set `callback->strictTracking = true` to opt into refusing sends when the window is full. Retransmission with the same ID reuses its slot; matching replies consume it. Call `callback->clearPendingRequests()` to abandon timed-out requests. Use distinct IDs while earlier replies may still arrive. Callbacks never included in a successful send retain legacy direct-response handling.
 
@@ -55,7 +66,7 @@ The 1.x API remains header-only: numeric version arguments, `setIP()`, short req
 
 ## Buffer safety and ownership
 
-Use `serialise(buffer, capacity)` and `fromBuffer(buffer, length)` when calling BER objects directly. `serialise(nullptr)` measures the encoded size; insufficient capacity returns a negative result. Decoding returns false for malformed or incomplete input. The legacy forms without sizes remain available and require sufficient storage or complete input. The original pointer-only BER virtual signatures remain supported. Custom subclasses can additionally override the bounded overloads; without that override bounded calls fail safely. Built-in BER classes support both forms.
+Use `serialise(buffer, capacity)` and `fromBuffer(buffer, length)` when calling BER objects directly. For built-in BER values, `serialise(nullptr)` measures the encoded size (custom subclasses must support measurement to use it); insufficient capacity returns a negative result. Decoding returns false for malformed or incomplete input. The legacy forms without sizes remain available and require sufficient storage or complete input. The original pointer-only BER virtual signatures remain supported. Custom subclasses can additionally override the bounded overloads; without that override bounded calls fail safely. Built-in BER classes support both forms.
 
 String and OID handlers accept a destination capacity including the terminator:
 
@@ -73,128 +84,131 @@ Managers own registrations returned by the `add*Handler` factories; requests ret
 
 ## Usage
 
-### SNMPManager
+### Transport and requests
 
-An SNMPManager object is created for listening (on UDP port 162) to and parsing the SNMP GetResponses. This is initialised with the SNMP community string.
+Create a manager and request using the agent's community. Pass the same initialized
+`WiFiUDP` or `EthernetUDP` object to both with `setUDP(&udp)` after bringing up the
+network. `SNMPManager::setUDP()` attempts to bind the socket; `begin()` can be called
+explicitly to check binding success, as in the examples.
+
+The manager binds local UDP port **162**. `SNMPGet` sends to the agent's UDP port
+**161** by default; `setPort(short)` changes that destination port. Replies return
+to the shared socket. This library does not implement a trap receiver despite
+using local port 162.
 
 ```cpp
-SNMPManager snmpManager = SNMPManager("public");
+SNMPManager snmpManager("public"); // Replace with your agent's read community.
+SNMPGet snmpRequest("public", 1);  // 0 = SNMPv1, 1 = SNMPv2c.
 ```
 
-### SNMPGet
+`sendTo(target)` selects the destination and returns whether the packet was sent
+successfully, not whether a response has arrived. `setIP()` remains available for
+source compatibility; it does not configure the board's network address and is
+not needed when using `sendTo(target)`.
 
-An SNMPGet object is created to make SNMP GetRequest calls (from UDP port 161 (by default)). This is initialised with the SNMP community string and an SNMP version. Note SNMPv1 = 0, SNMPv2 = 1. The port scan be changed if required using `setPort(<port number>)`
+### Register once and reuse the request
+
+Handlers associate an agent address and OID with caller-owned destination storage.
+They do not invoke a user function when a response arrives. Keep destinations
+alive for as long as their handlers are used, usually by declaring them globally.
+
+For example, with `snmpManager` and `snmpRequest` already configured with UDP:
 
 ```cpp
-SNMPGet snmpRequest = SNMPGet("public", 1);
-```
+// Global storage:
+char sysName[64] = {};
+char *sysNamePointer = sysName;
+ValueCallback *callbackSysName = nullptr;
 
-### Handlers and Callbacks
-
-The handlers and callbacks for receiving the incoming SNMP GetResponse are configured in `setup()`
-
-```cpp
-ValueCallback *callbackSysName;  // Blank Callback for each OID
-void setup()
+// Call once from setup() after configuring the network and UDP transport.
+bool registerSysName(IPAddress target)
 {
-    IPAddress target(192, 168, 200, 187);
-    callbackSysName = snmpManager.addStringHandler(target, ".1.3.6.1.2.1.1.5.0", &sysNameResponse);  // Callback for SysName for target host
+    callbackSysName = snmpManager.addStringHandler(
+        target, ".1.3.6.1.2.1.1.5.0", &sysNamePointer, sizeof(sysName));
+    return callbackSysName && snmpRequest.tryAddOIDPointer(callbackSysName);
 }
 ```
 
-Within the main program `snmpManager.loop()` needs to be called frequently to capture and parse incoming GetResponses. GetRequests can be sent as needed, though typically a significantly lower rate than the main loop.
+Stop polling if registration fails. Add other handlers to the same request with
+`tryAddOIDPointer()` and check its result. Keep the OID list for subsequent polls;
+there is no need to clear and rebuild it every time.
+
+### Wait for fresh responses
+
+Call `snmpManager.loop()` frequently to process incoming packets. Before sending,
+save each requested callback's `updateCount()` and choose a request ID distinct
+from any still outstanding. Check `sendTo()` for failure. Process a complete sample
+only after every requested callback's count has changed.
+
+The count advances even when the value is unchanged. Missing values, error
+responses, rejected types, and strings that do not fit do not advance it. Apply a
+timeout, clear pending requests when abandoning a sample, and avoid printing or
+calculating with stale destinations.
+
+The examples' local [Polling.h](examples/ESP32_ESP8266_SNMP_Manager/Polling.h)
+implements these checks, including wrap-safe `millis()` comparisons and request-ID
+cycling. See the complete [Wi-Fi sketch](examples/ESP32_ESP8266_SNMP_Manager/ESP32_ESP8266_SNMP_Manager.ino)
+for network setup, checked registration, polling, and timeout handling.
+
+Multiple OIDs can share one request, but the agent may return errors or per-binding
+exceptions. Both the agent's response limit and the manager's receive buffer must
+accommodate the packet. Split large queries into smaller groups when needed.
+
+## Working with SNMP data
+
+### Bandwidth and counter deltas
+
+Use two fresh samples and the agent's TimeTicks interval rather than assuming the
+response interval equals your polling timer. TimeTicks are hundredths of a second.
+The examples use the tested `Counter32Rate` helper in their local `Polling.h`:
 
 ```cpp
-void loop()
-{
-    snmpManager.loop();  // Call frequently
-    getSNMP();
-}
-void getSNMP()
-{
-  // Check to see if it is time to send an SNMP request.
-  if ((timeLast + pollInterval) <= millis())
-  {
-    // Send SNMP Get request
-    snmpRequest.addOIDPointer(callbackSysName);
-    snmpRequest.setIP(WiFi.localIP()); //IP of the arduino
-    snmpRequest.setUDP(&udp);
-    snmpRequest.setRequestID(rand() % 5555);
-    snmpRequest.sendTo(router);
-    snmpRequest.clearOIDList();
-    // Display response (first call might be empty)
-    Serial.print("sysNameResponse: ");
-    Serial.println(sysNameResponse);
-    Serial.println("----------------------");
+// Global state, retained between samples:
+Counter32Rate rate;
 
-    timeLast = millis();
-  }
-}
+// After a complete fresh sample:
+double utilisation = 0;
+if (rate.sample(inOctetsResponse, uptime, ifSpeedResponse, utilisation))
+    Serial.println(utilisation, 1);
+// Call rate.reset() after a timeout or failed send.
 ```
 
-You can add multiple OID to be queried in a single request by calling `snmpRequest.addOIDPointer(another_callback);` This approach ensures all the requested OID are returned in the same response. Though I expect there are limits on the maximum packet sizes, so some experimentation may be required with large numbers of OID.
+The helper establishes an initial baseline, preserves fractional seconds, checks
+for zero speed and non-advancing uptime, and converts to `double` before multiplying.
+For `uint32_t` counters, unsigned subtraction handles a single rollover correctly.
+Repeated equal counter values produce zero utilisation when time has advanced.
 
-## Working With SNMP Data
+Poll frequently enough to avoid multiple Counter32 wraps between samples. For fast
+links, consider Counter64 objects such as `ifHCInOctets` when the agent supports
+SNMPv2c; the example displays this value but still calculates its rate from Counter32.
+Use the same interface index for the counter and interface speed. `ifSpeed` reports
+interface capacity, which may differ from your Internet service's bandwidth.
 
-### Time Based Measurements
+Backwards uptime, including TimeTicks wrap, starts a new baseline. An interface
+counter can also reset without a device reboot; the helper cannot distinguish that
+from a rollover. For such devices, monitor their counter-discontinuity information
+and reset the baseline when it changes.
 
-It's important to note that even if you make GetRequests every _n_ seconds, that the response may not arrive in the allotted time period. SNMP responses are often deprioritised by devices when under load. As such your poll interval shouldn't be used for any calculations of time, instead using the devices uptime counter will show the time elapsed between data collections. For example if I want to calculate the bandwidth utilisation of my ADSL connection, then we need to look calculate: `Utilisation = Amount of Data in time period / Max Possible data in time period`
+### Strings and packet capacity
 
-Which can be performed with the following:
+Use bounded text handlers and include space for the terminating NUL. A text value
+that is too long or contains an embedded NUL is rejected without updating the
+buffer. Use binary handlers when embedded NULs are valid data.
+
+`SNMP_PACKET_LENGTH` defaults to **1500 bytes on ESP32** and **512 bytes otherwise**,
+including ESP8266. It limits the complete received SNMP packet, not each string.
+Oversized packets are discarded. If needed, define a different value before the
+library include, consistently across translation units:
 
 ```cpp
-// Note: Calculation will be incorrect if inOctets counter has wrapped.
-bandwidthUtilisationPercent = ((float)((inOctets - lastInOctets) * 8) / (float)(downSpeed * ((uptime - lastUptime) / 100)) * 100);
+#define SNMP_PACKET_LENGTH 1024
+#include <Arduino_SNMP_Manager.h>
 ```
 
-What does this mean? Well lets explain the variables:
-
-- inOctets: (Counter32) ifInOctets (.1.3.6.1.2.1.2.2.1.10.4) - Amount of bytes received on the specified interface, 4 in this example.
-- lastInOctets: Stores the inOctets from the previous poll.
-- downSpeed: (Gauge) - The maximum possible download speed in bps (bits per second). This can be measured value from your own speed test, or you might query the interface speed, or in the of (A/V)DSL you might query the sync speed adslAtucChanCurrTxRate (.1.3.6.1.2.1.10.94.1.1.4.1.2.4) again for interface 4.
-- uptime: (TimeTicks) - SysUpTime (.1.3.6.1.2.1.1.3.0) - The time in hundredths of seconds since the device was last reinitialised.
-- lastUptime: Stores the upTime from the previous poll.
-
-This can be broken down as:
-
-- `((inOctets - lastInOctets) * 8)` calculates the delta in data received and converts Bytes to Bits by multiplying by 8.
-- `((uptime - lastUptime) / 100)` calculates the time between two samples and converts it to seconds.
-- `(downSpeed * ((uptime - lastUptime) / 100))` We calculate how much data could have been theoretically received in the elapsed time for a given maximum download speed.
-
-### Counters
-
-When working with SNMP Counters (COUNTER32 or COUNTER64) they can only be used for measuring a change between two values. A device reboot may reset the counter such that the calculating a delta would give an incorrect reading. Or depending on the sample period and the rate of change, the counter can wrap.
-
-#### Counters Wrapping
-
-To compensate for wrapping, you can:
-
-- Poll more frequently, giving less time for the counter to have wrapped. But doing so increased the load on the SNMP agent device and the manager.
-- If the device supports them, then High Capacity (HC) 64bit counters can be used. Note SNMPv1 doesn't support COUNTER64, this is only available in SNMPv2 and later.
-- If the counter has wrapped, you could assert it has only wrapped once in the sample period. For the example for Bandwidth utilisation above we'd need to adjust the formula to correct compensation if we detect it has wrapped. To calculate the delta in traffic being measured with a COUNTER32 which has is an unsigned integer (maximum value: 4294967295) gives us: `(((4294967295 - lastInOctets) + inOctets) * 8)`
-
-```cpp
-if (inOctets > lastInOctets)
-{
-  // Note: Calculation will be incorrect if inOctets counter has wrapped.
-  bandwidthUtilisationPercent = ((float)((inOctets - lastInOctets) * 8) / (float)(downSpeed * ((uptime - lastUptime) / 100)) * 100);
-}
-else if (lastInOctets > inOctets)
-{
-  // This handles 32bit counters wrapping a maximum of one time.
-  bandwidthUtilisationPercent = (((float)((4294967295 - lastInOctets) + inOctets) * 8) / (float)(downSpeed * ((uptime - lastUptime) / 100)) * 100);
-}
-```
-
-#### Device Reset
-
-To compensate for device reset:
-
-- Monitor SysUptime and if is lower than the previous value, then assume the device has restarted, don't process the data, just store the new counter values and await the next poll to be able to calculate the difference.
-
-### Strings
-
-SNMP can be used to query strings, however long strings lead to larger packet sizes needing larger buffers and increased memory usage. The ESP8266 appears to have a bug in the WiFi or UDP protocol support, leading to a maximum UDP packet size that can be received being 1024 bytes. As there are can be multiple OID responses in a single packet along with headers etc, this will reduce the maximum string size that can be received. Reading strings in to a character arrays can use a significant amount of memory, which may not be available on some MCUs. As such query strings should will likely need to be limited.
+Increasing this limit consumes more memory: the manager holds a receive buffer,
+request serialization uses a stack buffer three times this size, and decoded BER
+objects also require heap storage. Account for the target board's UDP limits and
+available memory; smaller queries may be preferable to a larger buffer.
 
 ## Troubleshooting
 
@@ -205,25 +219,35 @@ SNMP can be used to query strings, however long strings lead to larger packet si
 
 ### Suppress Errors
 
-- Suppress errors when SNMP packet <= 30 bytes: add `#define SUPPRESS_ERROR_SHORT_PACKET` before `#include <Arduino_SNMP_Manager.h>`
+`SUPPRESS_ERROR_SHORT_PACKET` is no longer needed: 1.2.0 validates packet structure
+instead of rejecting all responses of 30 bytes or fewer. Existing sketches may
+leave the define in place; it has no effect.
+
 - Suppress SNMP payload parsing error: add `#define SUPPRESS_ERROR_FAILED_PARSE` before `#include <Arduino_SNMP_Manager.h>`
 
 ## Examples
 
-The examples folder contains an SNMP GetRequest example for each of the data types. Note that the OID will need to be adapted the device you are querying. To understand what OID your device supports and the data type of each one, I'd recommend walking to the device with standard SNMP tools:
+The examples demonstrate common numeric and string GetRequest handlers, including
+a Counter64 binding in the Wi-Fi sketch; they do not cover every handler type.
+Adapt the OIDs to your device. External SNMP tools can help inspect its MIB and
+discover interface indices:
 
 - [iReasoning MIB Browser](https://www.ireasoning.com/mibbrowser.shtml)
 - Using [net-snmp](http://www.net-snmp.org/) snmpwalk. A command line tool available for various OS. Basic introductory usage information can be found [in this article](https://www.comparitech.com/net-admin/snmpwalk-examples-windows-linux/)
 
 ### Examples folder contents
 
-- [ESP32_ESP8266_SNMP_Manager.ino](examples/ESP32_ESP8266_SNMP_Manager/ESP32_ESP8266_SNMP_Manager.ino) - ESP32/ESP2866 boards
+- [ESP32_ESP8266_SNMP_Manager.ino](examples/ESP32_ESP8266_SNMP_Manager/ESP32_ESP8266_SNMP_Manager.ino) - ESP32/ESP8266 boards
 - [ESP_Multiple_SNMP_Device_Polling.ino](examples/ESP_Multiple_SNMP_Device_Polling/ESP_Multiple_SNMP_Device_Polling.ino) - ESP32/ESP8266 boards querying multiple devices and storing results in a device record array
-- [Arduino_Ethernet_SNMP_Manager.ino](examples/Arduino_Ethernet_SNMP_Manager/Arduino_Ethernet_SNMP_Manager.ino) - Arduino Mega with Ethernet Shield
+- [Arduino_Ethernet_SNMP_Manager.ino](examples/Arduino_Ethernet_SNMP_Manager/Arduino_Ethernet_SNMP_Manager.ino) - Ethernet-library sketch; CI compiles it on ESP8266 with Ethernet 2.0.2. Adapt module wiring to your board
 
 ## Tested Devices
 
-The following devices have been confirmed to work with this library (these are affiliate links that help support my work):
+The following boards have previously been used with this library (these are
+affiliate links that help support my work). This is historical hardware coverage,
+not a claim that every 1.2.0 example was run on each board. Current automated checks
+compile for ESP8266, ESP32, ESP32-C3, and Nano ESP32; see the
+[embedded test notes](tests/embedded/README.md) for limits and upstream warnings:
 
 - WeMos D1 Mini - ESP8266 - [Amazon UK](https://amzn.to/3z6rQBt) [Amazon US](https://amzn.to/3AY4aBE)
 - ESP32S Dev Module - [Amazon UK](https://amzn.to/2TAqWZJ) [Amazon US](https://amzn.to/3PgUZAx)
@@ -239,4 +263,4 @@ I'd love to hear about projects that find this library useful.
 
 ## Acknowledgements
 
-This project a derived from an [SNMP Agent project](https://github.com/fusionps/Arduino_SNMP). With Manager functionality adapted from work by [Niich's fork](https://github.com/Niich/Arduino_SNMP).
+This project is derived from an [SNMP Agent project](https://github.com/fusionps/Arduino_SNMP). With Manager functionality adapted from work by [Niich's fork](https://github.com/Niich/Arduino_SNMP).
