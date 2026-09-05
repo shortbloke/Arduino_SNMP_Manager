@@ -3,12 +3,14 @@
 
 #include <stdint.h>
 
+/// Supported community-based versions; enum values match the encoded version INTEGER.
 enum class SNMPVersion : uint8_t
 {
     Version1 = 0,
     Version2c = 1
 };
 
+/// Parser-stage labels retained for low-level diagnostics; not a query completion status.
 enum SNMPExpect
 {
     HEADER,

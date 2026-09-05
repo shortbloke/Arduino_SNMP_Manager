@@ -7,16 +7,28 @@ struct SNMPCell
 {
     SNMPValue value;
     SNMPStatus status = SNMPStatus::Missing;
+    /**
+     * @return True only when this cell contains a successful value.
+     */
     bool ok() const
     {
         return status.ok();
     }
 };
 
+/**
+ * @brief One discovered index and its selected cells.
+ * @tparam Columns Number of cells in each row.
+ * @tparam IndexCapacity Bytes of complete index text including termination.
+ */
 template <size_t Columns, size_t IndexCapacity = MAX_OID_LENGTH> struct SNMPTableRow
 {
     char index[IndexCapacity] = {}; // Entire suffix, including composite indices.
     SNMPCell cells[Columns];
+    /**
+     * @param column Zero-based selected column; must be less than Columns.
+     * @return Borrowed cell; unchecked access. Check cell.ok() before reading its value.
+     */
     const SNMPCell &operator[](size_t column) const
     {
         return cells[column];
@@ -25,9 +37,21 @@ template <size_t Columns, size_t IndexCapacity = MAX_OID_LENGTH> struct SNMPTabl
 
 // Walk selected columns one at a time and join them by the complete index suffix.
 // The table owns all rows; a single streaming walk supplies bounded working state.
+/**
+ * @brief Own a bounded selected-column table joined by complete index suffixes.
+ * @tparam Rows Maximum retained rows, greater than zero.
+ * @tparam Columns Maximum configured columns, greater than zero.
+ * @tparam IndexCapacity Index text bytes including termination; 2..MAX_OID_LENGTH.
+ */
 template <size_t Rows, size_t Columns, size_t IndexCapacity = MAX_OID_LENGTH> class SNMPTableRead
 {
 public:
+    /**
+     * @brief Create a table using one reusable streaming walk; does not send requests.
+     * @param device Borrowed peer that must outlive the table.
+     * @note Rows bounds retained rows, Columns bounds selected columns, and IndexCapacity
+     *  bounds index text bytes including termination. This owner cannot be copied or moved.
+     */
     explicit SNMPTableRead(SNMPDevice &device) : walk_(device)
     {
         walk_.stream(consume, this);
@@ -35,6 +59,14 @@ public:
     }
     SNMPTableRead(const SNMPTableRead &) = delete;
     SNMPTableRead &operator=(const SNMPTableRead &) = delete;
+    /**
+     * @brief Select a column and optional alternate column for unavailable cells.
+     * @param oid Numeric column OID without an instance suffix; canonical text is copied.
+     * @param expected Required type, or NULLTYPE to accept any supported type.
+     * @param fallback Alternate column OID, copied; null disables fallback.
+     * @param fallbackExpected Required alternate type, or NULLTYPE for any supported type.
+     * @return Success, Busy, CapacityExceeded, or InvalidOID. Failure adds no column.
+     */
     SNMPStatus addColumn(const char *oid, ASN_TYPE expected = NULLTYPE,
                          const char *fallback = nullptr, ASN_TYPE fallbackExpected = NULLTYPE)
     {
@@ -69,6 +101,13 @@ public:
         strcpy(column_[columns_++], name._value);
         return SNMPStatus::Success;
     }
+    /**
+     * @brief Start collecting selected columns, one at a time.
+     * @return Success when scheduled, Busy, InvalidConfiguration for no columns, or the walk's
+     *  configuration/scheduling error. An accepted start clears old rows; a rejected start
+     * preserves them.
+     * @note Call client.loop() and check takeCompleted()/status(); Success is not a completed read.
+     */
     SNMPStatus start()
     {
         if (pending())
@@ -91,37 +130,65 @@ public:
         usingFallback_ = false;
         return SNMPStatus::Success;
     }
+    /**
+     * @brief Stop a pending table with Cancelled, retaining collected rows.
+     * @note No effect after completion; returns no value.
+     */
     void cancel()
     {
         if (pending())
             walk_.cancel();
     }
+    /**
+     * @return True while column reads or fallbacks are still in progress.
+     */
     bool pending() const
     {
         return status_.code() == SNMPStatus::Pending;
     }
+    /**
+     * @return True once for a completed/cancelled table. Consumes the event, not stored rows.
+     */
     bool takeCompleted()
     {
         bool done = completed_;
         completed_ = false;
         return done;
     }
+    /**
+     * @return Current outcome; Partial means some cells/columns failed. CapacityExceeded
+     *  can leave incomplete rows, so always check each cell before use.
+     */
     SNMPStatus status() const
     {
         return status_;
     }
+    /**
+     * @return Number of discovered rows currently retained, not the configured row maximum.
+     */
     size_t size() const
     {
         return count_;
     }
+    /**
+     * @param row Zero-based row position, not the device's index; must be less than size().
+     * @return Borrowed row in discovery order; unchecked. Invalidated by accepted
+     * restart/destruction.
+     */
     const SNMPTableRow<Columns, IndexCapacity> &operator[](size_t row) const
     {
         return rows_[row];
     }
+    /**
+     * @return Borrowed pointer to the first retained row for iteration; compare with end().
+     */
     const SNMPTableRow<Columns, IndexCapacity> *begin() const
     {
         return rows_;
     }
+    /**
+     * @return Borrowed one-past-last pointer; never dereference it. Equals begin() when empty.
+     */
     const SNMPTableRow<Columns, IndexCapacity> *end() const
     {
         return rows_ + count_;
@@ -228,10 +295,22 @@ private:
 
 // Interface descriptions and traffic: prefer Counter64, filling unavailable cells
 // from Counter32 columns. Each cell retains its actual SNMP type and width.
+/**
+ * @brief Three-column interface table with optional Counter64 preference.
+ * @tparam Rows Maximum logical interfaces retained, not physical-port count.
+ * @tparam IndexCapacity Complete row-index text bytes including termination.
+ */
 template <size_t Rows, size_t IndexCapacity = MAX_OID_LENGTH>
 class SNMPInterfaceRead : public SNMPTableRead<Rows, 3, IndexCapacity>
 {
 public:
+    /**
+     * @brief Select interface descriptions and incoming/outgoing byte totals.
+     * @param device Borrowed peer that must outlive this table.
+     * @param highCapacity Prefer Counter64 with Counter32 fallback when true; false reads
+     *  Counter32 directly (useful for v1). Column order is description, incoming, outgoing.
+     * @note Rows counts logical interfaces, not physical ports. Values are totals, not rates.
+     */
     explicit SNMPInterfaceRead(SNMPDevice &device, bool highCapacity = true)
         : SNMPTableRead<Rows, 3, IndexCapacity>(device)
     {

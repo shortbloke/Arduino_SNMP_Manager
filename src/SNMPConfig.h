@@ -58,7 +58,14 @@ template <unsigned Packet, unsigned Octet, unsigned Oid, unsigned Pending, unsig
           bool Debug, bool BerDebug, bool SuppressErrors>
 struct BuildConfiguration
 {
+    /**
+     * @brief Link against the library's exact build configuration; returns no value.
+     * @note A mismatched template specialization fails to link instead of mixing object layouts.
+     */
     static void verify();
+    /**
+     * @brief Reference verify() so each translation unit checks its library configuration.
+     */
     BuildConfiguration()
     {
         verify();
