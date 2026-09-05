@@ -1,0 +1,47 @@
+{
+  "actionlint": {
+    "version": "1.7.12",
+    "platforms": {
+      "Linux-x86_64": {
+        "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+        "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+        "member": "actionlint"
+      },
+      "Darwin-arm64": {
+        "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_darwin_arm64.tar.gz",
+        "sha256": "aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f",
+        "member": "actionlint"
+      }
+    }
+  },
+  "shellcheck": {
+    "version": "0.11.0",
+    "platforms": {
+      "Linux-x86_64": {
+        "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz",
+        "sha256": "b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6",
+        "member": "shellcheck-v0.11.0/shellcheck"
+      },
+      "Darwin-arm64": {
+        "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.gz",
+        "sha256": "339b930feb1ea764467013cc1f72d09cd6b869ebf1013296ba9055ab2ffbd26f",
+        "member": "shellcheck-v0.11.0/shellcheck"
+      }
+    }
+  },
+  "arduino-lint": {
+    "version": "1.3.0",
+    "platforms": {
+      "Linux-x86_64": {
+        "url": "https://github.com/arduino/arduino-lint/releases/download/1.3.0/arduino-lint_1.3.0_Linux_64bit.tar.gz",
+        "sha256": "181671ca174988f2601e1cdf2b40a552682db8eaa047de33117e67e70338b63e",
+        "member": "arduino-lint"
+      },
+      "Darwin-arm64": {
+        "url": "https://github.com/arduino/arduino-lint/releases/download/1.3.0/arduino-lint_1.3.0_macOS_ARM64.tar.gz",
+        "sha256": "0ff89984523d597aa0dda4149ff0fa8d72afe0c7aa848587721b9d0f2983d3e9",
+        "member": "arduino-lint"
+      }
+    }
+  }
+}

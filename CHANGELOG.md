@@ -1,5 +1,9 @@
 # CHANGELOG for SNMP Manager For ESP8266/ESP32/Arduino
 
+## Unreleased
+
+- Gate CI and releases with workflow/shell, Python, and Arduino packaging lint checks.
+
 ## 1.2.1
 
 A backward-compatible patch release correcting 1.x guidance and a public parser edge case.

@@ -59,3 +59,32 @@ checks and release-tool tests. The 2.x line additionally exercises its modular
 headers, memory configurations, lifecycle/leak checks, hardware-log parsers,
 example builds, and Net-SNMP wire interoperability. Hardware compilation does not
 flash a board or certify physical interoperability.
+
+### Linting locally
+
+CI checks workflows and their embedded shell with actionlint and ShellCheck,
+Python with Ruff, and Arduino packaging with Arduino Lint. These checks also gate
+release publication. Markdown and C++ formatting checks remain in the compatibility
+workflow.
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-lint.txt
+python scripts/install_lint_tools.py /tmp/snmp-lint-tools
+export PATH="/tmp/snmp-lint-tools:$PATH"
+actionlint -shellcheck shellcheck
+ruff check scripts tests
+ruff format --check scripts tests
+python scripts/lint_arduino.py
+```
+
+The binary installer supports Linux x86-64 and Apple Silicon macOS. Other platforms
+can install the versions recorded in `scripts/lint-tools.json` manually. Downloads
+are SHA-256 verified; update the version, URLs and checksums together when upgrading.
+Dependabot proposes Ruff and GitHub Actions updates on both maintained branches.
+
+Arduino Lint uses specification compliance and the existing Library Manager entry.
+It checks a temporary copy of tracked working-tree files to exclude local build
+outputs and private hardware configuration. Add new package files to Git before
+running it. This checks packaging; the embedded builds check compilation.
