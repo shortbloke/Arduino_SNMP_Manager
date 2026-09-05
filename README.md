@@ -179,13 +179,12 @@ SNMP can be used to query strings, however long strings lead to larger packet si
 
 ### Additional Logging
 
-- Debug logging: add `#define DEBUG` before the library include `#include <Arduino_SNMP_Manager.h>`
-- Additional ASN.1 debug logging: add `#define DEBUG_BER` before the library include `#include <Arduino_SNMP_Manager.h>`
+- Debug logging: add `-DDEBUG` to the build flags for the sketch and library.
+- Additional ASN.1 debug logging: add `-DDEBUG_BER` to the same build flags.
 
 ### Suppress Errors
 
-- Suppress errors when SNMP packet <= 30 bytes: add `#define SUPPRESS_ERROR_SHORT_PACKET` before `#include <Arduino_SNMP_Manager.h>`
-- Suppress SNMP payload parsing error: add `#define SUPPRESS_ERROR_FAILED_PARSE` before `#include <Arduino_SNMP_Manager.h>`
+- Suppress SNMP payload parsing errors: add `-DSUPPRESS_ERROR_FAILED_PARSE` to the build flags for the sketch and library.
 
 ## Examples
 
@@ -226,4 +225,21 @@ Use `make -C tests/native check` for normal/debug regressions and strict C++11 m
 
 Source formatting uses clang-format 19.1.7 and the checked-in `.clang-format`. Public names are retained for source compatibility. Internal pending-request state is private; legacy request summary fields are informational.
 
-Packet buffers use `SNMP_PACKET_LENGTH` directly (512 bytes by default, 1500 on ESP32). Adjust this macro consistently across translation units if the application requires another limit. Registration APIs return null on allocation failure; `addOIDPointer`, `addHandler`, and request building return false on failure. `addHandler` adopts a supplied callback only on success; `addValueToList` consumes a supplied BER child even on failure. Pending sends are not registered until transmission succeeds. Constructors can remain empty after allocation failure, and subsequent operations report failure or retry allocation safely.
+Packet buffers use `SNMP_PACKET_LENGTH` directly (512 bytes by default, 1500 on ESP32). Configure this limit as described below if the application requires another value. Registration APIs return null on allocation failure; `addOIDPointer`, `addHandler`, and request building return false on failure. `addHandler` adopts a supplied callback only on success; `addValueToList` consumes a supplied BER child even on failure. Pending sends are not registered until transmission succeeds. Constructors can remain empty after allocation failure, and subsequent operations report failure or retry allocation safely.
+
+### Library compilation and configuration
+
+Public headers contain declarations and small inline operations; the corresponding `src/*.cpp` files implement encoding, decoding, request handling, and callback tracking. Arduino and PlatformIO compile these sources automatically when the library is installed. Custom build systems must compile and link all `src/*.cpp` files. `Arduino_SNMP_Manager.h` remains the umbrella header; individual headers can also be included independently.
+
+Defaults live in `src/SNMPConfig.h`. Apply overrides to **both the application and library sources**, for example in PlatformIO:
+
+```ini
+build_flags =
+    -DSNMP_PACKET_LENGTH=1024
+    -DSNMP_MAX_PENDING_REQUESTS=8
+    -DDEBUG
+```
+
+The other capacity settings are `SNMP_OCTETSTRING_MAX_LENGTH` and `MAX_OID_LENGTH`. For a shared configuration file, define `SNMP_CONFIG_HEADER` as a quoted header filename in compiler flags and make its include directory available to all sources. Arduino CLI users can pass these `-D` options through `compiler.cpp.extra_flags`.
+
+A `#define` placed only before the include in a sketch no longer configures the separately compiled library. Inconsistent capacity or logging settings produce a linker error mentioning `snmp_detail::BuildConfiguration`; rebuild all sources with the same settings to resolve it. The check uses no heap allocation and performs no I/O.

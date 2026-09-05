@@ -71,7 +71,7 @@ Additional cases in `tests.cpp` cover sequence length boundaries and sibling ali
 
 ## Boundaries and limitations
 
-The stubs implement only the Arduino/UDP methods used by the headers. They cannot validate board compilation, real UDP delivery, fragmentation, Wi-Fi behavior, timing, or device interoperability. The hex parser uses no input-sized stack array. Strict C++11 compatibility is checked separately, with exceptions and RTTI disabled.
+The stubs implement only the Arduino/UDP methods used by the library. They cannot validate board compilation, real UDP delivery, fragmentation, Wi-Fi behavior, timing, or device interoperability. The hex parser uses no input-sized stack array. Strict C++11 compatibility is checked separately, with exceptions and RTTI disabled.
 
 Native `unsigned long` may be 64 bits while Arduino targets commonly use 32 bits; protocol-facing APIs use fixed-width types. Real ESP builds complement the native checks; AVR is outside the supported scope. The fake transport supports bind, beginPacket, short-write, and endPacket failure injection.
 
@@ -90,3 +90,5 @@ make -C tests/native BUILD=build-sanitize CXXFLAGS='-std=c++11 -g -O1 -fsanitize
 ```
 
 See [embedded builds](../embedded/README.md) for real ESP8266, ESP32, ESP32-C3, and Arduino Nano ESP32 compile/link checks. These do not require attached hardware.
+
+The native builds compile and link the library's `src/*.cpp` sources alongside the tests. `make check` also compiles each public header independently, verifies that matching custom settings link, and checks that inconsistent capacity or logging settings fail to link. These checks use Python 3 and the configured C++ compiler. They also cover the shared `SNMP_CONFIG_HEADER` option. The Arduino serial stub has one shared definition, so logging checks exercise calls from the compiled library.

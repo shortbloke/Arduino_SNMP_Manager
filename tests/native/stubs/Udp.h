@@ -1,5 +1,6 @@
 #pragma once
 #include "Arduino.h"
+#include "IPAddress.h"
 #include <vector>
 #include <algorithm>
 // Only the UDP surface used by this library; no sockets or board dependencies.
