@@ -15,6 +15,7 @@ jobs:
       - run: make -C tests/native leaks
       - run: pio test -e native
       - run: python3 tests/hardware/test_check_log.py
+      - run: python3 tests/hardware/test_burst_test.py
   embedded:
     runs-on: ubuntu-latest
     strategy:

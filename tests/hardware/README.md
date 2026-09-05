@@ -73,3 +73,47 @@ These are linker figures, excluding runtime Wi-Fi, decoder, and retained-payload
 use. They do not establish peak RAM or certify a workload. Row count, payload limit,
 packet size, pending operations, and application-held snapshots also affect memory.
 No automatic PSRAM placement is used.
+
+## Notification bursts
+
+The `d1_mini_burst` environment selects `src/burst.cpp`, leaving the read/walk
+sketch selected for existing environments. It exercises the unchanged client with
+real WiFiUDP reception. After preserving the board's firmware, upload this profile
+using the same upload procedure above. It uses the ignored Wi-Fi configuration,
+but listens on UDP 1162 with a dedicated `burst-test` community; it does not query
+or modify the configured agent.
+
+Run the host sender on the same reachable network (Python with `pyserial`):
+
+```sh
+python3 tests/hardware/burst_test.py --serial /dev/cu.usbserial-10 --output tests/hardware/burst.log
+python3 tests/hardware/burst_test.py --serial /dev/cu.usbserial-10 --small --output tests/hardware/burst-small.log
+python3 tests/hardware/test_burst_test.py
+```
+
+The host independently encodes SNMPv2c traps and INFORMs with sequence IDs and
+32/256-byte payloads. The matrix varies packet count, pacing, and simulated work
+between client loop calls (0/10/50 ms). The optional `--small` run instead sends
+short back-to-back bursts with 32-byte payloads and no simulated loop delay. The firmware counts unique notifications,
+validates decoded payloads, and samples heap while decoding. The host compares
+complete INFORM response BER values, including request IDs, against the sent
+notifications. Every burst is followed by a paced recovery probe. Burst INFORMs are sent
+once, without retries, so raw overload loss remains visible. Recovery probes allow
+up to three paced retries for unacknowledged IDs, recording initial receipt/ACK
+counts and retry traffic separately; an isolated UDP loss does not prove a stuck client. Actual send duration
+is logged because host scheduling makes requested pacing approximate.
+
+Missing traps/acknowledgements under overload are measurements, not automatic test
+failures. Invalid decoded data, unexpected nonempty replies, missing serial replies,
+or incomplete recovery reception/acknowledgement after retries stop the run. A final `done` record is required for a
+complete matrix. Inspect acknowledgement counts as well as firmware receipt counts;
+one does not imply the other. Unexpected empty datagrams are recorded separately,
+not accepted as INFORM acknowledgements. The test discovered these on ESP8266 with
+the current library's receive-side `flush()` calls.
+
+This isolates notification reception; it does not run the display, simultaneous
+queries, v1 traps, or an AsyncUDP comparison. Simulated delays yield to Wi-Fi and do
+not model an application that disables interrupts or starves the network stack.
+Packet loss can occur in the sender, network, or device; this test does not attribute
+every missing packet to the SNMP library. Restore and verify the original firmware
+when finished. See [D1_MINI_BURST_RESULT.md](D1_MINI_BURST_RESULT.md) for measured results.
