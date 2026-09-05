@@ -26,6 +26,7 @@ class ValueCallback
 {
 public:
     ValueCallback(ASN_TYPE atype) : type(atype){};
+    // Allows deletion through the base pointer; does not free OID or destination storage.
     virtual ~ValueCallback() = default;
     IPAddress ip;
     char *OID;
@@ -224,6 +225,7 @@ bool SNMPManager::parsePacket()
     {
         if (snmpgetresponse->requestType == GetResponsePDU)
         {
+            // parseFrom exposes v1/v2c as 1/2, rather than their wire values 0/1.
             if ((snmpgetresponse->version != 1 && snmpgetresponse->version != 2) || strcmp(_community, snmpgetresponse->communityString) != 0)
             {
                 Serial.print(F("Invalid community or version - Community: "));
@@ -239,7 +241,7 @@ bool SNMPManager::parsePacket()
             Serial.print(F("[DEBUG] SNMP Version: "));
             Serial.println(snmpgetresponse->version);
 #endif
-            // An error response does not provide successful result values.
+            // A PDU-level error prevents all updates; per-binding exceptions are handled below.
             if (snmpgetresponse->errorStatus != 0)
             {
                 delete snmpgetresponse;
@@ -329,7 +331,7 @@ bool SNMPManager::parsePacket()
                     }
                     else
                     {
-                        // addFloatHandler stores the caller's float pointer in value.
+                        // Restore the registered float pointer and convert integer tenths to units.
                         *reinterpret_cast<float *>(callbackValue->value) = static_cast<float>(raw) / 10.0f;
                     }
                 }

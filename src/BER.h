@@ -220,11 +220,11 @@ public:
         int valueLength = sprintf(temp, "%s", _value);
 
         *ptr++ = _type; // Set the type identifier
-        // If > 127 first byte needs to be 0x8x where x is the how many bytes follow which defines string length
+        // Long-form lengths start with 0x80 plus the number of length octets.
         if (valueLength > 127)
         {
             numExtraBytes++;       // Need an extra byte
-            if (valueLength >= 256) // Max 65,536 characters, but likely will fail due to UDP packet fragmentation.
+            if (valueLength >= 256) // Lengths 256 and above need two octets.
             {
                 numExtraBytes++; // Need another extra byte to store the length
             }
@@ -464,6 +464,7 @@ public:
 #ifdef DEBUG_BER
         Serial.println("[DEBUG_BER] Counter64:serialise");
 #endif
+        // Up to eight value octets plus a leading zero to preserve the positive sign.
         unsigned char contents[9];
         size_t start = sizeof(contents);
         uint64_t remaining = _value;
@@ -698,13 +699,12 @@ public:
 #ifdef DEBUG_BER
             Serial.println("TOO BIG - Adding extra byte");
 #endif
-            // bad, we have to add another byte and shift everything afterwards by 1 >>
-            // first byte is 128 + (actualLength / 128)
-            // second is actualLength % 128;
+            // Use 0x81 for one length octet or 0x82 for two length octets.
+            // Shift the serialized contents to make room for the expanded header.
             int tempVal = 1;
             if (actualLength >= 256)
             {
-                *lengthPtr++ = (2 | 0x80) & 0xFF; // dodgy
+                *lengthPtr++ = (2 | 0x80) & 0xFF; // Two length octets, most significant first.
 
                 tempLength += 1;
                 unsigned char *endPtrPos = ++ptr;
@@ -721,11 +721,7 @@ public:
                 *lengthPtr++ = (1 | 0x80) & 0xFF;
             }
 
-            // *lengthPtr = 129;
-            // if(actualLength > 256){
-            //     *lengthPtr = 130;
-            // }
-            // lets move everything right one byte, start from back..
+            // Make room for the final length octet, copying from the end.
             unsigned char *endPtrPos = ptr + 1;
             for (unsigned char *i = endPtrPos; i > buf + tempVal; i--)
             {
@@ -734,7 +730,6 @@ public:
             }
             *lengthPtr++ = actualLength % 256;
 
-            // *(lengthPtr+1) = (actualLength % 128)|0x80;
             tempLength += 1; // account for extra byte in Length param
         }
         else
