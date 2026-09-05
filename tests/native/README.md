@@ -25,14 +25,14 @@ Requirements: a POSIX host (macOS or Linux), Make, Python 3 for header checks, a
 
 ```sh
 make -C tests/native test          # all behavior groups
-make -C tests/native check         # normal/debug suites, strict C++11 and header checks
+make -C tests/native check         # suites, configuration, lifecycle and compatibility checks
 make -C tests/native sanitize      # all groups with ASan + UBSan
 make -C tests/native clean
 ```
 
 Override `CXX` to select a compiler. Sanitizers require compiler/runtime support. Fixed bugs remain ordinary regression tests in their behavior group; there is no separate baseline or unresolved-defect group. The obsolete `regressions` and `sanitize-regressions` targets have been removed.
 
-The Make build compiles sources into separate object files, links the library as an archive, and tracks included headers with generated dependencies. Use a separate `BUILD` directory when changing compiler flags; normal, debug, sanitizer, and strict compatibility builds already use separate directories.
+The Make build compiles sources into separate object files, links the library as an archive, and tracks included headers with generated dependencies. Use a separate `BUILD` directory when changing compiler flags; normal, debug, sanitizer, configuration, leak, and strict compatibility builds already use separate directories.
 
 ## Source organization
 
@@ -44,6 +44,7 @@ The Make build compiles sources into separate object files, links the library as
 - `runner.cpp`: standalone reporting; `../platformio/test_snmp/test_main.cpp`: GoogleTest adapter.
 - `stubs/`: host Arduino, IPAddress, and UDP implementations.
 - `compatibility/`: strict multi-file compilation and header/configuration link checks.
+- `lifecycle/`: direct execution of ownership and response cases for exit-time leak checking.
 
 PlatformIO compiles the same case, support, and stub sources through `../platformio/build_shared.py`. Neither runner includes implementation `.cpp` files.
 
@@ -79,7 +80,7 @@ The stubs implement only the Arduino/UDP methods used by the library. They canno
 
 Native `unsigned long` may be 64 bits while Arduino targets commonly use 32 bits; protocol-facing APIs use fixed-width types. Real ESP builds complement the native checks; AVR is outside the supported scope. The fake transport supports bind, beginPacket, short-write, and endPacket failure injection.
 
-Tests use production initialization and destructors, and verify shared registration lifetime, request rebuilding, and move construction. Caller-owned destinations and transports must remain valid while operations use them. Child-process execution still limits leak-checking coverage.
+Tests use production initialization and destructors, and verify shared registration lifetime, request rebuilding, and move construction. Caller-owned destinations and transports must remain valid while operations use them. The separate lifecycle executable runs ownership and response cases without child-process isolation.
 
 All BER types expose capacity-aware serialization and bounded decoding. Tests exercise short buffers and oversized request rejection. Legacy calls without sizes retain caller responsibility; they cannot infer allocation sizes. Custom BER subclasses must implement the new capacity-aware virtual signatures.
 
@@ -98,3 +99,9 @@ See [embedded builds](../embedded/README.md) for real ESP8266, ESP32, ESP32-C3, 
 The native builds compile and link the library's `src/*.cpp` sources alongside the tests. `make check` also compiles each public header independently, verifies that matching custom settings link, and checks that inconsistent capacity or logging settings fail to link. These checks use Python 3 and the configured C++ compiler. They also cover the shared `SNMP_CONFIG_HEADER` option. The Arduino serial stub has one shared definition, so logging checks exercise calls from the compiled library.
 
 `make -C tests/native configuration` runs the configuration group against separately compiled library archives with smaller and larger limits; it is also part of `make check`. The cases exercise exact receive limits, oversized request rejection before transmission, pending-slot exhaustion/reuse, and octet/opaque/OID capacity boundaries. The normal suite runs these cases with the default settings. To select a standalone group, use `tests/native/build/tests --group Configuration`; an unknown or empty group fails.
+
+## Lifecycle and leak checks
+
+`make -C tests/native lifecycle` runs the shared ownership and response cases directly in one process, including allocation-failure recovery, repeated packet building, parser reuse, and destruction. It returns normally so destructors and exit-time leak checking can run; assertions or crashes fail the executable. A process timeout prevents a hang. This target is also part of `make check`.
+
+Run `make -C tests/native leaks` for explicit leak detection. On Linux it uses AddressSanitizer/UndefinedBehaviorSanitizer with LeakSanitizer enabled; CI runs this target on Ubuntu. On macOS it uses the system `leaks --atExit` tool with an unsanitized debug build. Tool failures and detected leaks fail the target. These checks cover the exercised lifecycles; they do not prove all allocation paths are leak-free.

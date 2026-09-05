@@ -2,6 +2,8 @@
 
 The original review covered the library headers, package metadata, README, and examples. The original failing regressions are now resolved and promoted to baseline. The sections below preserve historical findings and validation snapshots; later fix entries supersede their descriptions of failures.
 
+Current test layout: cases are now grouped by behavior in `cases/`, with shared fixtures and runners described in [README.md](README.md#source-organization). References below to `tests.cpp`, baseline/regression groups, and header-only implementations describe earlier snapshots. The current suite also checks configured limits at runtime and runs ownership/response cases in a separate lifecycle executable for leak detection.
+
 ## Current scope and remaining limitations
 
 All previously failing regression checks pass. The final validation covers native Make and PlatformIO, with and without ASan/UBSan. This is not a board-compatibility or complete protocol-conformance certification.
