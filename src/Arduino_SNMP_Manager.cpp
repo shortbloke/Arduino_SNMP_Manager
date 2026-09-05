@@ -130,6 +130,9 @@ bool SNMPManager::receivePacket(int packetLength)
     return parsePacket(len);
 }
 
+// The low-level API writes into caller-owned destinations. Unlike the friendly
+// client's owned results, each write must validate the registered type and buffer
+// bounds first; only successful writes advance the callback's freshness counter.
 bool SNMPManager::parsePacket(size_t length)
 {
     SNMPGetResponse *snmpgetresponse = new (std::nothrow) SNMPGetResponse();
@@ -202,6 +205,8 @@ bool SNMPManager::parsePacket(size_t length)
                         candidate->matches(snmpgetresponse->requestID, _udp, responseIP))
                         callback = candidate;
                 }
+                // Once this IP/OID has tracked registrations, do not route an
+                // unmatched late reply into an untracked registration instead.
                 if (!callback && !hasTracked)
                     callback = untracked;
                 if (!callback)
@@ -634,6 +639,8 @@ ValueCallback *SNMPManager::addOpaqueHandler(IPAddress ip, const char *oid, unsi
     return addBinaryHandler(OPAQUE, ip, oid, value, capacity, length);
 }
 
+// Adopt a caller-supplied callback only after list storage is available. On
+// failure the caller still owns it; registering the same pointer twice is a no-op.
 bool SNMPManager::addHandler(ValueCallback *callback)
 {
     if (!callback)

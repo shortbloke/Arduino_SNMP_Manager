@@ -73,6 +73,8 @@ bool SNMPGet::sendTo(IPAddress ip)
         return false;
     if (!_udp->endPacket())
         return false;
+    // Commit tracking only after the transport reports a complete send. Failed
+    // writes must not consume callback slots and block subsequent retry attempts.
     for (ValueCallbacks *entry = callbacks; entry && entry->value; entry = entry->next)
     {
         ValueCallback *callback = entry->value;
@@ -88,6 +90,9 @@ void SNMPGet::clearOIDList()
     callbacksCursor = callbacks;
 }
 
+// Cancellation applies to registrations currently in this builder. Clearing the
+// builder list alone cannot cancel them: a manager or another request can still
+// hold references to the same callbacks.
 void SNMPGet::cancelPendingRequests()
 {
     for (ValueCallbacks *entry = callbacks; entry && entry->value; entry = entry->next)

@@ -8,6 +8,9 @@ bool ValueCallback::canTrack(int32_t id, UDP *udp, IPAddress peer) const
     return false;
 }
 
+// Retrying the same request reuses its slot. Distinct outstanding requests need
+// distinct slots so a reply consumes its own request and a duplicate cannot
+// consume another outstanding request's slot.
 void ValueCallback::track(int32_t id, UDP *udp, IPAddress peer)
 {
     PendingRequest *slot = nullptr;
@@ -50,6 +53,8 @@ bool ValueCallback::consume(int32_t id, UDP *udp, IPAddress peer)
     return found;
 }
 
+// Cancellation clears pending work but deliberately leaves tracking enabled.
+// Otherwise a late reply could be accepted as an unsolicited legacy update.
 void ValueCallback::clearPendingRequests()
 {
     for (auto &entry : pending)
@@ -57,6 +62,8 @@ void ValueCallback::clearPendingRequests()
     requestPending = false;
 }
 
+// Unlink each successor before deleting it: recursive list destruction would
+// consume stack space proportional to the number of registered callbacks.
 ValueCallbackList::~ValueCallbackList()
 {
     while (next)

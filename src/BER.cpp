@@ -434,6 +434,9 @@ BER_LINKED_LIST::~BER_LINKED_LIST()
     value = 0;
 }
 
+// Treat every child length as untrusted and bound it by its parent, not merely
+// the outer packet. The depth limit prevents hostile nesting from exhausting the
+// small call stacks available on embedded boards.
 bool ComplexType::decode(unsigned char *buf, size_t available, unsigned int depth)
 {
     delete _values;
@@ -589,6 +592,9 @@ bool ComplexType::addValueToList(BER_CONTAINER *child)
     return true;
 }
 
+// Decode type/length/value framing without accessing bytes outside available.
+// SNMP accepts definite lengths (including nonminimal length-octet counts), but
+// indefinite lengths are rejected. Callers must still validate the value's type.
 bool readBERHeader(const unsigned char *buf, size_t available, size_t &header, size_t &length)
 {
     if (!buf || available < 2)

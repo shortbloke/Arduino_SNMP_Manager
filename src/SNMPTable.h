@@ -137,6 +137,9 @@ private:
     size_t columns_ = 0, count_ = 0, current_ = 0;
     SNMPStatus status_;
     bool completed_ = false, columnErrors_ = false, usingFallback_ = false;
+    // Join by the complete suffix after the column OID, not arrival position or
+    // the final number alone. Columns can be sparse and indices can contain several
+    // numbers. Missing cells must stay explicit rather than shifting into another row.
     static bool consume(const SNMPResult &value, void *context)
     {
         auto &table = *static_cast<SNMPTableRead *>(context);
@@ -158,6 +161,8 @@ private:
             ++table.count_;
         }
         auto &cell = table.rows_[row].cells[table.current_];
+        // A fallback column fills gaps only; do not replace a valid Counter64
+        // reading with a narrower Counter32 reading from a later request.
         if (table.usingFallback_ && cell.ok())
             return true;
         cell.value = value.value;
@@ -168,6 +173,9 @@ private:
             cell.status = SNMPStatus::TypeMismatch;
         return true;
     }
+    // Reuse one streaming walk for successive columns instead of reserving one
+    // operation per column. This bounds working memory, but means a table is not
+    // an atomic snapshot: the device can change between column reads.
     static void advance(SNMPOperation &operation, void *context)
     {
         auto &table = *static_cast<SNMPTableRead *>(context);

@@ -5,6 +5,9 @@
 
 namespace SNMPMIB
 {
+// A storage table reports block counts rather than bytes. Widen before multiplying
+// to support large filesystems; zero units mean no usable conversion, not an empty
+// disk. Validate before assigning so failed conversions preserve the caller's output.
 bool storageBytes(const SNMPValue &allocationUnits, const SNMPValue &blocks, uint64_t &bytes)
 {
     if (allocationUnits.type != INTEGER || blocks.type != INTEGER ||

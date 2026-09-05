@@ -4,8 +4,13 @@
 #include <cstdio>
 #include <limits.h>
 
+// The friendly API owns results and schedules work on one UDP (User Datagram
+// Protocol) transport. Encoding, reply routing, and notifications share a packet
+// buffer; user code must service the client from one task without reentering loop().
 namespace
 {
+// Parse a deliberately small IPv4 contract here rather than relying on board-core
+// parsers with different acceptance rules. Construction must not perform DNS lookups.
 bool parseAddress(const char *text, IPAddress &address)
 {
     if (!text)
@@ -145,6 +150,8 @@ int compareOID(const char *a, const char *b)
     return *a ? 1 : (*b ? -1 : 0);
 }
 
+// The decoder owns a temporary BER (Basic Encoding Rules) tree. Copy numeric data
+// or retain an owned payload before that tree is destroyed; never expose its pointers.
 SNMPStatus copyValue(BER_CONTAINER &source, SNMPValue &target)
 {
     target = SNMPValue();
@@ -242,6 +249,8 @@ SNMPValue::~SNMPValue()
 {
     release();
 }
+// Copies share immutable payload storage so snapshots survive later polls without
+// another allocation. The reference count is not atomic: callers must serialize access.
 SNMPValue::SNMPValue(const SNMPValue &other)
     : type(other.type), number(other.number), bytes(other.bytes), length(other.length),
       payload_(other.payload_)
@@ -264,6 +273,8 @@ SNMPValue &SNMPValue::operator=(const SNMPValue &other)
     }
     return *this;
 }
+// Allocate and copy before releasing the previous payload. This preserves the old
+// value on failure and permits data to point into this value's existing payload.
 SNMPStatus SNMPValue::setBytes(const unsigned char *data, size_t size, ASN_TYPE tag)
 {
     if ((tag != STRING && tag != OPAQUE && tag != OID && tag != NETWORK_ADDRESS) || (!data && size))
@@ -317,6 +328,8 @@ SNMPOperation::~SNMPOperation()
 {
     device_.client_.remove(*this);
 }
+// Validate/canonicalize the OID (numeric object identifier) before committing a slot.
+// A failed addition must not leave a partly configured query or discard prior results.
 SNMPStatus SNMPOperation::add(const char *oid, ASN_TYPE expected, const SNMPValue *value)
 {
     if (pending())
@@ -400,6 +413,9 @@ void SNMPOperation::cancel()
     if (pending())
         finish(SNMPStatus::Cancelled);
 }
+// Release the scheduler slot before notifying user code, allowing a completion
+// handler to start another operation. Pending cells inherit the terminal status;
+// already successful cells remain available when a later batch fails.
 void SNMPOperation::finish(SNMPStatus status)
 {
     for (size_t i = 0; i < count_; ++i)
@@ -428,6 +444,9 @@ SNMPStatus SNMPClient::begin(uint16_t port)
     begun_ = udp_.begin(port) != 0;
     return begun_ ? SNMPStatus::Success : SNMPStatus::TransportError;
 }
+// Admission is separate from transmission. Reject invalid or busy work before
+// touching its previous result, then reset state only after reserving a free slot.
+// This is why a failed start preserves the last sample while an accepted start does not.
 SNMPStatus SNMPClient::schedule(SNMPOperation &operation)
 {
     if (operation.pending())
@@ -483,6 +502,9 @@ void SNMPClient::remove(SNMPOperation &operation)
             slot = nullptr;
 }
 
+// Build directly into the shared buffer to avoid allocating an outgoing BER tree.
+// Reads can be batched; a SET (write) must remain one message because splitting it
+// could apply only part of the application's intended change.
 bool SNMPClient::send(SNMPOperation &op, uint32_t now)
 {
     // Reserve envelope space while filling the binding list.
@@ -624,6 +646,9 @@ void SNMPClient::receive()
             notify(size, peer, port);
         return;
     }
+    // A request ID alone is insufficient: independent peers or communities can use
+    // the same ID. Match the full expected reply context before changing any result.
+    // This client owns the transport, so no second consumer may read from that socket.
     for (auto *op : pending_)
     {
         if (!op || !op->sent_ || op->id_ != response.requestID || !(peer == op->device_.address_) ||
@@ -639,6 +664,8 @@ void SNMPClient::receive()
             op->finish(SNMPStatus::ProtocolError);
             return;
         }
+        // SNMPv1 reports a missing object as an error for the entire request. Retry
+        // individually so one absent object does not hide the other available values.
         if (!op->walking_ && op->mode_ == GetRequestPDU && response.errorStatus == 2 &&
             op->device_.version_ == SNMPVersion::Version1)
         {
@@ -697,6 +724,8 @@ void SNMPClient::receive()
                     op->finish(SNMPStatus::Success);
                     return;
                 }
+                // Numeric ordering prevents loops caused by an agent repeating
+                // an OID. The dot boundary below keeps root .1 from matching .10.
                 if (compareOID(name, op->cursor_) <= 0)
                 {
                     op->finish(SNMPStatus::ProtocolError);
@@ -797,6 +826,10 @@ void SNMPClient::loop()
 {
     loop(static_cast<uint32_t>(millis()));
 }
+// Cooperative progress: consume a reply, then advance or time out pending work.
+// Unsigned elapsed-time subtraction tolerates the board clock wrapping at 32 bits.
+// Keep the original walk deadline across retries and fallback to prevent an
+// unresponsive or endlessly advancing agent from holding a slot indefinitely.
 void SNMPClient::loop(uint32_t now)
 {
     if (!begun_)
@@ -960,6 +993,9 @@ void SNMPClient::notify(size_t size, IPAddress peer, uint16_t port)
             return;
         notification.uptime = uptime.value.unsigned32();
     }
+    // Acknowledge INFORM events only after application acceptance. A failed read,
+    // rejection, or failed send leaves recovery to the sender's retry policy. Reuse
+    // the decoded request so the response preserves its ID and variable bindings.
     if (!notificationHandler_(notification, notificationContext_) || !notification.inform)
         return;
     pdu->_type = GetResponsePDU;

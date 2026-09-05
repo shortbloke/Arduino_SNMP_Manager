@@ -31,6 +31,9 @@ static_assert(SNMP_VALUE_MAX_LENGTH > 0 && SNMP_VALUE_MAX_LENGTH <= 65535,
 #endif
 static_assert(SNMP_MAX_PENDING_REQUESTS > 0, "At least one pending request slot is required");
 
+// Capacity macros affect object layouts as well as parsing limits. Every source
+// file must see the same settings, including separately compiled library sources;
+// a sketch-local define cannot safely change an already compiled library.
 namespace snmp_detail
 {
 #ifdef DEBUG

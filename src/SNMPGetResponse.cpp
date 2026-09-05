@@ -24,6 +24,10 @@ bool snmp_detail::isValidBindingType(ASN_TYPE type, bool version2)
     }
 }
 
+// This parser validates message structure and supported SNMP value combinations.
+// It does not decide which outstanding request owns the reply; managers/clients
+// perform that correlation before exposing or writing values. Reuse clears the
+// previous tree, so borrowed fields from an earlier parse must not be retained.
 bool SNMPGetResponse::parseFrom(unsigned char *buf, size_t available)
 {
     delete varBinds;
