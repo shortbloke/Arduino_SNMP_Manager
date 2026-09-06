@@ -1,7 +1,7 @@
 {
   "name": "SNMP Manager",
   "version": "1.2.1",
-  "description": "An SNMP Manager library to make SNMP requests to other SNMP enabled devices. Supporting SNMPv1 and SNMPv2c, SNMP requests can be sent (GetRequest) and their responses received (GetResponse) for various SNMP data types.",
+  "description": "An SNMP Manager library to make SNMP requests to other SNMP enabled devices. Supporting SNMPv1 and SNMPv2c, SNMP requests can be sent (GetRequest) and their responses received (GetResponse) for various SNMP data types. Use 2.x for new projects. Existing 1.x sketches should select the latest 1.x release; 1.x remains maintained. Migrating to 2.x requires code changes.",
   "repository": {
     "type": "git",
     "url": "https://github.com/shortbloke/Arduino_SNMP_Manager.git"

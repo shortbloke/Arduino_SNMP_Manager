@@ -1,0 +1,117 @@
+name: Publish PlatformIO package
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Existing release version to publish (for example 1.2.1, without v)'
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      expected_commit:
+        description: 'Validated commit that the release tag must identify'
+        required: false
+        default: ''
+        type: string
+    secrets:
+      PLATFORMIO_AUTH_TOKEN:
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: platformio-publish-${{ inputs.version }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+      PLATFORMIO_SETTING_ENABLE_CACHE: 'false'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Validate version input
+        run: |
+          python3 -c 'import os; from scripts.release import parts; assert parts(os.environ["VERSION"])[0] in (1, 2)'
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: refs/tags/v${{ inputs.version }}
+          path: release-source
+          persist-credentials: false
+      - name: Verify tagged release
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          if [ -n "$EXPECTED_COMMIT" ]; then
+            test "$(git -C release-source rev-parse HEAD)" = "$EXPECTED_COMMIT"
+          fi
+          python3 - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          from scripts.release import current, notes
+          root = Path("release-source")
+          assert current(root) == os.environ["VERSION"], "Tag and manifest versions differ"
+          assert json.loads((root / "library.json").read_text())["name"] == "SNMP Manager"
+          assert "name=SNMP Manager" in (root / "library.properties").read_text().splitlines()
+          notes(root, os.environ["VERSION"])
+          PYCODE
+      - run: pip install platformio==6.1.19
+      - name: Verify PlatformIO publishing access
+        env:
+          PLATFORMIO_AUTH_TOKEN: ${{ secrets.PLATFORMIO_AUTH_TOKEN }}
+        run: |
+          if [ -z "$PLATFORMIO_AUTH_TOKEN" ]; then
+            echo 'Set the PLATFORMIO_AUTH_TOKEN repository Actions secret.' >&2
+            exit 1
+          fi
+          pio account show > "$RUNNER_TEMP/platformio-account.txt"
+          pio access list --json-output > "$RUNNER_TEMP/platformio-access.json"
+          python3 - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          entries = json.loads((Path(os.environ["RUNNER_TEMP"]) / "platformio-access.json").read_text())
+          assert any(
+              entry["owner"] == "shortbloke"
+              and entry["name"] == "SNMP Manager"
+              and set(entry["access_levels"]) & {"admin", "write"}
+              for entry in entries
+          ), "Token lacks publishing access to shortbloke/SNMP Manager"
+          print("PlatformIO token authenticated and has publishing access to shortbloke/SNMP Manager")
+          PYCODE
+      - name: Pack tagged sources
+        run: pio pkg pack release-source --output "$RUNNER_TEMP/snmp-manager.tar.gz"
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: platformio-${{ inputs.version }}
+          path: ${{ runner.temp }}/snmp-manager.tar.gz
+          retention-days: 7
+      - name: Publish missing version
+        env:
+          PLATFORMIO_AUTH_TOKEN: ${{ secrets.PLATFORMIO_AUTH_TOKEN }}
+        run: |
+          if pio pkg show --type library "shortbloke/SNMP Manager@$VERSION"; then
+            echo "Version already available; leaving the published package unchanged."
+          else
+            if [ -z "$PLATFORMIO_AUTH_TOKEN" ]; then
+              echo 'Set the PLATFORMIO_AUTH_TOKEN repository Actions secret for an account allowed to publish as shortbloke.' >&2
+              exit 1
+            fi
+            pio pkg publish "$RUNNER_TEMP/snmp-manager.tar.gz" --owner shortbloke --type library --no-interactive
+          fi
+      - name: Verify registry availability
+        run: |
+          for attempt in {1..10}; do
+            if pio pkg show --type library "shortbloke/SNMP Manager@$VERSION"; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 10 ]; then sleep 30; fi
+          done
+          echo 'Package is not yet visible. Check processing status, then rerun Publish PlatformIO package with this version.' >&2
+          exit 1
