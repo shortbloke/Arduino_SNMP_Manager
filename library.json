@@ -1,6 +1,6 @@
 {
   "name": "SNMP Manager",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0",
   "description": "A bounded SNMPv1/SNMPv2c manager for ESP8266 and ESP32 with typed queries, GETNEXT/GETBULK walks, tables, SET, and notification reception.",
   "repository": {
     "type": "git",

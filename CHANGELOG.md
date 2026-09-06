@@ -6,9 +6,9 @@ This file records the 2.x release line. The maintained
 [1.x changelog](https://github.com/shortbloke/Arduino_SNMP_Manager/blob/release/1.x/CHANGELOG.md)
 contains the earlier releases and ongoing backward-compatible fixes.
 
-## 2.0.0-alpha.1
+## 2.0.0
 
-First preview of the 2.x API (unpublished draft). Existing 1.x projects should read the
+First stable release of the 2.x API. Existing 1.x projects should read the
 [migration guide](MIGRATION.md) before upgrading.
 
 ### Friendly query API
@@ -64,7 +64,7 @@ First preview of the 2.x API (unpublished draft). Existing 1.x projects should r
 - Build examples and library configurations for the supported ESP targets, and
   validate wire interoperability against Net-SNMP.
 - Retain historical D1 Mini read/walk and burst-test evidence; those runs do not
-  certify this preview on every board or agent.
+  certify this release on every board or agent.
 - Automate release preparation PRs and checked publication for both major lines.
 - Gate CI and releases with workflow/shell, Python, and Arduino packaging lint checks.
 

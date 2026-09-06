@@ -30,19 +30,17 @@ do not expose the device's SNMP service to the Internet.
 
 ## Install the matching library
 
-These examples use **2.x**. The current 2.x preview is an unpublished draft; installing
-stable 1.x from Library Manager will not provide `SNMPClient.h`.
+These examples require **2.0.0 or later**. In Arduino IDE, open **Tools > Manage
+Libraries**, search for **SNMP Manager**, and select version **2.0.0** (or a later
+compatible 2.x release). Installing 1.x will not provide `SNMPClient.h`.
 
-To try the preview, download the [2.x source ZIP](https://github.com/shortbloke/Arduino_SNMP_Manager/archive/refs/heads/main.zip)
-and use Arduino IDE's **Sketch > Include Library > Add .ZIP Library**. Avoid keeping
-another copy of SNMP Manager in the same library search path. The `main` download
-changes as development continues; record the commit you tested when reporting a
-problem. For an existing PlatformIO project, the repository's example compile
-projects show how to use a local checkout as a library dependency.
+New releases can take time to appear in Arduino's community index. If 2.0.0 is not
+listed yet, download the [v2.0.0 source ZIP](https://github.com/shortbloke/Arduino_SNMP_Manager/archive/refs/tags/v2.0.0.zip)
+and use **Sketch > Include Library > Add .ZIP Library**. Avoid keeping another copy
+of SNMP Manager in the same library search path.
 
-Once 2.x is published and indexed, select its version explicitly in Library Manager.
-For stable 1.x projects and reproducible dependency settings, see
-[version selection](../README.md#pin-your-projects-library-version).
+For PlatformIO, exact Git-tag installation and keeping existing projects on 1.x,
+see [version selection](../README.md#pin-your-projects-library-version).
 
 ## Run one read before trying a whole table
 
