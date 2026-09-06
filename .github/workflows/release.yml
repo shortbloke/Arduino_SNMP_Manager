@@ -48,3 +48,10 @@ jobs:
             1.*) gh release create "v$VERSION" --verify-tag --title "v$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" --latest=false ;;
             2.*) gh release create "v$VERSION" --verify-tag --title "v$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" --latest ;;
           esac
+  platformio:
+    needs: publish
+    uses: ./.github/workflows/publish-platformio.yml
+    with:
+      version: ${{ inputs.version }}
+      expected_commit: ${{ github.sha }}
+    secrets: inherit

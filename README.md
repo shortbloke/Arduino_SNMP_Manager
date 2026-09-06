@@ -8,6 +8,26 @@ and requires changes to existing 1.x sketches. Stable 1.x releases remain suppor
 [`release/1.x`](https://github.com/shortbloke/Arduino_SNMP_Manager/tree/release/1.x).
 Read [MIGRATION.md](MIGRATION.md) before moving an existing sketch to 2.x.
 
+## Choose your version
+
+| Your project | Library version | Documentation | PlatformIO dependency |
+| --- | --- | --- | --- |
+| New project | 2.x | [2.x getting started](https://github.com/shortbloke/Arduino_SNMP_Manager/blob/main/docs/GETTING_STARTED.md) | `shortbloke/SNMP Manager@^2.0.0` |
+| Existing 1.x sketch | Maintained 1.x | [1.x documentation](https://github.com/shortbloke/Arduino_SNMP_Manager/tree/release/1.x) | `shortbloke/SNMP Manager@^1.2.1` |
+
+In Arduino Library Manager, search for **SNMP Manager** and select a **1.x** or
+**2.x** version before installing. The default is the latest version; review
+upgrade prompts to keep existing sketches on 1.x. In PlatformIO, find
+[shortbloke/SNMP Manager](https://registry.platformio.org/libraries/shortbloke/SNMP%20Manager)
+and select the required version when adding it to a project, then keep the
+appropriate `lib_deps` constraint above.
+
+Both lines use the same library listing. If a release is still awaiting registry
+publication, use its [exact Git tag](#optional-source-installation).
+Read the [migration guide](https://github.com/shortbloke/Arduino_SNMP_Manager/blob/main/MIGRATION.md)
+before changing an existing sketch to 2.x. Library versions 1.x/2.x are separate
+from the SNMP protocol versions v1/v2c.
+
 ## Is this library for me?
 
 Use an ESP8266 or ESP32 to read information from a router, switch, access point,
@@ -120,7 +140,7 @@ suits your project:
 | Remain on 2.x | `shortbloke/SNMP Manager@^2.0.0` | At least 2.0.0, below 3.0.0 |
 
 Constraints only work for versions published in the PlatformIO Registry, which is
-separate from Arduino's community index. Check that 2.0.0 is available in that registry before using the 2.x constraint;
+separate from Arduino's community index. Check that your requested version is available in that registry before using its constraint;
 otherwise use the exact Git tag below. Migrate existing 1.x code first. See
 [PlatformIO dependency configuration](https://docs.platformio.org/en/latest/projectconf/sections/env/options/library/lib_deps.html).
 

@@ -1,7 +1,7 @@
 {
   "name": "SNMP Manager",
   "version": "2.0.0",
-  "description": "A bounded SNMPv1/SNMPv2c manager for ESP8266 and ESP32 with typed queries, GETNEXT/GETBULK walks, tables, SET, and notification reception.",
+  "description": "A bounded SNMPv1/SNMPv2c manager for ESP8266 and ESP32 with typed queries, GETNEXT/GETBULK walks, tables, SET, and notification reception. Use 2.x for new projects. Existing 1.x sketches should select the latest 1.x release; 1.x remains maintained. Migrating to 2.x requires code changes.",
   "repository": {
     "type": "git",
     "url": "https://github.com/shortbloke/Arduino_SNMP_Manager.git"
