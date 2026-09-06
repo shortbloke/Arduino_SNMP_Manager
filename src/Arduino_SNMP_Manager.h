@@ -32,7 +32,7 @@ public:
      */
     SNMPManager(const char *community) : _community(community ? community : "public") {};
     /**
-     * @brief Release registrations and stop the configured UDP transport; does not delete UDP.
+     * @brief Release registration references; does not stop or delete the borrowed UDP transport.
      */
     ~SNMPManager();
     SNMPManager(const SNMPManager &) = delete;
@@ -187,9 +187,11 @@ public:
     ValueCallback *addGaugeHandler(IPAddress ip, const char *oid, uint32_t *value);
 
     /**
-     * @brief Replace the transport and attempt begin(); clear pending state when changing sockets.
+     * @brief Stop the previous transport, select the supplied transport, and attempt begin().
      * @param udp Borrowed transport that must outlive the manager; null detaches it.
-     * @note Returns no value; call begin() to check binding success. Stops the previous transport.
+     * @note Returns no value; call begin() to check binding success. Even the same transport is
+     * stopped and rebound. Pending callback slots are preserved; cancel obsolete requests
+     * explicitly before changing transports.
      */
     void setUDP(UDP *udp);
     /**

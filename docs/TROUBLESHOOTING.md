@@ -107,7 +107,7 @@ flags, then rebuild and upload. Do not put a sketch-only `#define` before an inc
 The defaults are 512 packet bytes on ESP8266 and 1500 on ESP32; this example adds
 988 buffer bytes on ESP8266. Temporary decoding and retained results need heap too.
 See [build configuration](../MIGRATION.md#compile-and-link-the-implementation-files)
-for shared headers and Arduino CLI settings.
+for shared headers and consistent application/library build settings.
 
 ## What should I do with an error?
 

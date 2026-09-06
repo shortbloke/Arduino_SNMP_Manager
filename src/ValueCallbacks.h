@@ -23,8 +23,8 @@ public:
     }
     /**
      * @return Wrapping unsigned count of successful destination writes, including unchanged values.
-     * @note Compare to a saved count for freshness; rejected values and duplicate replies do not
-     * advance it.
+     * @note Compare to a saved count for freshness; rejected values and tracked duplicate replies
+     * do not advance it.
      */
     uint32_t updateCount() const
     {
@@ -120,9 +120,9 @@ public:
     // Explicitly abandon lost/timed-out requests; tracked callbacks still reject unsolicited
     // replies.
     /**
-     * @brief Abandon all active slots while keeping strict tracking enabled.
-     * @note Late replies remain rejected. Shared users of this registration are affected; returns
-     * no value.
+     * @brief Abandon all active slots without changing whether strict tracking has been enabled.
+     * @note Previously tracked registrations still reject late replies. Shared users are affected;
+     * returns no value.
      */
     void clearPendingRequests();
 };
