@@ -3,3 +3,12 @@
 #define TEST_AGENT "192.168.1.10"
 #define TEST_COMMUNITY "public"
 #define TEST_PORT 161
+
+// Optional named targets for the d1_mini_windows and d1_mini_ubuntu profiles.
+// Keep the generic TEST_AGENT settings above for the original d1_mini profile.
+#define TEST_WINDOWS_AGENT "192.168.1.200"
+#define TEST_WINDOWS_COMMUNITY "public"
+#define TEST_WINDOWS_PORT 161
+#define TEST_UBUNTU_AGENT "192.168.1.201"
+#define TEST_UBUNTU_COMMUNITY "public"
+#define TEST_UBUNTU_PORT 161

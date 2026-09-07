@@ -4,7 +4,7 @@ from check_log import check
 
 
 def good_log():
-    lines = []
+    lines = ["ERRORCHECK version=1 missing=Missing", "ERRORCHECK version=2 missing=Handled"]
     for cycle in range(50):
         for stage in range(4):
             lines += [

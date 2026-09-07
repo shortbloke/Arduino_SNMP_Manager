@@ -13,6 +13,7 @@ def check(text):
     samples = []
     cycle = None
     done = None
+    error_checks = set()
     for line in text.splitlines():
         if re.search(r"\bFAIL\b|wdt reset|Exception \(", line):
             raise ValueError("Failure/reset in serial log: " + line)
@@ -32,6 +33,9 @@ def check(text):
             if key in results or result[3] != "Success":
                 raise ValueError("Duplicate or unsuccessful stage: " + line)
             results[key] = result[3]
+        error_check = re.fullmatch(r"ERRORCHECK version=1 missing=Missing|ERRORCHECK version=2 missing=Handled", line)
+        if error_check:
+            error_checks.add(1 if "version=1" in line else 2)
         oid = re.fullmatch(r"OID version=([12]) (\.[0-9.]+)", line)
         if oid:
             if cycle is None:
@@ -44,6 +48,8 @@ def check(text):
             if done is not None or int(ending[2]):
                 raise ValueError("Duplicate completion or reported failures")
             done = int(ending[1])
+    if error_checks != {1, 2}:
+        raise ValueError("Missing v1/v2 missing-object error checks")
     if done != 50 or len(results) != done * 4:
         raise ValueError("Missing complete 50-cycle run")
     for number in range(done):

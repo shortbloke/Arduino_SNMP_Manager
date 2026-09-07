@@ -17,11 +17,37 @@
 #define TEST_PORT 161
 #endif
 
+// Named test profiles use different agents while keeping Wi-Fi credentials in
+// the ignored hardware_config.h file. The base d1_mini profile remains backward
+// compatible with TEST_AGENT/TEST_COMMUNITY/TEST_PORT.
+#if defined(TEST_TARGET_WINDOWS) && defined(TEST_WINDOWS_AGENT) && defined(TEST_WINDOWS_COMMUNITY)
+#define ACTIVE_TEST_AGENT TEST_WINDOWS_AGENT
+#define ACTIVE_TEST_COMMUNITY TEST_WINDOWS_COMMUNITY
+#if defined(TEST_WINDOWS_PORT)
+#define ACTIVE_TEST_PORT TEST_WINDOWS_PORT
+#else
+#define ACTIVE_TEST_PORT 161
+#endif
+#elif defined(TEST_TARGET_UBUNTU) && defined(TEST_UBUNTU_AGENT) && defined(TEST_UBUNTU_COMMUNITY)
+#define ACTIVE_TEST_AGENT TEST_UBUNTU_AGENT
+#define ACTIVE_TEST_COMMUNITY TEST_UBUNTU_COMMUNITY
+#if defined(TEST_UBUNTU_PORT)
+#define ACTIVE_TEST_PORT TEST_UBUNTU_PORT
+#else
+#define ACTIVE_TEST_PORT 161
+#endif
+#else
+#define ACTIVE_TEST_AGENT TEST_AGENT
+#define ACTIVE_TEST_COMMUNITY TEST_COMMUNITY
+#define ACTIVE_TEST_PORT TEST_PORT
+#endif
+
 WiFiUDP udp;
 SNMPClient client(udp);
-SNMPDevice v1(client, TEST_AGENT, TEST_COMMUNITY, SNMPVersion::Version1);
-SNMPDevice v2(client, TEST_AGENT, TEST_COMMUNITY, SNMPVersion::Version2c);
+SNMPDevice v1(client, ACTIVE_TEST_AGENT, ACTIVE_TEST_COMMUNITY, SNMPVersion::Version1);
+SNMPDevice v2(client, ACTIVE_TEST_AGENT, ACTIVE_TEST_COMMUNITY, SNMPVersion::Version2c);
 SNMPQuery<2> get1(v1), get2(v2);
+SNMPQuery<1> missing1(v1), missing2(v2);
 SNMPWalk<1> nextWalk(v1), bulkWalk(v2);
 SNMPOperation *operations[] = {&get1, &get2, &nextWalk, &bulkWalk};
 unsigned stage = 0, cycles = 0, failures = 0;
@@ -60,16 +86,18 @@ bool collect(const SNMPResult &result, void *context)
     return true;
 }
 unsigned nextIndex = 0, bulkIndex = 1;
+unsigned errorStage = 0;
 void setup()
 {
     Serial.begin(115200);
+    Serial.println("START hardware SNMP test");
     if (!TEST_SSID[0])
     {
         Serial.println("Configure hardware_config.h before running this test");
         return;
     }
-    v1.port = TEST_PORT;
-    v2.port = TEST_PORT;
+    v1.port = ACTIVE_TEST_PORT;
+    v2.port = ACTIVE_TEST_PORT;
     WiFi.begin(TEST_SSID, TEST_PASSWORD);
     const uint32_t started = millis();
     while (WiFi.status() != WL_CONNECTED && uint32_t(millis() - started) < 30000)
@@ -79,6 +107,7 @@ void setup()
         Serial.println("FAIL Wi-Fi connection");
         return;
     }
+    Serial.println("WIFI connected");
 #if defined(ESP8266)
     Serial.printf("BOARD core=%s sdk=%s cpuMHz=%u flashBytes=%u rssi=%d\n",
                   ESP.getCoreVersion().c_str(), ESP.getSdkVersion(),
@@ -101,8 +130,14 @@ void setup()
         status = nextWalk.stream(collect, &nextIndex);
     if (status.ok())
         status = bulkWalk.stream(collect, &bulkIndex);
+    // Both protocol versions must turn an absent object into an explicit
+    // Missing result; neither request writes to the agent.
     if (status.ok())
-        status = get1.start();
+        status = missing1.addOID(".1.3.6.1.2.1.1.999.0", INTEGER);
+    if (status.ok())
+        status = missing2.addOID(".1.3.6.1.2.1.1.999.0", INTEGER);
+    if (status.ok())
+        status = missing1.start();
     running = status.ok();
     if (!running)
         Serial.printf("FAIL setup: %s\n", status.message());
@@ -117,6 +152,55 @@ void loop()
         return;
     }
     client.loop();
+    if (errorStage == 0)
+    {
+        if (!missing1.takeCompleted())
+        {
+            delay(1);
+            return;
+        }
+        if (missing1.status().code() != SNMPStatus::Missing || missing1[0].status.code() != SNMPStatus::Missing)
+        {
+            Serial.printf("FAIL v1 missing-object status=%s\n", missing1.status().message());
+            running = false;
+            return;
+        }
+        Serial.println("ERRORCHECK version=1 missing=Missing");
+        const auto status = missing2.start();
+        if (!status.ok())
+        {
+            Serial.printf("FAIL v2 missing-object start=%s\n", status.message());
+            running = false;
+        }
+        errorStage = 1;
+        return;
+    }
+    if (errorStage == 1)
+    {
+        if (!missing2.takeCompleted())
+        {
+            delay(1);
+            return;
+        }
+        const bool missingHandled = missing2.status().code() == SNMPStatus::Missing ||
+                                    (missing2.status().code() == SNMPStatus::ProtocolError &&
+                                     missing2.agentError() == 2);
+        if (!missingHandled || missing2[0].ok())
+        {
+            Serial.printf("FAIL v2 missing-object status=%s\n", missing2.status().message());
+            running = false;
+            return;
+        }
+        Serial.println("ERRORCHECK version=2 missing=Handled");
+        const auto status = get1.start();
+        if (!status.ok())
+        {
+            Serial.printf("FAIL first read start=%s\n", status.message());
+            running = false;
+        }
+        errorStage = 2;
+        return;
+    }
     auto &operation = *operations[stage];
     if (!operation.takeCompleted())
     {
